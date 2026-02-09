@@ -15,13 +15,70 @@ function mapLectureFromApi(data: Record<string, unknown>): Lecture {
     trackId: data.track_id != null ? String(data.track_id) : undefined,
     content: data.content != null ? String(data.content) : undefined,
     blocks: Array.isArray(data.blocks) ? (data.blocks as Lecture["blocks"]) : undefined,
+    visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
+    canEdit: Boolean(data.can_edit),
   };
+}
+
+export interface BlockProgressItem {
+  status: "completed" | "started" | null;
+  correct_ids: string[] | null;
+}
+
+export async function fetchLectureQuestionBlocksProgress(
+  lectureId: string
+): Promise<Record<string, BlockProgressItem>> {
+  if (!hasApi()) return {};
+  try {
+    const res = await apiFetch(`/api/lectures/${lectureId}/question-blocks-progress/`);
+    if (!res.ok) return {};
+    const data = (await res.json()) as { blocks?: Record<string, { status?: string; correct_ids?: string[] }> };
+    const raw = data.blocks ?? {};
+    const result: Record<string, BlockProgressItem> = {};
+    for (const [bid, v] of Object.entries(raw)) {
+      const item = v as { status?: string; correct_ids?: string[] };
+      result[bid] = {
+        status: (item.status as "completed" | "started") ?? null,
+        correct_ids: item.correct_ids ?? null,
+      };
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+export async function checkLectureBlockAnswer(
+  lectureId: string,
+  blockId: string,
+  selected: string[]
+): Promise<{ passed: boolean; message: string }> {
+  if (!hasApi()) throw new Error("API not configured");
+  const res = await apiFetch(`/api/lectures/${lectureId}/check_block_answer/`, {
+    method: "POST",
+    body: { block_id: blockId, selected },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка проверки");
+  }
+  const data = await res.json();
+  return { passed: Boolean(data.passed), message: String(data.message ?? "") };
+}
+
+export async function markLectureViewed(lectureId: string): Promise<void> {
+  if (!hasApi()) return;
+  try {
+    await apiFetch(`/api/lectures/${lectureId}/mark_viewed/`, { method: "POST" });
+  } catch {
+    // ignore
+  }
 }
 
 export async function fetchLectureById(id: string): Promise<Lecture | null> {
   if (hasApi()) {
     try {
-      const res = await apiFetch(`/api/lectures/${id}/`);
+      const res = await apiFetch(`/api/lectures/${id}/`, { cache: "no-store" });
       if (!res.ok) return fetchLectureByIdStub(id);
       const data = await res.json();
       return mapLectureFromApi(data);
@@ -30,6 +87,35 @@ export async function fetchLectureById(id: string): Promise<Lecture | null> {
     }
   }
   return fetchLectureByIdStub(id);
+}
+
+export async function updateLecture(
+  id: string,
+  data: Partial<Pick<Lecture, "title" | "trackId" | "content" | "blocks" | "visibleGroupIds">>
+): Promise<Lecture> {
+  if (hasApi()) {
+    try {
+      const res = await apiFetch(`/api/lectures/${id}/`, {
+        method: "PATCH",
+        body: {
+          ...(data.title != null && { title: data.title }),
+          ...(data.trackId != null && { track_id: data.trackId }),
+          ...(data.content != null && { content: data.content }),
+          ...(data.blocks != null && { blocks: data.blocks }),
+          ...(data.visibleGroupIds != null && { visible_group_ids: data.visibleGroupIds }),
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка обновления лекции");
+      }
+      const updated = await res.json();
+      return mapLectureFromApi(updated);
+    } catch (e) {
+      throw e;
+    }
+  }
+  throw new Error("API not configured");
 }
 
 export async function createLecture(data: Omit<Lecture, "id">): Promise<Lecture> {
@@ -42,6 +128,7 @@ export async function createLecture(data: Omit<Lecture, "id">): Promise<Lecture>
           track_id: data.trackId ?? null,
           content: data.content ?? "",
           blocks: data.blocks ?? [],
+          visible_group_ids: data.visibleGroupIds ?? [],
         },
       });
       if (!res.ok) {

@@ -10,7 +10,7 @@ export interface User {
 /** Статус задания в треке для текущего пользователя */
 export type LessonProgressStatus = "completed" | "started" | "not_started";
 
-/** Прогресс по треку: для каждого task id — статус (лекции не учитываются) */
+/** Прогресс по треку: lesson_id -> статус (task, puzzle, question) */
 export type TrackProgress = Record<string, LessonProgressStatus>;
 
 export interface Track {
@@ -21,6 +21,8 @@ export interface Track {
   order: number;
   /** Приходит с бэкенда при GET track по id (если пользователь авторизован) */
   progress?: TrackProgress;
+  /** Группы, которым доступен трек. Пустой массив — доступен всем. */
+  visibleGroupIds?: string[];
 }
 
 export interface LessonRef {
@@ -28,21 +30,57 @@ export interface LessonRef {
   type: "lecture" | "task" | "puzzle" | "question";
   title: string;
   order: number;
+  /** Повышенная сложность (со звёздочкой) */
+  hard?: boolean;
 }
 
-/** Блок лекции: текст (с форматированием), изображение или код с пояснением и запуском */
+/** Вопрос на таймкоде видео */
+export interface VideoPauseQuestion {
+  id: string;
+  title: string;
+  prompt: string;
+  choices: { id: string; text: string; is_correct?: boolean }[];
+  multiple: boolean;
+}
+
+/** Точка паузы в видео */
+export interface VideoPausePoint {
+  id: string;
+  timestamp: number; // секунды
+  question: VideoPauseQuestion;
+}
+
+/** Блок лекции: текст, изображение, код, вопрос или видео */
 export type LectureBlock =
   | { type: "text"; content: string }
   | { type: "image"; url: string; alt?: string }
-  | { type: "code"; explanation: string; code: string; language?: string };
+  | { type: "code"; explanation: string; code: string; language?: string; stdin?: string }
+  | {
+      type: "question";
+      id: string;
+      title: string;
+      prompt: string;
+      choices: { id: string; text: string }[];
+      multiple: boolean;
+    }
+  | {
+      type: "video";
+      id: string;
+      url: string;
+      pause_points?: VideoPausePoint[];
+    };
 
 export interface Lecture {
   id: string;
   title: string;
-  /** Новый формат: массив блоков. Для старых лекций может быть content. */
+  /** Новый формат: массив блоков. Вопросы — inline как блоки. */
   blocks?: LectureBlock[];
   content?: string;
   trackId?: string;
+  /** Группы, которым доступна лекция. Пустой массив — доступна всем. */
+  visibleGroupIds?: string[];
+  /** Может ли текущий пользователь редактировать (создатель или superuser) */
+  canEdit?: boolean;
 }
 
 export interface Task {
@@ -52,6 +90,10 @@ export interface Task {
   starterCode: string;
   testCases: TestCase[];
   trackId?: string;
+  /** Повышенная сложность (со звёздочкой) */
+  hard?: boolean;
+  /** Группы, которым доступна задача. Пустой массив — доступна всем. */
+  visibleGroupIds?: string[];
 }
 
 export interface TestCase {
@@ -90,6 +132,8 @@ export interface Puzzle {
   trackId?: string;
   blocks: PuzzleBlock[];
   solution: string;
+  /** Группы, которым доступен puzzle. Пустой массив — доступен всем. */
+  visibleGroupIds?: string[];
 }
 
 export interface PuzzleCheckResult {
@@ -97,7 +141,7 @@ export interface PuzzleCheckResult {
   message: string;
 }
 
-// Вопросы (множественный/одиночный выбор)
+// Вопросы (отдельные сущности в треке — множественный/одиночный выбор)
 export interface QuestionChoice {
   id: string;
   text: string;

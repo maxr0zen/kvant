@@ -32,6 +32,8 @@ function handle401(): void {
 export interface ApiFetchOptions extends Omit<RequestInit, "body"> {
   body?: Record<string, unknown> | string;
   skipAuth?: boolean;
+  /** Токен для SSR (когда localStorage недоступен) */
+  token?: string | null;
 }
 
 /**
@@ -39,7 +41,7 @@ export interface ApiFetchOptions extends Omit<RequestInit, "body"> {
  * При 401 вызывает очистку токена/роли и опциональный callback (редирект на /login).
  */
 export async function apiFetch(path: string, options: ApiFetchOptions = {}): Promise<Response> {
-  const { body, skipAuth = false, headers: optHeaders = {}, ...rest } = options;
+  const { body, skipAuth = false, token: optToken, headers: optHeaders = {}, ...rest } = options;
   const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: HeadersInit = {
     ...(optHeaders as Record<string, string>),
@@ -47,11 +49,11 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
-  if (!skipAuth && typeof window !== "undefined") {
-    const token = getStoredToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+  const token = optToken ?? (typeof window !== "undefined" ? getStoredToken() : null);
+  if (skipAuth) {
+    delete (headers as Record<string, string>)["Authorization"];
+  } else if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
   const res = await fetch(url, {
     ...rest,

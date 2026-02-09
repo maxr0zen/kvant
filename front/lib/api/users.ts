@@ -70,6 +70,18 @@ export async function createUser(payload: CreateUserPayload): Promise<UserListIt
   return res.json();
 }
 
+export async function resetStudentPassword(userId: string): Promise<{ username: string; password: string }> {
+  const res = await apiFetch(`/api/auth/users/${userId}/reset-password/`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const msg = err.detail ?? "Ошибка сброса пароля";
+    throw new Error(typeof msg === "string" ? msg : "Ошибка сброса пароля");
+  }
+  return res.json();
+}
+
 export async function updateUser(id: string, payload: UpdateUserPayload): Promise<UserListItem> {
   const res = await apiFetch(`/api/auth/users/${id}/`, {
     method: "PATCH",

@@ -10,17 +10,20 @@ interface BlockViewCodeProps {
   block: Extract<LectureBlock, { type: "code" }>;
 }
 
+const hasInput = (code: string) => /input\s*\(/.test(code);
+
 export function BlockViewCode({ block }: BlockViewCodeProps) {
   const [output, setOutput] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [stdin, setStdin] = useState(block.stdin ?? "");
 
   async function handleRun() {
     setRunning(true);
     setOutput(null);
     try {
       setLoading(true);
-      const result = await runPythonInBrowser(block.code || "", "");
+      const result = await runPythonInBrowser(block.code || "", stdin);
       setLoading(false);
       const text = result.error
         ? `Ошибка: ${result.error}`
@@ -37,13 +40,27 @@ export function BlockViewCode({ block }: BlockViewCodeProps) {
   }
 
   return (
-    <div className="my-6 space-y-3 rounded-lg border bg-card overflow-hidden">
+    <div className="space-y-3 rounded-xl border border-border/80 bg-card overflow-hidden shadow-sm">
       {block.explanation?.trim() && (
         <div className="p-4 pb-0">
           <p className="text-sm text-muted-foreground">{block.explanation}</p>
         </div>
       )}
       <div className="rounded-b-lg border-t bg-muted/30">
+        {hasInput(block.code || "") && (
+          <div className="border-b bg-muted/40 px-3 py-2">
+            <label className="text-xs font-medium text-muted-foreground block mb-1">
+              Ввод для input():
+            </label>
+            <input
+              type="text"
+              value={stdin}
+              onChange={(e) => setStdin(e.target.value)}
+              placeholder="Введите данные..."
+              className="w-full rounded border bg-background px-2 py-1.5 text-sm font-mono"
+            />
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2 border-b bg-muted/50 px-3 py-2">
           <span className="text-xs font-medium text-muted-foreground">
             {block.language ?? "Python"}

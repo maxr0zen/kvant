@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     "apps.tasks",
     "apps.submissions",
     "apps.puzzles",
+    "apps.questions",
+    "apps.achievements",
 ]
 
 MIDDLEWARE = [

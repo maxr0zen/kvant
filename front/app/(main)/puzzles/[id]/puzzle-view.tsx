@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ interface PuzzleViewProps {
 }
 
 export function PuzzleView({ puzzle }: PuzzleViewProps) {
+  const router = useRouter();
   const [blocks, setBlocks] = useState<PuzzleBlock[]>([]);
   const [result, setResult] = useState<PuzzleCheckResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -111,7 +113,9 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
       }
       const res = await checkPuzzleSolution(puzzle.id, blocks);
       setResult(res);
-      if (!res.passed) {
+      if (res.passed) {
+        router.refresh();
+      } else {
         recordFailedAttempt(puzzle.id);
         const remaining = getRemainingAttempts(puzzle.id);
         if (remaining === 0) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CodeEditor } from "@/components/editor/code-editor";
@@ -9,13 +10,68 @@ import { runPythonInBrowser, normalizeOutput } from "@/lib/runner/browser-python
 import type { Task } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import type { TestRunResult } from "@/lib/types";
-import { submitTask } from "@/lib/api/tasks";
+import { submitTask, fetchTaskDraft, saveTaskDraft } from "@/lib/api/tasks";
 import { hasApi } from "@/lib/api/client";
 import { getStoredToken } from "@/lib/api/auth";
 import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
 
+const DRAFT_SAVE_DELAY_MS = 1500;
+
 export function TaskView({ task }: { task: Task }) {
+  const router = useRouter();
   const [code, setCode] = useState(task.starterCode);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!hasApi() || !getStoredToken()) {
+      setDraftLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    fetchTaskDraft(task.id).then((saved) => {
+      if (!cancelled && saved != null) {
+        setCode(saved);
+      }
+      if (!cancelled) setDraftLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [task.id]);
+
+  const scheduleSaveDraft = useCallback(() => {
+    if (!hasApi() || !getStoredToken()) return;
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveTimeoutRef.current = null;
+      saveTaskDraft(task.id, code);
+    }, DRAFT_SAVE_DELAY_MS);
+  }, [task.id, code]);
+
+  useEffect(() => {
+    if (!draftLoaded) return;
+    scheduleSaveDraft();
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [draftLoaded, code, scheduleSaveDraft]);
+
+  useEffect(() => {
+    const saveOnLeave = () => {
+      if (hasApi() && getStoredToken() && draftLoaded && code !== task.starterCode) {
+        saveTaskDraft(task.id, code, true);
+      }
+    };
+    const handler = () => {
+      saveOnLeave();
+    };
+    window.addEventListener("beforeunload", handler);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") saveOnLeave();
+    });
+    return () => {
+      window.removeEventListener("beforeunload", handler);
+    };
+  }, [task.id, task.starterCode, code, draftLoaded]);
   const [runResults, setRunResults] = useState<TestRunResult[] | null>(null);
   const [loading, setLoading] = useState<"run" | "submit" | null>(null);
   const [pyodideLoading, setPyodideLoading] = useState(false);
@@ -120,6 +176,7 @@ export function TaskView({ task }: { task: Task }) {
             description: result.message ?? "Все тесты пройдены.",
             variant: "default",
           });
+          router.refresh();
         }
       } else {
         setPyodideLoading(true);
@@ -161,6 +218,7 @@ export function TaskView({ task }: { task: Task }) {
             description: "Все тесты пройдены.",
             variant: "default",
           });
+          router.refresh();
         }
       }
     } catch (e) {

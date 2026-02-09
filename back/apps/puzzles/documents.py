@@ -18,11 +18,14 @@ class CodeBlockEmbed(EmbeddedDocument):
 class Puzzle(Document):
     meta = {
         "collection": "puzzles",
-        "indexes": ["track_id"],
+        "indexes": ["track_id", {"fields": ["public_id"], "unique": True, "sparse": True}],
     }
     title = StringField(required=True, max_length=500)
     description = StringField(default="")
-    track_id = StringField(required=True)  # Обязательное поле - каждый puzzle должен быть в треке
-    language = StringField(default="python")  # язык программирования
+    track_id = StringField(required=True)
+    language = StringField(default="python")
     blocks = ListField(EmbeddedDocumentField(CodeBlockEmbed), default=list)
-    solution = StringField(default="")  # полный правильный код для проверки
+    solution = StringField(default="")
+    public_id = StringField()  # Человекочитаемый id для URL (12 hex символов)
+    # Список id групп, которым доступен puzzle. Пустой — доступен всем.
+    visible_group_ids = ListField(StringField(), default=list)

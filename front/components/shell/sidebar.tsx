@@ -32,6 +32,7 @@ import { getStoredRole, getStoredToken } from "@/lib/api/auth";
 import type { Track } from "@/lib/types";
 
 const teacherNavItems = [
+  { label: "Личный кабинет", href: "/profile", icon: UserCircle },
   { label: "Создать трек", href: "/admin/tracks/new", icon: PlusCircle },
   { label: "Создать лекцию", href: "/admin/lectures/new", icon: FileText },
   { label: "Создать задачу", href: "/admin/tasks/new", icon: ListChecks },
@@ -48,7 +49,7 @@ export function Sidebar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    fetchTracks().then(setTracks);
+    fetchTracks().then((d) => setTracks(d.tracks));
   }, []);
 
   useEffect(() => {

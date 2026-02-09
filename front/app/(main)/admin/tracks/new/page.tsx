@@ -16,12 +16,14 @@ import {
 } from "@/components/ui/card";
 import { createTrack } from "@/lib/api/tracks";
 import { useToast } from "@/components/ui/use-toast";
+import { GroupSelector } from "@/components/group-selector";
 
 export default function NewTrackPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -41,6 +43,7 @@ export default function NewTrackPage() {
         description: description.trim(),
         lessons: [],
         order: 0,
+        visibleGroupIds: visibleGroupIds.length > 0 ? visibleGroupIds : undefined,
       });
       toast({ title: "Трек создан", description: track.title });
       router.push(`/tracks/${track.id}`);
@@ -57,7 +60,7 @@ export default function NewTrackPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 w-full max-w-full">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">
           Создание трека
@@ -93,6 +96,7 @@ export default function NewTrackPage() {
                 rows={4}
               />
             </div>
+            <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
           </CardContent>
         </Card>
         <div className="flex flex-wrap gap-3 mt-6">

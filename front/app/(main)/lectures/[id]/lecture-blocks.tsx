@@ -1,24 +1,64 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import type { LectureBlock } from "@/lib/types";
 import { BlockViewText } from "@/components/lecture-blocks/block-view-text";
 import { BlockViewImage } from "@/components/lecture-blocks/block-view-image";
 import { BlockViewCode } from "@/components/lecture-blocks/block-view-code";
+import { BlockViewQuestion } from "@/components/lecture-blocks/block-view-question";
+import { BlockViewVideo } from "@/components/lecture-blocks/block-view-video";
+import { fetchLectureQuestionBlocksProgress, type BlockProgressItem } from "@/lib/api/lectures";
 
-export function LectureBlocks({ blocks }: { blocks: LectureBlock[] }) {
+interface LectureBlocksProps {
+  blocks: LectureBlock[];
+  lectureId?: string;
+}
+
+export function LectureBlocks({ blocks, lectureId }: LectureBlocksProps) {
+  const [blockProgress, setBlockProgress] = useState<Record<string, BlockProgressItem>>({});
+
+  useEffect(() => {
+    if (!lectureId) return;
+    fetchLectureQuestionBlocksProgress(lectureId).then(setBlockProgress);
+  }, [lectureId]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {blocks.map((block, index) => {
-        if (block.type === "text") {
-          return <BlockViewText key={index} block={block} />;
-        }
-        if (block.type === "image") {
-          return <BlockViewImage key={index} block={block} />;
-        }
-        if (block.type === "code") {
-          return <BlockViewCode key={index} block={block} />;
-        }
-        return null;
+        const content = block.type === "text" ? (
+          <BlockViewText key={index} block={block} />
+        ) : block.type === "image" ? (
+          <BlockViewImage key={index} block={block} />
+        ) : block.type === "code" ? (
+          <BlockViewCode key={index} block={block} />
+        ) : block.type === "video" && lectureId && block.id ? (
+          <BlockViewVideo
+            key={`${block.id}-${block.url ?? ""}`}
+            block={block}
+            lectureId={lectureId}
+            blockProgress={blockProgress}
+            onCorrectAnswer={() => {
+              fetchLectureQuestionBlocksProgress(lectureId!).then(setBlockProgress);
+            }}
+          />
+        ) : block.type === "question" && lectureId && block.id ? (
+          <BlockViewQuestion
+            key={block.id}
+            block={block}
+            lectureId={lectureId}
+            wasEverCorrect={blockProgress[block.id]?.status === "completed"}
+            correctIds={blockProgress[block.id]?.correct_ids ?? null}
+            onCorrectAnswer={() => {
+              fetchLectureQuestionBlocksProgress(lectureId!).then(setBlockProgress);
+            }}
+          />
+        ) : null;
+        if (!content) return null;
+        return (
+          <section key={block.type === "question" || block.type === "video" ? block.id : index} className="scroll-mt-8">
+            {content}
+          </section>
+        );
       })}
     </div>
   );

@@ -26,3 +26,13 @@ class IsSuperuser(BasePermission):
         if not request.user or not getattr(request.user, "role", None):
             return False
         return _role_match(request.user.role, UserRole.SUPERUSER)
+
+
+class IsTeacherOrSuperuser(BasePermission):
+    """Teachers or superusers."""
+    message = "Только для учителей или суперпользователя."
+
+    def has_permission(self, request, view):
+        if not request.user or not getattr(request.user, "role", None):
+            return False
+        return _role_match(request.user.role, UserRole.TEACHER) or _role_match(request.user.role, UserRole.SUPERUSER)

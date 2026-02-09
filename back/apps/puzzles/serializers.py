@@ -17,13 +17,16 @@ class PuzzleSerializer(serializers.Serializer):
     language = serializers.CharField(default="python")
     blocks = CodeBlockSerializer(many=True)
     solution = serializers.CharField(required=False, allow_blank=True)
+    visible_group_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
 
     def create(self, validated_data):
         blocks_data = validated_data.pop('blocks', [])
+        visible_group_ids = validated_data.pop('visible_group_ids', [])
         blocks = [CodeBlockEmbed(**block_data) for block_data in blocks_data]
         
         puzzle = Puzzle(
             blocks=blocks,
+            visible_group_ids=visible_group_ids,
             **validated_data
         )
         puzzle.save()
@@ -31,7 +34,7 @@ class PuzzleSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return {
-            'id': str(instance.id),
+            'id': str(getattr(instance, "public_id", None) or instance.id),
             'title': instance.title,
             'description': instance.description,
             'track_id': instance.track_id,
@@ -45,5 +48,6 @@ class PuzzleSerializer(serializers.Serializer):
                 }
                 for block in instance.blocks
             ],
-            'solution': instance.solution
+            'solution': instance.solution,
+            'visible_group_ids': getattr(instance, 'visible_group_ids', []) or [],
         }

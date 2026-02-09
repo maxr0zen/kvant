@@ -14,8 +14,8 @@ export function BlockViewImage({ block }: BlockViewImageProps) {
   if (!block.url) return null;
 
   return (
-    <figure className="my-4">
-      <div className="flex justify-center overflow-hidden rounded-lg border bg-muted/20 min-h-[120px]">
+    <figure className="rounded-xl border border-border/60 bg-muted/20 p-4 overflow-hidden">
+      <div className="flex justify-center overflow-hidden rounded-lg min-h-[120px]">
         <img
           src={block.url}
           alt={block.alt ?? "Иллюстрация"}

@@ -26,6 +26,7 @@ function mapPuzzleFromApi(data: Record<string, unknown>): Puzzle {
     trackId: data.track_id != null ? String(data.track_id) : undefined,
     blocks,
     solution: String(data.solution ?? ""),
+    visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
   };
 }
 
@@ -43,10 +44,11 @@ export async function fetchAllPuzzles(): Promise<Puzzle[]> {
   return [];
 }
 
-export async function fetchPuzzleById(id: string): Promise<Puzzle | null> {
-  if (hasApi() && typeof window !== "undefined" && getStoredToken()) {
+export async function fetchPuzzleById(id: string, token?: string | null): Promise<Puzzle | null> {
+  const authToken = token ?? (typeof window !== "undefined" ? getStoredToken() : null);
+  if (hasApi()) {
     try {
-      const res = await apiFetch(`/api/puzzles/${id}/`);
+      const res = await apiFetch(`/api/puzzles/${id}/`, { token: authToken });
       if (!res.ok) return fetchPuzzleByIdStub(id);
       const data = await res.json();
       return mapPuzzleFromApi(data);
@@ -74,6 +76,7 @@ export async function createPuzzle(data: Omit<Puzzle, "id">): Promise<Puzzle> {
             indent: block.indent,
           })),
           solution: data.solution ?? "",
+          visible_group_ids: data.visibleGroupIds ?? [],
         },
       });
       if (!res.ok) {

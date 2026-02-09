@@ -24,6 +24,8 @@ function mapTaskFromApi(data: Record<string, unknown>): Task {
     starterCode: String(data.starter_code ?? ""),
     trackId: data.track_id != null ? String(data.track_id) : undefined,
     testCases,
+    hard: Boolean(data.hard),
+    visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
   };
 }
 
@@ -66,6 +68,7 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
             expected_output: tc.expectedOutput,
             is_public: tc.isPublic,
           })),
+          visible_group_ids: data.visibleGroupIds ?? [],
         },
       });
       if (!res.ok) {
@@ -94,6 +97,31 @@ export async function runTask(taskId: string, code: string): Promise<TestRunResu
     return raw.map((r: Record<string, unknown>) => mapResultFromApi(r));
   } catch {
     return [];
+  }
+}
+
+export async function fetchTaskDraft(taskId: string): Promise<string | null> {
+  if (!hasApi() || !getStoredToken()) return null;
+  try {
+    const res = await apiFetch(`/api/tasks/${taskId}/draft/`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { code?: string | null };
+    return data.code && typeof data.code === "string" ? data.code : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveTaskDraft(taskId: string, code: string, keepalive = false): Promise<void> {
+  if (!hasApi() || !getStoredToken()) return;
+  try {
+    await apiFetch(`/api/tasks/${taskId}/draft/`, {
+      method: "PUT",
+      body: { code },
+      keepalive,
+    });
+  } catch {
+    // ignore
   }
 }
 

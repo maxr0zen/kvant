@@ -17,6 +17,7 @@ import {
 import { CodeEditor } from "@/components/editor/code-editor";
 import { createTask } from "@/lib/api/tasks";
 import { useToast } from "@/components/ui/use-toast";
+import { GroupSelector } from "@/components/group-selector";
 import type { TestCase } from "@/lib/types";
 
 const defaultTestCase: TestCase = {
@@ -35,6 +36,7 @@ export default function NewTaskPage() {
   const [testCases, setTestCases] = useState<TestCase[]>([
     { ...defaultTestCase, id: "1" },
   ]);
+  const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   function addTestCase() {
@@ -63,6 +65,7 @@ export default function NewTaskPage() {
         description: description.trim(),
         starterCode,
         testCases,
+        visibleGroupIds: visibleGroupIds.length > 0 ? visibleGroupIds : undefined,
       });
       toast({ title: "Задача создана", description: task.title });
       router.push(`/tasks/${task.id}`);
@@ -78,7 +81,7 @@ export default function NewTaskPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 w-full max-w-full">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Создание задачи</h1>
         <p className="text-muted-foreground mt-1">
@@ -112,6 +115,7 @@ export default function NewTaskPage() {
                 rows={4}
               />
             </div>
+            <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
           </CardContent>
         </Card>
         <Card>

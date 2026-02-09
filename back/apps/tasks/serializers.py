@@ -16,17 +16,23 @@ class TaskSerializer(serializers.Serializer):
     starter_code = serializers.CharField(required=False, allow_blank=True, default="")
     track_id = serializers.CharField(required=False, allow_null=True, default=None)
     test_cases = TestCaseSerializer(many=True, required=False, default=list)
+    hard = serializers.BooleanField(required=False, default=False)
+    visible_group_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
 
     def get_id(self, obj):
-        return str(obj.id)
+        return str(getattr(obj, "public_id", None) or obj.id)
 
     def create(self, validated_data):
         tcs = validated_data.pop("test_cases", [])
+        hard = validated_data.pop("hard", False)
+        visible_group_ids = validated_data.pop("visible_group_ids", [])
         task = Task(
             title=validated_data["title"],
             description=validated_data.get("description", ""),
             starter_code=validated_data.get("starter_code", ""),
             track_id=validated_data.get("track_id"),
+            hard=hard,
+            visible_group_ids=visible_group_ids,
         )
         task.test_cases = [TestCaseEmbed(**tc) for tc in tcs]
         task.save()

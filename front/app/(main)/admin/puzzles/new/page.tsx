@@ -17,6 +17,7 @@ import {
 import { CodeEditor } from "@/components/editor/code-editor";
 import { createPuzzle } from "@/lib/api/puzzles";
 import { useToast } from "@/components/ui/use-toast";
+import { GroupSelector } from "@/components/group-selector";
 import type { PuzzleBlock } from "@/lib/types";
 import { Plus, Trash2, GripVertical } from "lucide-react";
 
@@ -37,6 +38,7 @@ export default function NewPuzzlePage() {
   const [blocks, setBlocks] = useState<PuzzleBlock[]>([
     { ...defaultBlock, id: "b1", order: "1" },
   ]);
+  const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   function addBlock() {
@@ -95,6 +97,7 @@ export default function NewPuzzlePage() {
         language,
         blocks,
         solution: solution.trim(),
+        visibleGroupIds: visibleGroupIds.length > 0 ? visibleGroupIds : undefined,
       });
       toast({ title: "Puzzle создан", description: puzzle.title });
       router.push(`/puzzles/${puzzle.id}`);
@@ -110,7 +113,7 @@ export default function NewPuzzlePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 w-full max-w-full">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Создание Puzzle</h1>
         <p className="text-muted-foreground mt-1">
@@ -153,6 +156,7 @@ export default function NewPuzzlePage() {
                 placeholder="python"
               />
             </div>
+            <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
           </CardContent>
         </Card>
 

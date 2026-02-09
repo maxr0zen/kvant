@@ -16,16 +16,47 @@ function mapTrackFromApi(data: Record<string, unknown>): Track {
     lessons: Array.isArray(data.lessons) ? data.lessons as Track["lessons"] : [],
     order: Number(data.order ?? 0),
     progress: data.progress && typeof data.progress === "object" ? (data.progress as TrackProgress) : undefined,
+    visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
   };
 }
 
-export async function fetchTracks(): Promise<Track[]> {
+export interface OrphanLecture {
+  id: string;
+  title: string;
+}
+
+export interface OrphanTask {
+  id: string;
+  title: string;
+  hard?: boolean;
+}
+
+export interface TracksWithOrphans {
+  tracks: Track[];
+  orphan_lectures: OrphanLecture[];
+  orphan_tasks: OrphanTask[];
+}
+
+export async function fetchTracks(): Promise<TracksWithOrphans> {
   if (hasApi()) {
     try {
       const res = await apiFetch("/api/tracks/");
       if (!res.ok) return fetchTracksStub();
       const data = await res.json();
-      return Array.isArray(data) ? data.map((t: Record<string, unknown>) => mapTrackFromApi(t)) : fetchTracksStub();
+      const tracks = Array.isArray(data.tracks)
+        ? data.tracks.map((t: Record<string, unknown>) => mapTrackFromApi(t))
+        : [];
+      const orphan_lectures = Array.isArray(data.orphan_lectures)
+        ? data.orphan_lectures.map((l: { id: string; title: string }) => ({ id: String(l.id), title: String(l.title) }))
+        : [];
+      const orphan_tasks = Array.isArray(data.orphan_tasks)
+        ? data.orphan_tasks.map((t: { id: string; title: string; hard?: boolean }) => ({
+            id: String(t.id),
+            title: String(t.title),
+            hard: Boolean(t.hard),
+          }))
+        : [];
+      return { tracks, orphan_lectures, orphan_tasks };
     } catch {
       return fetchTracksStub();
     }
@@ -58,6 +89,7 @@ export async function createTrack(data: Omit<Track, "id">): Promise<Track> {
           description: data.description,
           lessons: data.lessons,
           order: data.order,
+          visible_group_ids: data.visibleGroupIds ?? [],
         },
       });
       if (!res.ok) {
@@ -73,9 +105,9 @@ export async function createTrack(data: Omit<Track, "id">): Promise<Track> {
   return createTrackStub(data);
 }
 
-export async function fetchTracksStub(): Promise<Track[]> {
+export async function fetchTracksStub(): Promise<TracksWithOrphans> {
   await new Promise((r) => setTimeout(r, 300));
-  return [];
+  return { tracks: [], orphan_lectures: [], orphan_tasks: [] };
 }
 
 export async function fetchTrackByIdStub(id: string): Promise<Track | null> {

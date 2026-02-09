@@ -3,15 +3,14 @@
  */
 
 import type { Question, QuestionCheckResult } from "@/lib/types";
-import { getStoredToken } from "@/lib/api/auth";
 import { apiFetch, hasApi } from "@/lib/api/client";
 
 // Mock data removed - use backend API only
 
-export async function fetchQuestionById(id: string): Promise<Question | null> {
-  if (hasApi() && typeof window !== "undefined" && getStoredToken()) {
+export async function fetchQuestionById(id: string, token?: string | null): Promise<Question | null> {
+  if (hasApi()) {
     try {
-      const res = await apiFetch(`/api/questions/${id}/`);
+      const res = await apiFetch(`/api/questions/${id}/`, { token });
       if (!res.ok) return null;
       const data = await res.json();
       return mapQuestionFromApi(data);
@@ -22,8 +21,8 @@ export async function fetchQuestionById(id: string): Promise<Question | null> {
   return null;
 }
 
-export async function fetchAllQuestions(): Promise<Question[]> {
-  if (hasApi() && typeof window !== "undefined" && getStoredToken()) {
+export async function fetchAllQuestions(token?: string | null): Promise<Question[]> {
+  if (hasApi()) {
     try {
       const res = await apiFetch("/api/questions/");
       if (!res.ok) return [];

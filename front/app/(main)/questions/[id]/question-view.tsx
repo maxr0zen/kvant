@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -13,6 +14,7 @@ interface QuestionViewProps {
 }
 
 export function QuestionView({ question }: QuestionViewProps) {
+  const router = useRouter();
   const [shuffled, setShuffled] = useState<QuestionChoice[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -72,6 +74,7 @@ export function QuestionView({ question }: QuestionViewProps) {
         }
       } else {
         toast({ title: "Решение верное", description: res.message, variant: "default" });
+        router.refresh();
       }
     } catch (err) {
       toast({ title: "Ошибка", description: String(err) });
