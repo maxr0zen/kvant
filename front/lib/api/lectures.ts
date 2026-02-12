@@ -6,8 +6,6 @@ import type { Lecture } from "@/lib/types";
 import { getStoredToken } from "@/lib/api/auth";
 import { apiFetch, hasApi } from "@/lib/api/client";
 
-const MOCK_LECTURES: Record<string, Lecture> = {};
-
 function mapLectureFromApi(data: Record<string, unknown>): Lecture {
   return {
     id: String(data.id),
@@ -17,6 +15,10 @@ function mapLectureFromApi(data: Record<string, unknown>): Lecture {
     blocks: Array.isArray(data.blocks) ? (data.blocks as Lecture["blocks"]) : undefined,
     visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
     canEdit: Boolean(data.can_edit),
+    availableFrom: data.available_from != null ? String(data.available_from) : undefined,
+    availableUntil: data.available_until != null ? String(data.available_until) : undefined,
+    hints: Array.isArray(data.hints) ? (data.hints as string[]) : undefined,
+    maxAttempts: data.max_attempts != null ? Number(data.max_attempts) : undefined,
   };
 }
 
@@ -75,10 +77,11 @@ export async function markLectureViewed(lectureId: string): Promise<void> {
   }
 }
 
-export async function fetchLectureById(id: string): Promise<Lecture | null> {
+/** token — для SSR (передайте из cookies()), чтобы бэкенд вернул can_edit */
+export async function fetchLectureById(id: string, token?: string | null, options?: { cache?: RequestCache }): Promise<Lecture | null> {
   if (hasApi()) {
     try {
-      const res = await apiFetch(`/api/lectures/${id}/`, { cache: "no-store" });
+      const res = await apiFetch(`/api/lectures/${id}/`, { cache: options?.cache ?? "no-store", token: token ?? undefined });
       if (!res.ok) return fetchLectureByIdStub(id);
       const data = await res.json();
       return mapLectureFromApi(data);
@@ -91,7 +94,7 @@ export async function fetchLectureById(id: string): Promise<Lecture | null> {
 
 export async function updateLecture(
   id: string,
-  data: Partial<Pick<Lecture, "title" | "trackId" | "content" | "blocks" | "visibleGroupIds">>
+  data: Partial<Pick<Lecture, "title" | "trackId" | "content" | "blocks" | "visibleGroupIds" | "availableFrom" | "availableUntil" | "hints" | "maxAttempts">>
 ): Promise<Lecture> {
   if (hasApi()) {
     try {
@@ -103,6 +106,10 @@ export async function updateLecture(
           ...(data.content != null && { content: data.content }),
           ...(data.blocks != null && { blocks: data.blocks }),
           ...(data.visibleGroupIds != null && { visible_group_ids: data.visibleGroupIds }),
+          ...(data.availableFrom != null && { available_from: data.availableFrom }),
+          ...(data.availableUntil != null && { available_until: data.availableUntil }),
+          ...(data.hints != null && { hints: data.hints }),
+          ...(data.maxAttempts != null && { max_attempts: data.maxAttempts }),
         },
       });
       if (!res.ok) {
@@ -118,6 +125,15 @@ export async function updateLecture(
   throw new Error("API not configured");
 }
 
+export async function deleteLecture(id: string): Promise<void> {
+  if (!hasApi()) throw new Error("API not configured");
+  const res = await apiFetch(`/api/lectures/${id}/`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка удаления лекции");
+  }
+}
+
 export async function createLecture(data: Omit<Lecture, "id">): Promise<Lecture> {
   if (hasApi()) {
     try {
@@ -129,6 +145,10 @@ export async function createLecture(data: Omit<Lecture, "id">): Promise<Lecture>
           content: data.content ?? "",
           blocks: data.blocks ?? [],
           visible_group_ids: data.visibleGroupIds ?? [],
+          available_from: data.availableFrom ?? null,
+          available_until: data.availableUntil ?? null,
+          hints: data.hints ?? [],
+          max_attempts: data.maxAttempts ?? null,
         },
       });
       if (!res.ok) {

@@ -1,4 +1,4 @@
-from mongoengine import Document, StringField, ListField, EmbeddedDocumentField, EmbeddedDocument, DictField
+from mongoengine import Document, StringField, ListField, EmbeddedDocumentField, EmbeddedDocument, DictField, DateTimeField, IntField
 
 
 class BlockText(EmbeddedDocument):
@@ -36,3 +36,10 @@ class Lecture(Document):
     visible_group_ids = ListField(StringField(), default=list)
     # ID пользователя (учителя), создавшего лекцию. Пустой — старые лекции без автора.
     created_by_id = StringField(default="")
+    # Временное задание: доступно с/до (UTC)
+    available_from = DateTimeField(default=None)
+    available_until = DateTimeField(default=None)
+    # Подсказки к лекции (общие; у вопросов внутри блоков — свои hints)
+    hints = ListField(StringField(), default=list)
+    # Ограничение попыток прохождения (ответы на вопросы в лекции). None — без ограничения.
+    max_attempts = IntField(default=None)

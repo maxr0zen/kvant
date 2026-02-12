@@ -81,6 +81,22 @@ export interface StoredUser {
 }
 
 const USER_STORAGE_KEY = "user_info";
+const AUTH_TOKEN_COOKIE = "auth_token";
+const AUTH_TOKEN_MAX_AGE_DAYS = 30;
+
+/** Установить токен в cookie (для SSR: сервер сможет прочитать и передать в API) */
+export function setAuthTokenCookie(token: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${AUTH_TOKEN_COOKIE}=${encodeURIComponent(token)}; path=/; max-age=${AUTH_TOKEN_MAX_AGE_DAYS * 86400}; SameSite=Lax`;
+}
+
+/** Удалить токен из cookie при выходе */
+export function clearAuthTokenCookie(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${AUTH_TOKEN_COOKIE}=; path=/; max-age=0`;
+}
+
+export { AUTH_TOKEN_COOKIE };
 
 export function getStoredUser(): StoredUser | null {
   if (typeof window === "undefined") return null;
@@ -117,9 +133,11 @@ export function getStoredToken(): string | null {
 export function setStoredToken(token: string): void {
   if (typeof window === "undefined") return;
   localStorage.setItem("auth_token", token);
+  setAuthTokenCookie(token);
 }
 
 export function clearStoredToken(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem("auth_token");
+  clearAuthTokenCookie();
 }

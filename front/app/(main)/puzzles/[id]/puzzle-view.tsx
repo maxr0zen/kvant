@@ -11,6 +11,10 @@ import type { Puzzle, PuzzleBlock, PuzzleCheckResult } from "@/lib/types";
 import { checkPuzzleSolution } from "@/lib/api/puzzles";
 import { GripVertical, Play, RotateCcw } from "lucide-react";
 import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
+import { HintsBlock } from "@/components/hints-block";
+import { AvailabilityNotice } from "@/components/availability-notice";
+import { AvailabilityCountdown } from "@/components/availability-countdown";
+import { CodeHighlight } from "@/components/code-highlight";
 
 interface PuzzleViewProps {
   puzzle: Puzzle;
@@ -146,9 +150,12 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
   if (!mounted) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{puzzle.title}</h1>
-          <p className="text-muted-foreground mt-2">{puzzle.description}</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-semibold tracking-tight">{puzzle.title}</h1>
+            <p className="text-muted-foreground mt-2">{puzzle.description}</p>
+          </div>
+          <AvailabilityCountdown availableUntil={puzzle.availableUntil} className="shrink-0" />
         </div>
         <div className="flex items-center justify-center py-12">
           <div className="text-muted-foreground">Загрузка...</div>
@@ -157,11 +164,24 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
     );
   }
 
+  const maxAttempts = puzzle.maxAttempts ?? null;
+  const attemptsUsed = puzzle.attemptsUsed ?? 0;
+  const attemptsExhausted = maxAttempts != null && attemptsUsed >= maxAttempts;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">{puzzle.title}</h1>
-        <p className="text-muted-foreground mt-2">{puzzle.description}</p>
+      <AvailabilityNotice availableFrom={puzzle.availableFrom} availableUntil={puzzle.availableUntil} />
+      {maxAttempts != null && (
+        <p className="text-sm text-muted-foreground">
+          {attemptsExhausted ? "Попытки исчерпаны." : `Попыток осталось: ${maxAttempts - attemptsUsed} из ${maxAttempts}`}
+        </p>
+      )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-semibold tracking-tight">{puzzle.title}</h1>
+          <p className="text-muted-foreground mt-2">{puzzle.description}</p>
+        </div>
+        <AvailabilityCountdown availableUntil={puzzle.availableUntil} className="shrink-0" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -195,7 +215,7 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
                   {/* Код с drag & drop и адаптивной подсветкой */}
                   <div className="relative w-full h-full">
                     <pre
-                      className="text-sm font-mono overflow-x-auto select-none w-full h-full"
+                      className="text-sm font-mono overflow-x-auto select-none w-full h-full whitespace-pre"
                     >
                       <code>{block.indent}{block.code}</code>
                     </pre>
@@ -204,7 +224,7 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
               ))}
               
               {blocks.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="py-8 text-muted-foreground">
                   <p>Перетащите блоки кода сюда</p>
                 </div>
               )}
@@ -214,7 +234,7 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
           <div className="flex flex-wrap gap-3">
             <Button
               onClick={handleCheck}
-              disabled={loading || blocks.length === 0}
+              disabled={loading || blocks.length === 0 || attemptsExhausted}
               className="flex items-center gap-2"
               size="lg"
             >
@@ -231,7 +251,7 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
               Перемешать
             </Button>
             {puzzle.trackId && (
-              <Link href={`/tracks/${puzzle.trackId}`}>
+              <Link href={`/main/${puzzle.trackId}`}>
                 <Button variant="outline" size="lg">К треку</Button>
               </Link>
             )}
@@ -239,6 +259,7 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
         </div>
 
         <div className="space-y-4">
+          <HintsBlock hints={puzzle.hints ?? []} />
           <Card>
             <CardHeader>
               <CardTitle>Предпросмотр кода</CardTitle>
@@ -246,10 +267,12 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
                 Как будет выглядеть собранный код
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <pre className="bg-muted p-3 rounded text-sm font-mono overflow-x-auto whitespace-pre-wrap min-h-[100px]">
-                <code>{assembledCode || "// Перетащите блоки кода слева"}</code>
-              </pre>
+            <CardContent className="p-0">
+              <CodeHighlight
+                code={assembledCode || "# Перетащите блоки кода слева"}
+                language="python"
+                className="min-h-[100px] rounded-b-lg"
+              />
             </CardContent>
           </Card>
 

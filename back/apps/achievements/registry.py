@@ -79,8 +79,8 @@ def _count_lectures_with_questions_completed(user_id: str) -> int:
             if lesson.type != "lecture":
                 continue
             display_id = _get_lesson_display_id(lesson)
-            status = get_lesson_status_for_user(user_id, lesson, display_id)
-            if status == "completed":
+            status, _ = get_lesson_status_for_user(user_id, lesson, display_id)
+            if status in ("completed", "completed_late"):
                 # Проверяем, есть ли в лекции question-блоки
                 from apps.tracks.serializers import _get_lecture_for_lesson
                 lecture = _get_lecture_for_lesson(lesson)

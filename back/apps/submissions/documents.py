@@ -1,5 +1,5 @@
 from datetime import datetime
-from mongoengine import Document, StringField, ListField, DateTimeField, DictField, BooleanField
+from mongoengine import Document, StringField, ListField, DateTimeField, DictField, BooleanField, IntField
 
 
 class Submission(Document):
@@ -44,9 +44,24 @@ class LessonProgress(Document):
     }
     user_id = StringField(required=True)
     lesson_id = StringField(required=True)  # id урока (ObjectId или public_id)
-    lesson_type = StringField(required=True, choices=["lecture", "task", "puzzle", "question"])
+    lesson_type = StringField(required=True, choices=["lecture", "task", "puzzle", "question", "survey"])
     lesson_title = StringField(default="")  # для отображения в активности
     track_id = StringField(default="")  # для отображения в активности
     track_title = StringField(default="")  # для отображения в активности
     status = StringField(required=True, choices=["completed", "started"])
     updated_at = DateTimeField(default=datetime.utcnow)
+    # Выполнено после срока (available_until прошёл): просрочка в секундах
+    completed_late = BooleanField(default=False)
+    late_by_seconds = IntField(default=0)
+
+
+class AssignmentAttempt(Document):
+    """Одна попытка ответа по заданию (puzzle или question). Для task считаем Submission."""
+    meta = {
+        "collection": "assignment_attempts",
+        "indexes": ["user_id", "target_type", "target_id", "created_at"],
+    }
+    user_id = StringField(required=True)
+    target_type = StringField(required=True, choices=["puzzle", "question"])
+    target_id = StringField(required=True)
+    created_at = DateTimeField(default=datetime.utcnow)

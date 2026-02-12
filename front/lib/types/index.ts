@@ -8,10 +8,13 @@ export interface User {
 }
 
 /** Статус задания в треке для текущего пользователя */
-export type LessonProgressStatus = "completed" | "started" | "not_started";
+export type LessonProgressStatus = "completed" | "completed_late" | "started" | "not_started";
 
-/** Прогресс по треку: lesson_id -> статус (task, puzzle, question) */
+/** Прогресс по треку: lesson_id -> статус */
 export type TrackProgress = Record<string, LessonProgressStatus>;
+
+/** Просрочка в секундах для уроков со статусом completed_late */
+export type TrackProgressLate = Record<string, number>;
 
 export interface Track {
   id: string;
@@ -21,17 +24,25 @@ export interface Track {
   order: number;
   /** Приходит с бэкенда при GET track по id (если пользователь авторизован) */
   progress?: TrackProgress;
+  /** Просрочка в секундах для completed_late */
+  progressLate?: TrackProgressLate;
   /** Группы, которым доступен трек. Пустой массив — доступен всем. */
   visibleGroupIds?: string[];
+  /** Создатель или superuser может удалить трек */
+  canEdit?: boolean;
 }
 
 export interface LessonRef {
   id: string;
-  type: "lecture" | "task" | "puzzle" | "question";
+  type: "lecture" | "task" | "puzzle" | "question" | "survey";
   title: string;
   order: number;
   /** Повышенная сложность (со звёздочкой) */
   hard?: boolean;
+  /** Temporary assignment: available from (ISO datetime) */
+  available_from?: string | null;
+  /** Temporary assignment: available until (ISO datetime) */
+  available_until?: string | null;
 }
 
 /** Вопрос на таймкоде видео */
@@ -62,6 +73,8 @@ export type LectureBlock =
       prompt: string;
       choices: { id: string; text: string }[];
       multiple: boolean;
+      /** Подсказки к вопросу (открываются по порядку) */
+      hints?: string[];
     }
   | {
       type: "video";
@@ -81,6 +94,14 @@ export interface Lecture {
   visibleGroupIds?: string[];
   /** Может ли текущий пользователь редактировать (создатель или superuser) */
   canEdit?: boolean;
+  /** Временное задание: доступно с (ISO) */
+  availableFrom?: string | null;
+  /** Временное задание: доступно до (ISO) */
+  availableUntil?: string | null;
+  /** Подсказки к лекции */
+  hints?: string[];
+  /** Ограничение попыток (ответы на вопросы). null — без ограничения */
+  maxAttempts?: number | null;
 }
 
 export interface Task {
@@ -94,6 +115,18 @@ export interface Task {
   hard?: boolean;
   /** Группы, которым доступна задача. Пустой массив — доступна всем. */
   visibleGroupIds?: string[];
+  /** Подсказки по порядку */
+  hints?: string[];
+  /** Временное задание: доступно с (ISO datetime) */
+  availableFrom?: string | null;
+  /** Временное задание: доступно до (ISO datetime) */
+  availableUntil?: string | null;
+  /** Ограничение попыток (null = неограниченно) */
+  maxAttempts?: number | null;
+  /** Использовано попыток (для текущего пользователя, только при GET) */
+  attemptsUsed?: number | null;
+  /** Может ли текущий пользователь редактировать/удалять (создатель или superuser) */
+  canEdit?: boolean;
 }
 
 export interface TestCase {
@@ -134,6 +167,12 @@ export interface Puzzle {
   solution: string;
   /** Группы, которым доступен puzzle. Пустой массив — доступен всем. */
   visibleGroupIds?: string[];
+  hints?: string[];
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  maxAttempts?: number | null;
+  attemptsUsed?: number | null;
+  canEdit?: boolean;
 }
 
 export interface PuzzleCheckResult {
@@ -145,6 +184,8 @@ export interface PuzzleCheckResult {
 export interface QuestionChoice {
   id: string;
   text: string;
+  /** Только при can_edit (для редактора) */
+  isCorrect?: boolean;
 }
 
 export interface Question {
@@ -154,9 +195,31 @@ export interface Question {
   choices: QuestionChoice[];
   multiple: boolean; // true — можно выбрать несколько ответов
   trackId?: string;
+  hints?: string[];
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  maxAttempts?: number | null;
+  attemptsUsed?: number | null;
+  canEdit?: boolean;
 }
 
 export interface QuestionCheckResult {
   passed: boolean;
   message?: string;
+}
+
+/** Опрос — свободная форма ответа. Ответ виден преподавателю/админу. */
+export interface Survey {
+  id: string;
+  title: string;
+  prompt: string;
+  trackId?: string;
+  visibleGroupIds?: string[];
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  canEdit?: boolean;
+  /** Ответ текущего пользователя (если уже отправлял) */
+  myResponse?: string | null;
+  /** Преподаватель или админ — может видеть все ответы на странице опроса */
+  isTeacherOrAdmin?: boolean;
 }

@@ -9,6 +9,16 @@ from .serializers import PuzzleSerializer
 from apps.users.permissions import IsTeacher
 from apps.users.teacher_utils import validate_visible_group_ids_for_teacher
 from apps.submissions.progress import save_lesson_progress
+from apps.submissions.documents import AssignmentAttempt
+
+
+def _can_edit_puzzle(request, puzzle):
+    if not request.user or not getattr(request.user, "id", None):
+        return False
+    if getattr(request.user, "role", None) == "superuser":
+        return True
+    creator = getattr(puzzle, "created_by_id", None) or ""
+    return creator and str(creator) == str(request.user.id)
 
 
 @api_view(['GET'])
@@ -20,16 +30,51 @@ def puzzle_list(request):
     return Response(serializer.data)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
 @permission_classes([AllowAny])
 def puzzle_detail(request, puzzle_id):
-    """Получить puzzle-задачу по ID (ObjectId или public_id)"""
+    """GET: получить puzzle. PUT/PATCH: редактировать (владелец/superuser). DELETE: удалить (владелец/superuser)."""
     try:
         puzzle = get_doc_by_pk(Puzzle, puzzle_id)
-        serializer = PuzzleSerializer(puzzle)
-        return Response(serializer.data)
     except Puzzle.DoesNotExist:
         return Response({'error': 'Puzzle not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = PuzzleSerializer(puzzle, context={"request": request})
+        return Response(serializer.data)
+
+    if request.method in ('PUT', 'PATCH'):
+        if not request.user or not getattr(request.user, "id", None):
+            return Response({"detail": "Unauthorized."}, status=status.HTTP_401_UNAUTHORIZED)
+        if not _can_edit_puzzle(request, puzzle):
+            return Response(
+                {"detail": "Нет прав на редактирование этого задания."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        visible_group_ids = request.data.get("visible_group_ids")
+        if visible_group_ids is not None:
+            ok, err = validate_visible_group_ids_for_teacher(request.user, visible_group_ids)
+            if not ok:
+                return Response({"detail": err}, status=status.HTTP_403_FORBIDDEN)
+        partial = request.method == "PATCH"
+        serializer = PuzzleSerializer(puzzle, data=request.data, partial=partial, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        return Response(PuzzleSerializer(puzzle, context={"request": request}).data)
+
+    if request.method == 'DELETE':
+        if not request.user or not getattr(request.user, "id", None):
+            return Response({"detail": "Unauthorized."}, status=status.HTTP_401_UNAUTHORIZED)
+        if not _can_edit_puzzle(request, puzzle):
+            return Response(
+                {"detail": "Нет прав на удаление этого задания."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        puzzle.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    return Response({"detail": "Method not allowed."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 @api_view(['POST'])
@@ -40,10 +85,10 @@ def create_puzzle(request):
     ok, err = validate_visible_group_ids_for_teacher(request.user, visible_group_ids)
     if not ok:
         return Response({"detail": err}, status=status.HTTP_403_FORBIDDEN)
-    serializer = PuzzleSerializer(data=request.data)
+    serializer = PuzzleSerializer(data=request.data, context={"request": request})
     if serializer.is_valid():
         puzzle = serializer.save()
-        return Response(PuzzleSerializer(puzzle).data, status=status.HTTP_201_CREATED)
+        return Response(PuzzleSerializer(puzzle, context={"request": request}).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -53,8 +98,20 @@ def check_puzzle_solution(request, puzzle_id):
     """Проверить решение puzzle-задачи"""
     try:
         puzzle = get_doc_by_pk(Puzzle, puzzle_id)
+        user_id = str(request.user.id) if request.user and getattr(request.user, "id", None) else None
+        max_attempts = getattr(puzzle, "max_attempts", None)
+        if max_attempts is not None and user_id:
+            attempt_count = AssignmentAttempt.objects(
+                user_id=user_id, target_type="puzzle", target_id=str(puzzle.id)
+            ).count()
+            if attempt_count >= max_attempts:
+                return Response(
+                    {"detail": "Превышено максимальное число попыток для этого задания."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        if user_id:
+            AssignmentAttempt(user_id=user_id, target_type="puzzle", target_id=str(puzzle.id)).save()
         user_blocks = request.data.get('blocks', [])
-        
         if not user_blocks:
             return Response({
                 'passed': False,
@@ -87,9 +144,14 @@ def check_puzzle_solution(request, puzzle_id):
                 code = block.get('code', '')
                 indent = block.get('indent', '')
                 assembled_code += indent + code + "\n"
-            
-            # Простая проверка - сравниваем с решением (нормализуем пробелы)
-            if assembled_code.strip() != puzzle.solution.strip():
+
+            def _normalize_code(s):
+                """Единая нормализация: табуляция = 4 пробела (Python), затем strip."""
+                if not s:
+                    return ""
+                return s.expandtabs(4).strip()
+
+            if _normalize_code(assembled_code) != _normalize_code(puzzle.solution):
                 passed = False
         
         if request.user and getattr(request.user, "id", None):
@@ -107,6 +169,7 @@ def check_puzzle_solution(request, puzzle_id):
             save_lesson_progress(
                 str(request.user.id), lesson_id, "puzzle", passed,
                 lesson_title=puzzle.title, track_id=puzzle.track_id or "", track_title=track_title,
+                available_until=getattr(puzzle, "available_until", None),
             )
 
         return Response({

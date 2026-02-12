@@ -1,27 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Pencil } from "lucide-react";
 import { fetchLectureById } from "@/lib/api/lectures";
+import { OwnerActions } from "@/components/owner-actions";
+import { deleteLecture } from "@/lib/api/lectures";
 
 interface LectureHeaderProps {
   lectureId: string;
   title: string;
+  /** Если передан — не запрашиваем canEdit отдельно */
+  canEdit?: boolean;
 }
 
-export function LectureHeader({ lectureId, title }: LectureHeaderProps) {
-  const [canEdit, setCanEdit] = useState(false);
+export function LectureHeader({ lectureId, title, canEdit: canEditProp }: LectureHeaderProps) {
+  const [canEditState, setCanEditState] = useState(false);
+  const canEdit = canEditProp ?? canEditState;
 
   useEffect(() => {
+    if (canEditProp !== undefined) return;
     let cancelled = false;
     fetchLectureById(lectureId).then((lec) => {
-      if (cancelled) return;
-      setCanEdit(lec?.canEdit ?? false);
+      if (!cancelled) setCanEditState(lec?.canEdit ?? false);
     });
     return () => { cancelled = true; };
-  }, [lectureId]);
+  }, [lectureId, canEditProp]);
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -29,12 +31,12 @@ export function LectureHeader({ lectureId, title }: LectureHeaderProps) {
         {title}
       </h1>
       {canEdit && (
-        <Link href={`/lectures/${lectureId}/edit`}>
-          <Button variant="outline" size="sm" className="gap-2">
-            <Pencil className="h-4 w-4" />
-            Редактировать
-          </Button>
-        </Link>
+        <OwnerActions
+          canEdit
+          editHref={`/lectures/${lectureId}/edit`}
+          onDelete={() => deleteLecture(lectureId)}
+          afterDeleteRedirect="/main"
+        />
       )}
     </div>
   );

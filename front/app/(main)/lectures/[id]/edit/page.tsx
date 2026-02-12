@@ -13,6 +13,10 @@ export default function LectureEditPage() {
     title: string;
     blocks: Array<unknown>;
     visibleGroupIds: string[];
+    hints: string[];
+    availableFrom: string;
+    availableUntil: string;
+    maxAttempts: string;
     canEdit: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +41,10 @@ export default function LectureEditPage() {
         title: lec.title,
         blocks: (lec.blocks ?? []) as Array<unknown>,
         visibleGroupIds: lec.visibleGroupIds ?? [],
+        hints: lec.hints ?? [],
+        availableFrom: lec.availableFrom ?? "",
+        availableUntil: lec.availableUntil ?? "",
+        maxAttempts: lec.maxAttempts != null ? String(lec.maxAttempts) : "",
         canEdit: lec.canEdit ?? false,
       });
       setLoading(false);
@@ -83,12 +91,20 @@ export default function LectureEditPage() {
         initialTitle={lecture.title}
         initialBlocks={lecture.blocks as Parameters<typeof LectureEditorForm>[0]["initialBlocks"]}
         initialVisibleGroupIds={lecture.visibleGroupIds}
+        initialHints={lecture.hints}
+        initialAvailableFrom={lecture.availableFrom}
+        initialAvailableUntil={lecture.availableUntil}
+        initialMaxAttempts={lecture.maxAttempts}
         onCreate={async () => ({ id: "" })}
         onUpdate={async (data) => {
           await updateLecture(id, {
             title: data.title,
             blocks: data.blocks,
             visibleGroupIds: data.visibleGroupIds,
+            hints: data.hints,
+            availableFrom: data.availableFrom,
+            availableUntil: data.availableUntil,
+            maxAttempts: data.maxAttempts,
           });
         }}
       />

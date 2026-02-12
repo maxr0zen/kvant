@@ -1,6 +1,6 @@
 from rest_framework import status
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import RetrieveModelMixin, CreateModelMixin, UpdateModelMixin
+from rest_framework.mixins import RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -36,7 +36,7 @@ def _lecture_has_question_blocks(lecture):
     return len(ids) > 0
 
 
-class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin):
+class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin):
     serializer_class = LectureSerializer
     permission_classes = [IsAuthenticated]
     lookup_url_kwarg = "pk"
@@ -82,6 +82,7 @@ class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Updat
                 lesson_title=instance.title,
                 track_id=instance.track_id or "",
                 track_title=track_title,
+                available_until=getattr(instance, "available_until", None),
             )
         ser = self.get_serializer(instance)
         return Response(ser.data)
@@ -127,6 +128,19 @@ class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Updat
         kwargs["partial"] = True
         return self.update(request, *args, **kwargs)
 
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+        except Lecture.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not self._can_edit_lecture(request, instance):
+            return Response(
+                {"detail": "Нет прав на удаление этой лекции."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def mark_viewed(self, request, pk=None):
         """Отметить лекцию как просмотренную (для авторизованного пользователя)."""
@@ -156,6 +170,7 @@ class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Updat
             lesson_title=lecture.title,
             track_id=lecture.track_id or "",
             track_title=track_title,
+            available_until=getattr(lecture, "available_until", None),
         )
         return Response({"status": "ok"})
 
@@ -244,6 +259,7 @@ class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Updat
             save_lesson_progress(
                 user_id, block_lesson_id, "question", passed,
                 lesson_title=lecture.title, track_id=lecture.track_id or "", track_title=track_title,
+                available_until=getattr(lecture, "available_until", None),
             )
             if passed:
                 from apps.submissions.documents import LessonProgress
@@ -259,6 +275,7 @@ class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Updat
                     save_lesson_progress(
                         user_id, lecture_display_id, "lecture", True,
                         lesson_title=lecture.title, track_id=lecture.track_id or "", track_title=track_title,
+                        available_until=getattr(lecture, "available_until", None),
                     )
         return Response({
             "passed": passed,

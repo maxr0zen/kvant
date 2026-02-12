@@ -1,12 +1,12 @@
 from rest_framework import status
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import RetrieveModelMixin, CreateModelMixin
+from rest_framework.mixins import RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from common.db_utils import get_doc_by_pk
-from .documents import Task, TestCaseEmbed
+from .documents import Task, TaskCaseEmbed
 from .serializers import TaskSerializer, RunCodeSerializer
 from .runner import run_tests
 from apps.users.permissions import IsTeacher
@@ -15,7 +15,17 @@ from apps.submissions.documents import Submission, TaskDraft
 from apps.submissions.progress import save_lesson_progress
 
 
-class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin):
+def _can_edit_task(request, task):
+    """Только создатель или superuser может редактировать/удалять."""
+    if not request.user or not getattr(request.user, "id", None):
+        return False
+    if getattr(request.user, "role", None) == "superuser":
+        return True
+    creator = getattr(task, "created_by_id", None) or ""
+    return creator and str(creator) == str(request.user.id)
+
+
+class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
     lookup_url_kwarg = "pk"
@@ -49,6 +59,44 @@ class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin):
         task = ser.save()
         return Response(self.get_serializer(task).data, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+        except Task.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not _can_edit_task(request, instance):
+            return Response(
+                {"detail": "Нет прав на редактирование этого задания."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        visible_group_ids = request.data.get("visible_group_ids")
+        if visible_group_ids is not None:
+            ok, err = validate_visible_group_ids_for_teacher(request.user, visible_group_ids)
+            if not ok:
+                return Response({"detail": err}, status=status.HTTP_403_FORBIDDEN)
+        partial = kwargs.get("partial", False)
+        ser = self.get_serializer(instance, data=request.data, partial=partial)
+        ser.is_valid(raise_exception=True)
+        task = ser.save()
+        return Response(self.get_serializer(task).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+        except Task.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not _can_edit_task(request, instance):
+            return Response(
+                {"detail": "Нет прав на удаление этого задания."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=["post"])
     def run(self, request, pk=None):
         """Run code against test cases."""
@@ -73,6 +121,14 @@ class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin):
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         code = ser.validated_data["code"]
         user_id = str(request.user.id)
+        max_attempts = getattr(task, "max_attempts", None)
+        if max_attempts is not None:
+            count = Submission.objects(user_id=user_id, task_id=str(task.id)).count()
+            if count >= max_attempts:
+                return Response(
+                    {"detail": "Превышено максимальное число попыток для этого задания."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         results = run_tests(task, code)
         passed = all(r.get("passed", False) for r in results)
         Submission(
@@ -96,6 +152,7 @@ class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin):
         save_lesson_progress(
             user_id, lesson_id, "task", passed,
             lesson_title=task.title, track_id=task.track_id or "", track_title=track_title,
+            available_until=getattr(task, "available_until", None),
         )
         message = "Все тесты пройдены." if passed else "Часть тестов не пройдена."
         return Response({

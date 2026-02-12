@@ -43,7 +43,7 @@ export function TrackLessonNav({
         )}
         {trackTitle && (
           <Link
-            href={`/tracks/${trackId}`}
+            href={`/main/${trackId}`}
             className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground order-1 sm:order-2 shrink-0"
           >
             <LayoutDashboard className="h-4 w-4" />

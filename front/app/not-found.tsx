@@ -8,7 +8,7 @@ export default function NotFound() {
       <p className="text-muted-foreground text-center">
         Запрашиваемая страница не существует или была перемещена.
       </p>
-      <Link href="/tracks">
+      <Link href="/main">
         <Button>Перейти к трекам</Button>
       </Link>
     </div>

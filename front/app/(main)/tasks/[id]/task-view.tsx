@@ -14,6 +14,8 @@ import { submitTask, fetchTaskDraft, saveTaskDraft } from "@/lib/api/tasks";
 import { hasApi } from "@/lib/api/client";
 import { getStoredToken } from "@/lib/api/auth";
 import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
+import { HintsBlock } from "@/components/hints-block";
+import { AvailabilityNotice } from "@/components/availability-notice";
 
 const DRAFT_SAVE_DELAY_MS = 1500;
 
@@ -247,38 +249,54 @@ export function TaskView({ task }: { task: Task }) {
         : "Отправка..."
       : "Отправить решение";
 
+  const maxAttempts = task.maxAttempts ?? null;
+  const attemptsUsed = task.attemptsUsed ?? 0;
+  const attemptsExhausted = maxAttempts != null && attemptsUsed >= maxAttempts;
+  const submitDisabled = loading !== null || attemptsExhausted;
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-4">
-        <CodeEditor value={code} onChange={setCode} />
-        <div className="flex flex-wrap gap-3 pt-1">
-          <Button
-            onClick={handleRun}
-            disabled={loading !== null}
-            variant="outline"
-          >
-            {runButtonLabel}
-          </Button>
-          <Button onClick={handleSubmit} disabled={loading !== null}>
-            {submitButtonLabel}
-          </Button>
-          {task.trackId && (
-            <Link href={`/tracks/${task.trackId}`}>
-              <Button variant="ghost">К треку</Button>
-            </Link>
-          )}
+    <div className="space-y-4">
+      <AvailabilityNotice availableFrom={task.availableFrom} availableUntil={task.availableUntil} />
+      {maxAttempts != null && (
+        <p className="text-sm text-muted-foreground">
+          {attemptsExhausted
+            ? "Попытки исчерпаны для этого задания."
+            : `Попыток осталось: ${maxAttempts - attemptsUsed} из ${maxAttempts}`}
+        </p>
+      )}
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-4">
+          <CodeEditor value={code} onChange={setCode} />
+          <div className="flex flex-wrap gap-3 pt-1">
+            <Button
+              onClick={handleRun}
+              disabled={loading !== null}
+              variant="outline"
+            >
+              {runButtonLabel}
+            </Button>
+            <Button onClick={handleSubmit} disabled={submitDisabled}>
+              {submitButtonLabel}
+            </Button>
+            {task.trackId && (
+              <Link href={`/main/${task.trackId}`}>
+                <Button variant="ghost">К треку</Button>
+              </Link>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="lg:border-l lg:pl-6">
-        <TestCasesPanel
-          testCases={task.testCases.map((c) => ({
-            id: c.id,
-            input: c.input,
-            expectedOutput: c.expectedOutput,
-            isPublic: c.isPublic,
-          }))}
-          results={runResults}
-        />
+        <div className="lg:border-l lg:pl-6 space-y-4">
+          <TestCasesPanel
+            testCases={task.testCases.map((c) => ({
+              id: c.id,
+              input: c.input,
+              expectedOutput: c.expectedOutput,
+              isPublic: c.isPublic,
+            }))}
+            results={runResults}
+          />
+          <HintsBlock hints={task.hints ?? []} />
+        </div>
       </div>
     </div>
   );

@@ -67,7 +67,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     const role = getStoredRole();
     if (role !== "superuser") {
-      router.replace("/tracks");
+      router.replace("/main");
       return;
     }
     Promise.all([fetchUsers(), fetchGroups()]).then(([u, g]) => {
@@ -419,7 +419,7 @@ export default function AdminUsersPage() {
         <Link href="/admin/groups">
           <Button variant="ghost">Группы</Button>
         </Link>
-        <Link href="/tracks">
+        <Link href="/main">
           <Button variant="ghost">К трекам</Button>
         </Link>
       </div>

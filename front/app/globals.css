@@ -5,6 +5,8 @@
 /* Цвета логотипа: тёмно-синий, оранжево-красный, голубой, зелёный, оранжевый */
 @layer base {
   :root {
+    --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
     --background: 0 0% 99%;
     --foreground: 221 25% 12%;
     --card: 0 0% 100%;
@@ -28,6 +30,10 @@
     --brand-orange: 28 87% 55%;
     --brand-green: 98 42% 45%;
     --brand-coral: 9 78% 58%;
+    /* Семантические статусы (на базе бренда) */
+    --success: var(--brand-green);
+    --warning: var(--brand-orange);
+    --info: var(--brand-cyan);
   }
   .dark {
     /* Тёмная тема — спокойные серые тона */
@@ -52,6 +58,9 @@
     --brand-orange: 28 87% 60%;
     --brand-green: 98 42% 52%;
     --brand-coral: 9 78% 62%;
+    --success: var(--brand-green);
+    --warning: var(--brand-orange);
+    --info: var(--brand-cyan);
   }
 }
 
@@ -60,11 +69,24 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   }
   /* no global flash styles */
   /* Ссылки в стиле логотипа */
   a:not([class]) {
     @apply text-[hsl(var(--primary))] underline-offset-4 hover:underline;
+  }
+
+  /* Шрифт кода: проектный mono везде (подсветка сохраняет цвета, шрифт — наш) */
+  .code-font-mono,
+  .code-font-mono * {
+    font-family: var(--font-mono), ui-monospace, "Cascadia Code", "Source Code Pro", monospace !important;
+  }
+  .cm-editor .cm-scroller,
+  .cm-editor .cm-content,
+  .cm-editor .cm-line,
+  .cm-editor .cm-line * {
+    font-family: var(--font-mono), ui-monospace, "Cascadia Code", "Source Code Pro", monospace !important;
   }
 }

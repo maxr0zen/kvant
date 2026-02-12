@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { User, LogOut, Activity, BarChart3, CheckCircle2, CircleDot, BookOpen, UsersRound, ChevronDown, ChevronRight, KeyRound, QrCode, Link2, Plus, Trash2, Trophy } from "lucide-react";
+import { formatLateSeconds } from "@/components/availability-countdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,7 @@ const LESSON_TYPE_LABELS: Record<string, string> = {
   task: "Задача",
   puzzle: "Пазл",
   question: "Вопрос",
+  survey: "Опрос",
 };
 
 function formatDate(iso: string | null): string {
@@ -132,8 +134,9 @@ export default function ProfilePage() {
 
   if (!mounted) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-0">
-        <p className="text-muted-foreground">Загрузка...</p>
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-4 py-16">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <p className="text-sm text-muted-foreground">Загрузка...</p>
       </div>
     );
   }
@@ -152,10 +155,10 @@ export default function ProfilePage() {
   const displayName = user.full_name || [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username;
 
   return (
-    <div className="w-full max-w-none flex-1 min-h-0 flex flex-col gap-8 overflow-auto">
+    <div className="w-full max-w-none flex-1 min-h-0 flex flex-col gap-6 sm:gap-8 overflow-auto">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Личный кабинет</h1>
-        <p className="text-muted-foreground mt-1">Добро пожаловать, {displayName}</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl mb-1">Личный кабинет</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">Добро пожаловать, {displayName}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
@@ -178,6 +181,15 @@ export default function ProfilePage() {
                 <p className="text-sm font-medium text-muted-foreground">Логин</p>
                 <p className="text-base font-mono">{user.username}</p>
               </div>
+              {role === "student" && profile?.group && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Группа</p>
+                  <p className="text-base">
+                    {profile.group.title}
+                    {profile.group.teacher_name ? ` (${profile.group.teacher_name})` : ""}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -240,7 +252,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 px-6 text-center h-full min-h-[200px] flex items-center justify-center">
+                <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 px-6 h-full min-h-[200px] flex flex-col justify-center">
                   <p className="text-sm text-muted-foreground">
                     QR-коды появятся, когда учитель добавит ссылки для вашей группы.
                   </p>
@@ -266,7 +278,7 @@ export default function ProfilePage() {
                     <div key={p.track_id} className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <Link
-                          href={`/tracks/${p.track_id}`}
+                          href={`/main/${p.track_id}`}
                           className="font-medium hover:underline flex items-center gap-2"
                         >
                           <BookOpen className="h-4 w-4 shrink-0" />
@@ -301,7 +313,7 @@ export default function ProfilePage() {
                 <ul className="space-y-3">
                   {profile.activity.map((a, i) => (
                     <li key={`${a.lesson_id}-${i}`} className="flex items-start gap-3 text-sm">
-                      {a.status === "completed" ? (
+                      {a.status === "completed" || a.status === "completed_late" ? (
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
                       ) : (
                         <CircleDot className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
@@ -309,10 +321,14 @@ export default function ProfilePage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{a.lesson_title}</p>
                         <p className="text-muted-foreground text-xs">
-                          {a.track_title} · {LESSON_TYPE_LABELS[a.lesson_type] ?? a.lesson_type} · {formatDate(a.updated_at)}
+                          {a.track_title} · {LESSON_TYPE_LABELS[a.lesson_type] ?? a.lesson_type}
+                          {a.status === "completed_late" && (a.late_by_seconds ?? 0) > 0
+                            ? ` · Выполнено после срока (просрочка ${formatLateSeconds(a.late_by_seconds!)})`
+                            : ""}
+                          {" · "}{formatDate(a.updated_at)}
                         </p>
                       </div>
-                      <Link href={`/tracks/${a.track_id}/lesson/${a.lesson_id}`}>
+                      <Link href={a.track_id ? `/main/${a.track_id}/lesson/${a.lesson_id}` : (a.lesson_type === "survey" ? `/surveys/${a.lesson_id}` : a.lesson_type === "lecture" ? `/lectures/${a.lesson_id}` : a.lesson_type === "task" ? `/tasks/${a.lesson_id}` : a.lesson_type === "puzzle" ? `/puzzles/${a.lesson_id}` : `/questions/${a.lesson_id}`)}>
                         <Button variant="ghost" size="sm">Открыть</Button>
                       </Link>
                     </li>
@@ -437,7 +453,7 @@ export default function ProfilePage() {
           <LogOut className="h-4 w-4" />
           Выйти
         </Button>
-        <Link href="/tracks">
+        <Link href="/main">
           <Button variant="ghost">К трекам</Button>
         </Link>
       </div>
@@ -489,29 +505,36 @@ function TrackDetailDialog({
             <p className="text-sm text-muted-foreground">Загрузка...</p>
           ) : data?.lessons?.length ? (
             <ul className="space-y-2">
-              {data.lessons.map((l) => (
-                <li
-                  key={l.lesson_id}
-                  className={cn(
-                    "flex items-center gap-3 p-2 rounded-lg border text-sm",
-                    l.status === "completed"
-                      ? "bg-green-500/10 border-green-500/30"
-                      : l.status === "started"
-                        ? "bg-amber-500/10 border-amber-500/30"
-                        : "bg-muted/30 border-border/60"
-                  )}
-                >
-                  {l.status === "completed" ? (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                  ) : l.status === "started" ? (
-                    <CircleDot className="h-4 w-4 shrink-0 text-amber-600" />
-                  ) : (
-                    <CircleDot className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  )}
-                  <span className="font-medium flex-1 min-w-0 truncate">{l.lesson_title}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">{l.lesson_type_label}</span>
-                </li>
-              ))}
+              {data.lessons.map((l) => {
+                const isDone = l.status === "completed" || l.status === "completed_late";
+                return (
+                  <li
+                    key={l.lesson_id}
+                    className={cn(
+                      "flex items-center gap-3 p-2 rounded-lg border text-sm",
+                      isDone
+                        ? "bg-green-500/10 border-green-500/30"
+                        : l.status === "started"
+                          ? "bg-amber-500/10 border-amber-500/30"
+                          : "bg-muted/30 border-border/60"
+                    )}
+                  >
+                    {isDone ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                    ) : l.status === "started" ? (
+                      <CircleDot className="h-4 w-4 shrink-0 text-amber-600" />
+                    ) : (
+                      <CircleDot className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="font-medium flex-1 min-w-0 truncate">{l.lesson_title}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {l.status === "completed_late" && (l.late_by_seconds ?? 0) > 0
+                        ? `${l.lesson_type_label} · Выполнено после срока (${formatLateSeconds(l.late_by_seconds!)})`
+                        : l.lesson_type_label}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">Нет уроков в треке</p>

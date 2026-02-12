@@ -45,7 +45,7 @@ export default function AdminGroupsPage() {
   useEffect(() => {
     const role = getStoredRole();
     if (role !== "superuser") {
-      router.replace("/tracks");
+      router.replace("/main");
       return;
     }
     fetchGroups()
@@ -240,7 +240,7 @@ export default function AdminGroupsPage() {
         <Link href="/admin/users">
           <Button variant="ghost">Пользователи</Button>
         </Link>
-        <Link href="/tracks">
+        <Link href="/main">
           <Button variant="ghost">К трекам</Button>
         </Link>
       </div>

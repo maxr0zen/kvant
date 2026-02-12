@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { fetchLectureById } from "@/lib/api/lectures";
+import { AUTH_TOKEN_COOKIE } from "@/lib/api/auth";
 import { LectureBlocks } from "@/app/(main)/lectures/[id]/lecture-blocks";
 import { LegacyLectureContent } from "@/app/(main)/lectures/[id]/legacy-lecture-content";
 import { LectureViewTracker } from "@/components/lecture-view-tracker";
@@ -13,12 +15,14 @@ export default async function LecturePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const lecture = await fetchLectureById(id);
+  const cookieStore = await cookies();
+  const token = cookieStore.get(AUTH_TOKEN_COOKIE)?.value ?? null;
+  const lecture = await fetchLectureById(id, token);
   if (!lecture) notFound();
 
   // Если лекция в треке — переходим на страницу урока в треке
   if (lecture.trackId) {
-    redirect(`/tracks/${lecture.trackId}/lesson/${id}`);
+    redirect(`/main/${lecture.trackId}/lesson/${id}`);
   }
 
   const hasBlocks = lecture.blocks && lecture.blocks.length > 0;
@@ -27,8 +31,8 @@ export default async function LecturePage({
     <div className="w-full min-w-0 space-y-6">
       <LectureViewTracker lectureId={id} />
       <div className="flex items-center justify-between gap-4">
-        <LectureHeader lectureId={id} title={lecture.title} />
-        <Link href="/tracks">
+        <LectureHeader lectureId={id} title={lecture.title} canEdit={lecture.canEdit} />
+        <Link href="/main">
           <Button variant="outline" size="sm">
             К трекам
           </Button>
@@ -48,7 +52,7 @@ export default async function LecturePage({
         )}
       </div>
       <div className="pt-4">
-        <Link href="/tracks">
+        <Link href="/main">
           <Button variant="outline">К списку треков</Button>
         </Link>
       </div>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useToast } from "@/components/ui/use-toast";
 import type { LectureBlock } from "@/lib/types";
 import { checkLectureBlockAnswer } from "@/lib/api/lectures";
+import { Lightbulb } from "lucide-react";
 
 const ORDER_STORAGE_KEY = (lid: string, bid: string) => `lecture_q_order_${lid}_${bid}`;
 
@@ -47,6 +48,8 @@ export function BlockViewQuestion({ block, lectureId, wasEverCorrect = false, co
   const [orderedChoices, setOrderedChoices] = useState<{ id: string; text: string }[]>(() =>
     (block.choices || []).map((c) => ({ id: c.id, text: c.text }))
   );
+  const [hintsRevealed, setHintsRevealed] = useState(0);
+  const hints = block.hints?.filter((h) => h?.trim()) ?? [];
 
   useEffect(() => {
     const choices = block.choices || [];
@@ -130,7 +133,7 @@ export function BlockViewQuestion({ block, lectureId, wasEverCorrect = false, co
               );
             })}
           </div>
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             <Button onClick={handleSubmit} disabled={!allowSubmit || loading} size="sm">
               {loading ? "Проверка..." : "Проверить"}
             </Button>
@@ -140,6 +143,30 @@ export function BlockViewQuestion({ block, lectureId, wasEverCorrect = false, co
               </span>
             )}
           </div>
+          {hints.length > 0 && (
+            <div className="mt-3 pt-3 border-t space-y-2">
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                <Lightbulb className="h-3.5 w-3.5" /> Подсказки
+              </p>
+              {hints.slice(0, hintsRevealed).map((h, i) => (
+                <p key={i} className="text-sm bg-muted/50 rounded-md px-3 py-2">
+                  {h}
+                </p>
+              ))}
+              {hintsRevealed < hints.length && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => setHintsRevealed((n) => n + 1)}
+                >
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  {hintsRevealed === 0 ? "Показать подсказку" : `Подсказка ${hintsRevealed + 1}`}
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

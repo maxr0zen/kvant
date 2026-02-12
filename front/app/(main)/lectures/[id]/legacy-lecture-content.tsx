@@ -1,5 +1,7 @@
 "use client";
 
+import { CodeHighlight } from "@/components/code-highlight";
+
 function renderContent(content: string) {
   const lines = content.split("\n");
   const blocks: React.ReactNode[] = [];
@@ -11,12 +13,12 @@ function renderContent(content: string) {
     if (line.startsWith("```")) {
       if (inCode) {
         blocks.push(
-          <pre
+          <CodeHighlight
             key={i}
-            className="bg-muted rounded-lg p-4 overflow-x-auto text-sm font-mono"
-          >
-            <code>{codeBuffer.join("\n")}</code>
-          </pre>
+            code={codeBuffer.join("\n")}
+            language="python"
+            className="my-2"
+          />
         );
         codeBuffer = [];
       }
@@ -55,12 +57,12 @@ function renderContent(content: string) {
   }
   if (codeBuffer.length > 0) {
     blocks.push(
-      <pre
+      <CodeHighlight
         key="final"
-        className="bg-muted rounded-lg p-4 overflow-x-auto text-sm font-mono"
-      >
-        <code>{codeBuffer.join("\n")}</code>
-      </pre>
+        code={codeBuffer.join("\n")}
+        language="python"
+        className="my-2"
+      />
     );
   }
   return blocks;

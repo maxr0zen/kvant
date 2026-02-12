@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Play, Loader2 } from "lucide-react";
 import { runPythonInBrowser } from "@/lib/runner/browser-python";
 import type { LectureBlock } from "@/lib/types";
+import { CodeHighlight } from "@/components/code-highlight";
 
 interface BlockViewCodeProps {
   block: Extract<LectureBlock, { type: "code" }>;
@@ -81,9 +82,11 @@ export function BlockViewCode({ block }: BlockViewCodeProps) {
             {loading ? "Загрузка Pyodide..." : running ? "Запуск..." : "Запустить"}
           </Button>
         </div>
-        <pre className="p-4 overflow-x-auto text-sm font-mono bg-background">
-          <code>{block.code || " "}</code>
-        </pre>
+        <CodeHighlight
+          code={block.code || " "}
+          language={(block.language ?? "python").toLowerCase()}
+          className="rounded-none border-0"
+        />
         {output !== null && (
           <div className="border-t bg-muted/50 p-3">
             <p className="text-xs font-medium text-muted-foreground mb-1">

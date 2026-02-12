@@ -9,6 +9,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -45,6 +49,16 @@ const config: Config = {
           green: "hsl(var(--brand-green))",
           coral: "hsl(var(--brand-coral))",
         },
+        success: "hsl(var(--brand-green))",
+        warning: "hsl(var(--brand-orange))",
+        info: "hsl(var(--brand-cyan))",
+      },
+      spacing: {
+        18: "4.5rem",
+      },
+      borderRadius: {
+        xl: "0.75rem",
+        "2xl": "1rem",
       },
     },
   },

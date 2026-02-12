@@ -39,7 +39,7 @@ export default function LoginPage() {
         full_name: res.user.full_name
       });
       toast({ title: "Вход выполнен", description: "Добро пожаловать." });
-      router.push("/tracks");
+      router.push("/main");
       router.refresh();
     } catch (err) {
       toast({
@@ -53,13 +53,13 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-md border-primary/15">
-      <CardHeader className="space-y-1 text-center">
+    <Card className="w-full max-w-md border-primary/15 rounded-xl">
+      <CardHeader className="space-y-1 pb-2">
         <CardTitle className="text-2xl">Вход</CardTitle>
         <CardDescription>Введите логин и пароль для входа в платформу</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="username">Логин</Label>
             <Input
@@ -106,9 +106,9 @@ export default function LoginPage() {
             {loading ? "Вход..." : "Войти"}
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+        <p className="mt-6 text-sm text-muted-foreground">
           Нет аккаунта?{" "}
-          <Link href="/tracks" className="underline hover:text-foreground">
+          <Link href="/main" className="underline hover:text-foreground">
             Перейти к трекам
           </Link>
         </p>

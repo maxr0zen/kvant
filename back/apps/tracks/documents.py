@@ -3,7 +3,7 @@ from mongoengine import Document, StringField, IntField, ListField, EmbeddedDocu
 
 class LessonRef(EmbeddedDocument):
     id = StringField(required=True)
-    type = StringField(required=True, choices=["lecture", "task", "puzzle", "question"])
+    type = StringField(required=True, choices=["lecture", "task", "puzzle", "question", "survey"])
     title = StringField(required=True)
     order = IntField(required=True, default=0)
 
@@ -23,3 +23,4 @@ class Track(Document):
     public_id = StringField()
     # List of group ids (strings) that may see this track. Empty list = visible to all.
     visible_group_ids = ListField(StringField(), default=list)
+    created_by_id = StringField(default="")

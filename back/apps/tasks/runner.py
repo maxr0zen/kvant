@@ -30,7 +30,10 @@ def run_python_code(code: str, stdin: str = "", timeout_sec: float = 5.0) -> tup
     Возвращает (stdout, stderr, error).
     error — сообщение об ошибке (SyntaxError, timeout и т.д.), иначе None.
     """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".py", delete=False, encoding="utf-8"
+    ) as f:
+        f.write("# -*- coding: utf-8 -*-\n")
         f.write(code)
         tmp_path = f.name
     try:
@@ -39,6 +42,7 @@ def run_python_code(code: str, stdin: str = "", timeout_sec: float = 5.0) -> tup
             input=stdin,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout_sec,
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )

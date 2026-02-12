@@ -16,6 +16,8 @@ from .serializers import (
     UserUpdateSerializer,
 )
 from .permissions import IsSuperuser, IsTeacher, IsTeacherOrSuperuser
+from .teacher_utils import get_teacher_group_ids
+from common.db_utils import datetime_to_iso_utc, get_doc_by_pk
 
 
 class LoginView(APIView):
@@ -83,13 +85,17 @@ class ProfileView(APIView):
 
         activity = []
         for lp in LessonProgress.objects(user_id=user_id).order_by("-updated_at")[:20]:
+            st = lp.status
+            if st == "completed" and getattr(lp, "completed_late", False):
+                st = "completed_late"
             activity.append({
                 "lesson_id": lp.lesson_id,
                 "lesson_title": lp.lesson_title or "Урок",
                 "lesson_type": lp.lesson_type,
                 "track_id": lp.track_id,
                 "track_title": lp.track_title or "Трек",
-                "status": lp.status,
+                "status": st,
+                "late_by_seconds": getattr(lp, "late_by_seconds", 0) or 0,
                 "updated_at": lp.updated_at.isoformat() if lp.updated_at else None,
             })
 
@@ -124,8 +130,8 @@ class ProfileView(APIView):
                 if lesson.type not in ("lecture", "task", "puzzle", "question"):
                     continue
                 display_id = _get_lesson_display_id(lesson)
-                status = get_lesson_status_for_user(user_id, lesson, display_id)
-                if status == "completed":
+                status, _ = get_lesson_status_for_user(user_id, lesson, display_id)
+                if status in ("completed", "completed_late"):
                     completed += 1
                 elif status == "started":
                     started += 1
@@ -139,14 +145,23 @@ class ProfileView(APIView):
             })
 
         group_links = None
+        group_info = None
         if getattr(user, "group_id", None):
-            from apps.groups.documents import Group
             try:
                 g = Group.objects.get(id=ObjectId(user.group_id))
                 group_links = {
                     "child_chat_url": getattr(g, "child_chat_url", None) or "",
                     "parent_chat_url": getattr(g, "parent_chat_url", None) or "",
                     "links": getattr(g, "links", None) or [],
+                }
+                teacher_names = [
+                    t.full_name
+                    for t in User.objects(role=UserRole.TEACHER.value, group_ids=str(user.group_id))
+                ]
+                group_info = {
+                    "id": str(g.id),
+                    "title": g.title,
+                    "teacher_name": ", ".join(teacher_names) if teacher_names else None,
                 }
             except Exception:
                 pass
@@ -180,6 +195,7 @@ class ProfileView(APIView):
             "activity": activity,
             "progress": progress_summary,
             "group_links": group_links,
+            "group": group_info,
             "achievements": achievements_list,
         })
 
@@ -234,8 +250,8 @@ class TeacherGroupsProgressView(APIView):
                     if lesson.type not in ("lecture", "task", "puzzle", "question"):
                         continue
                     display_id = _get_lesson_display_id(lesson)
-                    status = get_lesson_status_for_user(user_id, lesson, display_id)
-                    if status == "completed":
+                    status, _ = get_lesson_status_for_user(user_id, lesson, display_id)
+                    if status in ("completed", "completed_late"):
                         completed += 1
                     elif status == "started":
                         started += 1
@@ -344,23 +360,284 @@ class TeacherStudentTrackProgressView(APIView):
 
         user_id = str(student_id)
         lessons_out = []
-        LESSON_TYPE_LABELS = {"lecture": "Лекция", "task": "Задача", "puzzle": "Пазл", "question": "Вопрос"}
+        LESSON_TYPE_LABELS = {"lecture": "Лекция", "task": "Задача", "puzzle": "Пазл", "question": "Вопрос", "survey": "Опрос"}
         for lesson in track.lessons:
-            if lesson.type not in ("lecture", "task", "puzzle", "question"):
+            if lesson.type not in ("lecture", "task", "puzzle", "question", "survey"):
                 continue
             display_id = _get_lesson_display_id(lesson)
-            status_val = get_lesson_status_for_user(user_id, lesson, display_id)
+            status_val, late_by_seconds = get_lesson_status_for_user(user_id, lesson, display_id)
             lessons_out.append({
                 "lesson_id": display_id,
                 "lesson_title": lesson.title,
                 "lesson_type": lesson.type,
                 "lesson_type_label": LESSON_TYPE_LABELS.get(lesson.type, lesson.type),
                 "status": status_val,
+                "late_by_seconds": late_by_seconds,
             })
         return Response({
             "track_title": track.title,
             "student_name": student.full_name,
             "lessons": lessons_out,
+        })
+
+
+def _standalone_visible_to_user(doc, group_ids):
+    """Виден ли контент хотя бы одной из групп (пустой visible_group_ids = всем)."""
+    vg = getattr(doc, "visible_group_ids", None) or []
+    if not vg:
+        return True
+    return bool(set(vg) & set(group_ids))
+
+
+def _get_in_track_lesson_ids():
+    """Все id уроков, входящих в какой-либо трек (ObjectId и public_id)."""
+    from apps.tracks.documents import Track
+    from apps.lectures.documents import Lecture
+    from apps.tasks.documents import Task
+    from apps.puzzles.documents import Puzzle
+    from apps.questions.documents import Question
+    from apps.surveys.documents import Survey
+
+    ids = set()
+    by_type = {"lecture": [], "task": [], "puzzle": [], "question": [], "survey": []}
+    for track in Track.objects.all():
+        for lesson in getattr(track, "lessons", []) or []:
+            lid = getattr(lesson, "id", None)
+            if not lid:
+                continue
+            sid = str(lid)
+            ids.add(sid)
+            t = getattr(lesson, "type", None)
+            if t in by_type:
+                by_type[t].append(sid)
+    for model, key in [(Lecture, "lecture"), (Task, "task"), (Puzzle, "puzzle"), (Question, "question"), (Survey, "survey")]:
+        ref_ids = by_type[key]
+        if not ref_ids:
+            continue
+        oids = []
+        for s in ref_ids:
+            if len(s) == 24 and ObjectId.is_valid(s):
+                try:
+                    oids.append(ObjectId(s))
+                except Exception:
+                    pass
+        if oids:
+            for doc in model.objects(id__in=oids).only("public_id"):
+                pid = getattr(doc, "public_id", None)
+                if pid:
+                    ids.add(str(pid))
+    return ids
+
+
+class TeacherStandaloneProgressView(APIView):
+    """Детализация по одиночным и временным заданиям: кто из учеников выполнил."""
+    permission_classes = [IsAuthenticated, IsTeacherOrSuperuser]
+
+    def get(self, request):
+        from apps.lectures.documents import Lecture
+        from apps.tasks.documents import Task
+        from apps.puzzles.documents import Puzzle
+        from apps.questions.documents import Question
+        from apps.surveys.documents import Survey, SurveyResponse
+        from apps.tracks.serializers import get_standalone_status_for_user
+
+        user = request.user
+        is_superuser = getattr(user, "role", None) == UserRole.SUPERUSER.value
+        teacher_group_ids = list(getattr(user, "group_ids", []) or [])
+        teacher_group_ids = [str(g) for g in teacher_group_ids]
+        if is_superuser:
+            teacher_group_ids = [str(g.id) for g in Group.objects.all()]
+        if not teacher_group_ids:
+            return Response({"assignments": [], "groups": []})
+
+        group_object_ids = [ObjectId(g) for g in teacher_group_ids if g and ObjectId.is_valid(g)]
+        groups_qs = Group.objects.filter(id__in=group_object_ids).order_by("order", "title")
+        group_titles = {str(g.id): g.title for g in groups_qs}
+        students_qs = User.objects(role="student", group_id__in=teacher_group_ids).order_by("first_name", "last_name")
+        in_track_ids = _get_in_track_lesson_ids()
+
+        assignments = []
+
+        for lec in Lecture.objects.all():
+            lid = str(getattr(lec, "public_id", None) or lec.id)
+            oid = str(lec.id)
+            if oid in in_track_ids or lid in in_track_ids:
+                continue
+            if not _standalone_visible_to_user(lec, teacher_group_ids):
+                continue
+            lesson_ids = [lid, oid] if lid != oid else [lid]
+            students = []
+            for s in students_qs:
+                status, late_by, completed_at = get_standalone_status_for_user(str(s.id), "lecture", lesson_ids)
+                students.append({
+                    "user_id": str(s.id),
+                    "full_name": s.full_name,
+                    "group_id": str(s.group_id) if s.group_id else "",
+                    "group_title": group_titles.get(str(s.group_id), ""),
+                    "status": status,
+                    "late_by_seconds": late_by,
+                    "completed_at": completed_at,
+                })
+            au = getattr(lec, "available_until", None)
+            assignments.append({
+                "id": lid, "title": lec.title, "type": "lecture", "students": students,
+                "available_until": datetime_to_iso_utc(au),
+            })
+
+        for task in Task.objects.all():
+            lid = str(getattr(task, "public_id", None) or task.id)
+            oid = str(task.id)
+            if oid in in_track_ids or lid in in_track_ids:
+                continue
+            if not _standalone_visible_to_user(task, teacher_group_ids):
+                continue
+            lesson_ids = [lid, oid] if lid != oid else [lid]
+            students = []
+            for s in students_qs:
+                status, late_by, completed_at = get_standalone_status_for_user(str(s.id), "task", lesson_ids)
+                students.append({
+                    "user_id": str(s.id),
+                    "full_name": s.full_name,
+                    "group_id": str(s.group_id) if s.group_id else "",
+                    "group_title": group_titles.get(str(s.group_id), ""),
+                    "status": status,
+                    "late_by_seconds": late_by,
+                    "completed_at": completed_at,
+                })
+            au = getattr(task, "available_until", None)
+            assignments.append({
+                "id": lid, "title": task.title, "type": "task", "students": students,
+                "available_until": datetime_to_iso_utc(au),
+            })
+
+        for puzzle in Puzzle.objects.all():
+            lid = str(getattr(puzzle, "public_id", None) or puzzle.id)
+            oid = str(puzzle.id)
+            if oid in in_track_ids or lid in in_track_ids:
+                continue
+            if not _standalone_visible_to_user(puzzle, teacher_group_ids):
+                continue
+            lesson_ids = [lid, oid] if lid != oid else [lid]
+            students = []
+            for s in students_qs:
+                status, late_by, completed_at = get_standalone_status_for_user(str(s.id), "puzzle", lesson_ids)
+                students.append({
+                    "user_id": str(s.id),
+                    "full_name": s.full_name,
+                    "group_id": str(s.group_id) if s.group_id else "",
+                    "group_title": group_titles.get(str(s.group_id), ""),
+                    "status": status,
+                    "late_by_seconds": late_by,
+                    "completed_at": completed_at,
+                })
+            au = getattr(puzzle, "available_until", None)
+            assignments.append({
+                "id": lid, "title": puzzle.title, "type": "puzzle", "students": students,
+                "available_until": datetime_to_iso_utc(au),
+            })
+
+        for question in Question.objects.all():
+            lid = str(getattr(question, "public_id", None) or question.id)
+            oid = str(question.id)
+            if oid in in_track_ids or lid in in_track_ids:
+                continue
+            if not _standalone_visible_to_user(question, teacher_group_ids):
+                continue
+            lesson_ids = [lid, oid] if lid != oid else [lid]
+            students = []
+            for s in students_qs:
+                status, late_by, completed_at = get_standalone_status_for_user(str(s.id), "question", lesson_ids)
+                students.append({
+                    "user_id": str(s.id),
+                    "full_name": s.full_name,
+                    "group_id": str(s.group_id) if s.group_id else "",
+                    "group_title": group_titles.get(str(s.group_id), ""),
+                    "status": status,
+                    "late_by_seconds": late_by,
+                    "completed_at": completed_at,
+                })
+            au = getattr(question, "available_until", None)
+            assignments.append({
+                "id": lid, "title": question.title, "type": "question", "students": students,
+                "available_until": datetime_to_iso_utc(au),
+            })
+
+        for survey in Survey.objects.all():
+            lid = str(getattr(survey, "public_id", None) or survey.id)
+            oid = str(survey.id)
+            if oid in in_track_ids or lid in in_track_ids:
+                continue
+            if not _standalone_visible_to_user(survey, teacher_group_ids):
+                continue
+            lesson_ids = [lid, oid] if lid != oid else [lid]
+            responses_by_user = {
+                r.user_id: r.answer
+                for r in SurveyResponse.objects(survey_id=oid)
+            }
+            students = []
+            for s in students_qs:
+                status, late_by, completed_at = get_standalone_status_for_user(str(s.id), "survey", lesson_ids)
+                students.append({
+                    "user_id": str(s.id),
+                    "full_name": s.full_name,
+                    "group_id": str(s.group_id) if s.group_id else "",
+                    "group_title": group_titles.get(str(s.group_id), ""),
+                    "status": status,
+                    "late_by_seconds": late_by,
+                    "completed_at": completed_at,
+                    "response_text": responses_by_user.get(str(s.id)),
+                })
+            au = getattr(survey, "available_until", None)
+            assignments.append({
+                "id": lid, "title": survey.title, "type": "survey", "students": students,
+                "available_until": datetime_to_iso_utc(au),
+            })
+
+        return Response({
+            "assignments": assignments,
+            "groups": [{"id": str(g.id), "title": g.title} for g in groups_qs],
+        })
+
+
+class TeacherTaskSubmissionView(APIView):
+    """Решение ученика по задаче (код) — для учителя."""
+    permission_classes = [IsAuthenticated, IsTeacherOrSuperuser]
+
+    def get(self, request, task_id, student_id):
+        from apps.tasks.documents import Task
+        from apps.submissions.documents import Submission
+
+        try:
+            task = get_doc_by_pk(Task, str(task_id))
+        except Exception:
+            return Response({"detail": "Задача не найдена."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            student = User.objects.get(id=ObjectId(student_id))
+        except (User.DoesNotExist, Exception):
+            return Response({"detail": "Ученик не найден."}, status=status.HTTP_404_NOT_FOUND)
+        if student.role != UserRole.STUDENT.value:
+            return Response({"detail": "Пользователь не является учеником."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        is_superuser = getattr(user, "role", None) == UserRole.SUPERUSER.value
+        teacher_group_ids = [str(g) for g in (getattr(user, "group_ids", []) or [])]
+        if is_superuser:
+            teacher_group_ids = [str(g.id) for g in Group.objects.all()]
+        if not is_superuser and str(student.group_id) not in teacher_group_ids:
+            return Response({"detail": "Нет доступа к этому ученику."}, status=status.HTTP_403_FORBIDDEN)
+
+        task_oid = str(task.id)
+        sub = (
+            Submission.objects(user_id=str(student_id), task_id=task_oid, passed=True)
+            .order_by("-created_at")
+            .first()
+        )
+        if not sub:
+            return Response({"detail": "Нет успешной попытки по этой задаче."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            "code": sub.code,
+            "passed": sub.passed,
+            "created_at": datetime_to_iso_utc(sub.created_at),
         })
 
 

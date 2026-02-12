@@ -6,8 +6,6 @@ import type { Task, SubmitResult, TestRunResult } from "@/lib/types";
 import { getStoredToken } from "@/lib/api/auth";
 import { apiFetch, hasApi } from "@/lib/api/client";
 
-const MOCK_TASKS: Record<string, Task> = {};
-
 function mapTaskFromApi(data: Record<string, unknown>): Task {
   const testCases = Array.isArray(data.test_cases)
     ? (data.test_cases as Record<string, unknown>[]).map((tc) => ({
@@ -26,6 +24,12 @@ function mapTaskFromApi(data: Record<string, unknown>): Task {
     testCases,
     hard: Boolean(data.hard),
     visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
+    hints: Array.isArray(data.hints) ? (data.hints as string[]) : undefined,
+    availableFrom: data.available_from != null ? String(data.available_from) : undefined,
+    availableUntil: data.available_until != null ? String(data.available_until) : undefined,
+    maxAttempts: data.max_attempts != null ? Number(data.max_attempts) : undefined,
+    attemptsUsed: data.attempts_used != null ? Number(data.attempts_used) : undefined,
+    canEdit: Boolean(data.can_edit),
   };
 }
 
@@ -38,10 +42,11 @@ function mapResultFromApi(r: Record<string, unknown>): TestRunResult {
   };
 }
 
-export async function fetchTaskById(id: string): Promise<Task | null> {
+/** token — для SSR (передайте из cookies()), чтобы бэкенд вернул can_edit */
+export async function fetchTaskById(id: string, token?: string | null): Promise<Task | null> {
   if (hasApi()) {
     try {
-      const res = await apiFetch(`/api/tasks/${id}/`);
+      const res = await apiFetch(`/api/tasks/${id}/`, { token: token ?? undefined });
       if (!res.ok) return fetchTaskByIdStub(id);
       const data = await res.json();
       return mapTaskFromApi(data);
@@ -69,6 +74,11 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
             is_public: tc.isPublic,
           })),
           visible_group_ids: data.visibleGroupIds ?? [],
+          hard: data.hard ?? false,
+          hints: data.hints ?? [],
+          available_from: data.availableFrom ?? null,
+          available_until: data.availableUntil ?? null,
+          max_attempts: data.maxAttempts ?? null,
         },
       });
       if (!res.ok) {
@@ -82,6 +92,43 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
     }
   }
   return createTaskStub(data);
+}
+
+export type TaskUpdatePayload = Partial<Pick<Task, "title" | "description" | "starterCode" | "testCases" | "trackId" | "hard" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts">>;
+
+export async function updateTask(id: string, data: TaskUpdatePayload): Promise<Task> {
+  if (!hasApi()) throw new Error("API not configured");
+  const body: Record<string, unknown> = {};
+  if (data.title !== undefined) body.title = data.title;
+  if (data.description !== undefined) body.description = data.description;
+  if (data.starterCode !== undefined) body.starter_code = data.starterCode;
+  if (data.trackId !== undefined) body.track_id = data.trackId;
+  if (data.testCases !== undefined) body.test_cases = data.testCases.map((tc) => ({ id: tc.id, input: tc.input, expected_output: tc.expectedOutput, is_public: tc.isPublic }));
+  if (data.visibleGroupIds !== undefined) body.visible_group_ids = data.visibleGroupIds;
+  if (data.hard !== undefined) body.hard = data.hard;
+  if (data.hints !== undefined) body.hints = data.hints;
+  if (data.availableFrom !== undefined) body.available_from = data.availableFrom;
+  if (data.availableUntil !== undefined) body.available_until = data.availableUntil;
+  if (data.maxAttempts !== undefined) body.max_attempts = data.maxAttempts;
+  const res = await apiFetch(`/api/tasks/${id}/`, {
+    method: "PATCH",
+    body,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка обновления задания");
+  }
+  const updated = await res.json();
+  return mapTaskFromApi(updated);
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  if (!hasApi()) throw new Error("API not configured");
+  const res = await apiFetch(`/api/tasks/${id}/`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка удаления задания");
+  }
 }
 
 export async function runTask(taskId: string, code: string): Promise<TestRunResult[]> {
@@ -149,7 +196,7 @@ export async function submitTask(taskId: string, code: string): Promise<SubmitRe
       throw e;
     }
   }
-  return submitTaskStub(taskId, code);
+  throw new Error("API не настроен");
 }
 
 export async function fetchTaskByIdStub(id: string): Promise<Task | null> {

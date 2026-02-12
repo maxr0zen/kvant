@@ -5,6 +5,8 @@ from mongoengine import (
     EmbeddedDocumentField,
     EmbeddedDocument,
     BooleanField,
+    DateTimeField,
+    IntField,
 )
 
 
@@ -28,3 +30,8 @@ class Question(Document):
     public_id = StringField()
     # Список id групп, которым доступен вопрос. Пустой — доступен всем.
     visible_group_ids = ListField(StringField(), default=list)
+    hints = ListField(StringField(), default=list)
+    available_from = DateTimeField(default=None)
+    available_until = DateTimeField(default=None)
+    max_attempts = IntField(default=None)
+    created_by_id = StringField(default="")

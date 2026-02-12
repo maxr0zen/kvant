@@ -8,6 +8,9 @@ import { useToast } from "@/components/ui/use-toast";
 import type { Question, QuestionChoice, QuestionCheckResult } from "@/lib/types";
 import { checkQuestionAnswer } from "@/lib/api/questions";
 import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
+import { HintsBlock } from "@/components/hints-block";
+import { AvailabilityNotice } from "@/components/availability-notice";
+import { AvailabilityCountdown } from "@/components/availability-countdown";
 
 interface QuestionViewProps {
   question: Question;
@@ -83,13 +86,25 @@ export function QuestionView({ question }: QuestionViewProps) {
     }
   }
 
-  const allowSubmit = selected.length > 0;
+  const maxAttempts = question.maxAttempts ?? null;
+  const attemptsUsed = question.attemptsUsed ?? 0;
+  const attemptsExhausted = maxAttempts != null && attemptsUsed >= maxAttempts;
+  const allowSubmit = selected.length > 0 && !attemptsExhausted;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">{question.title}</h1>
-        <p className="text-muted-foreground mt-2">{question.prompt}</p>
+      <AvailabilityNotice availableFrom={question.availableFrom} availableUntil={question.availableUntil} />
+      {maxAttempts != null && (
+        <p className="text-sm text-muted-foreground">
+          {attemptsExhausted ? "Попытки исчерпаны." : `Попыток осталось: ${maxAttempts - attemptsUsed} из ${maxAttempts}`}
+        </p>
+      )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-semibold tracking-tight">{question.title}</h1>
+          <p className="text-muted-foreground mt-2">{question.prompt}</p>
+        </div>
+        <AvailabilityCountdown availableUntil={question.availableUntil} className="shrink-0" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -135,7 +150,8 @@ export function QuestionView({ question }: QuestionViewProps) {
           </Card>
         </div>
 
-        <div>
+        <div className="space-y-4">
+          <HintsBlock hints={question.hints ?? []} />
           <Card>
             <CardHeader>
               <CardTitle>Результат</CardTitle>

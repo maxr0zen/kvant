@@ -7,10 +7,11 @@ import { apiFetch, hasApi } from "@/lib/api/client";
 export interface ProfileActivityItem {
   lesson_id: string;
   lesson_title: string;
-  lesson_type: "task" | "puzzle" | "question";
+  lesson_type: "task" | "puzzle" | "question" | "lecture" | "survey";
   track_id: string;
   track_title: string;
-  status: "completed" | "started";
+  status: "completed" | "completed_late" | "started";
+  late_by_seconds?: number;
   updated_at: string | null;
 }
 
@@ -37,6 +38,13 @@ export interface ProfileAchievement {
   unlocked_at: string | null;
 }
 
+export interface ProfileGroup {
+  id: string;
+  title: string;
+  /** ФИО преподавателя (или нескольких через запятую) */
+  teacher_name?: string | null;
+}
+
 export interface ProfileData {
   user: {
     id: string;
@@ -49,6 +57,7 @@ export interface ProfileData {
   activity: ProfileActivityItem[];
   progress: ProfileProgressItem[];
   group_links?: GroupLinks | null;
+  group?: ProfileGroup | null;
   achievements?: ProfileAchievement[];
 }
 

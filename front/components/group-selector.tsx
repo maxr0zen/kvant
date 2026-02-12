@@ -5,12 +5,13 @@ import { Label } from "@/components/ui/label";
 import { fetchGroups, type GroupItem } from "@/lib/api/groups";
 
 interface GroupSelectorProps {
-  value: string[];
+  value?: string[] | null;
   onChange: (ids: string[]) => void;
   disabled?: boolean;
 }
 
-export function GroupSelector({ value, onChange, disabled }: GroupSelectorProps) {
+export function GroupSelector({ value: valueProp, onChange, disabled }: GroupSelectorProps) {
+  const value = valueProp ?? [];
   const [groups, setGroups] = useState<GroupItem[]>([]);
 
   useEffect(() => {

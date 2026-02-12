@@ -18,5 +18,5 @@ export function getPrevNextLesson(
 
 /** Ссылка на урок в контексте трека (переключение лекция ↔ задание в одном треке). */
 export function getLessonHref(lesson: LessonRef, trackId: string): string {
-  return `/tracks/${trackId}/lesson/${lesson.id}`;
+  return `/main/${trackId}/lesson/${lesson.id}`;
 }

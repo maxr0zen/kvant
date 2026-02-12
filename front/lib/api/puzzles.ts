@@ -27,6 +27,12 @@ function mapPuzzleFromApi(data: Record<string, unknown>): Puzzle {
     blocks,
     solution: String(data.solution ?? ""),
     visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
+    hints: Array.isArray(data.hints) ? (data.hints as string[]) : undefined,
+    availableFrom: data.available_from != null ? String(data.available_from) : undefined,
+    availableUntil: data.available_until != null ? String(data.available_until) : undefined,
+    maxAttempts: data.max_attempts != null ? Number(data.max_attempts) : undefined,
+    attemptsUsed: data.attempts_used != null ? Number(data.attempts_used) : undefined,
+    canEdit: Boolean(data.can_edit),
   };
 }
 
@@ -77,6 +83,10 @@ export async function createPuzzle(data: Omit<Puzzle, "id">): Promise<Puzzle> {
           })),
           solution: data.solution ?? "",
           visible_group_ids: data.visibleGroupIds ?? [],
+          hints: data.hints ?? [],
+          available_from: data.availableFrom ?? null,
+          available_until: data.availableUntil ?? null,
+          max_attempts: data.maxAttempts ?? null,
         },
       });
       if (!res.ok) {
@@ -90,6 +100,43 @@ export async function createPuzzle(data: Omit<Puzzle, "id">): Promise<Puzzle> {
     }
   }
   return createPuzzleStub(data);
+}
+
+export type PuzzleUpdatePayload = Partial<Pick<Puzzle, "title" | "description" | "language" | "trackId" | "blocks" | "solution" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts">>;
+
+export async function updatePuzzle(id: string, data: PuzzleUpdatePayload): Promise<Puzzle> {
+  if (!hasApi()) throw new Error("API not configured");
+  const body: Record<string, unknown> = {};
+  if (data.title !== undefined) body.title = data.title;
+  if (data.description !== undefined) body.description = data.description;
+  if (data.language !== undefined) body.language = data.language;
+  if (data.trackId !== undefined) body.track_id = data.trackId;
+  if (data.blocks !== undefined) body.blocks = data.blocks.map((b) => ({ id: b.id, code: b.code, order: b.order, indent: b.indent }));
+  if (data.solution !== undefined) body.solution = data.solution;
+  if (data.visibleGroupIds !== undefined) body.visible_group_ids = data.visibleGroupIds;
+  if (data.hints !== undefined) body.hints = data.hints;
+  if (data.availableFrom !== undefined) body.available_from = data.availableFrom;
+  if (data.availableUntil !== undefined) body.available_until = data.availableUntil;
+  if (data.maxAttempts !== undefined) body.max_attempts = data.maxAttempts;
+  const res = await apiFetch(`/api/puzzles/${id}/`, {
+    method: "PATCH",
+    body,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка обновления puzzle");
+  }
+  const updated = await res.json();
+  return mapPuzzleFromApi(updated);
+}
+
+export async function deletePuzzle(id: string): Promise<void> {
+  if (!hasApi()) throw new Error("API not configured");
+  const res = await apiFetch(`/api/puzzles/${id}/`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка удаления puzzle");
+  }
 }
 
 export async function checkPuzzleSolution(

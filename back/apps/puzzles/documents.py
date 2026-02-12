@@ -5,6 +5,8 @@ from mongoengine import (
     EmbeddedDocumentField,
     EmbeddedDocument,
     BooleanField,
+    DateTimeField,
+    IntField,
 )
 
 
@@ -29,3 +31,8 @@ class Puzzle(Document):
     public_id = StringField()  # Человекочитаемый id для URL (12 hex символов)
     # Список id групп, которым доступен puzzle. Пустой — доступен всем.
     visible_group_ids = ListField(StringField(), default=list)
+    hints = ListField(StringField(), default=list)
+    available_from = DateTimeField(default=None)
+    available_until = DateTimeField(default=None)
+    max_attempts = IntField(default=None)
+    created_by_id = StringField(default="")
