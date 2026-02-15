@@ -1,6 +1,40 @@
+import sys
+from pathlib import Path
+
 from rest_framework import serializers
 from common.db_utils import datetime_to_iso_utc, to_utc_datetime, get_doc_by_pk
 from .documents import Lecture
+
+# Корень проекта (рядом с back/) для импорта video_resolver
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+
+def _needs_video_resolve(url):
+    """URL страницы VK/Rutube нужно резолвить в прямую ссылку для воспроизведения."""
+    if not url or not isinstance(url, str):
+        return False
+    u = url.strip().lower()
+    return (
+        "vk.com/video" in u or "vk.video/video" in u or "vkvideo.ru" in u
+        or "rutube.ru/video/" in u or "rutube.ru/shorts/" in u or "rutube.ru/play/embed/" in u
+    )
+
+
+def _resolve_video_to_direct(url):
+    """Возвращает dict с direct_url и video_format или None при ошибке."""
+    try:
+        from video_resolver import resolve_video_url
+        result = resolve_video_url(url, prefer_mp4=False)
+        if result.get("error") or not result.get("direct_url"):
+            return None
+        return {
+            "direct_url": result["direct_url"],
+            "video_format": result.get("format") or "mp4",
+        }
+    except Exception:
+        return None
 
 
 def _sanitize_choices(choices, strip_correct=False):
@@ -45,12 +79,19 @@ def _sanitize_blocks_for_client(blocks, for_editor=False):
                         "multiple": bool(q.get("multiple", False)),
                     },
                 })
-            result.append({
+            video_block = {
                 "type": "video",
                 "id": b.get("id", ""),
                 "url": b.get("url", ""),
                 "pause_points": pause_points,
-            })
+            }
+            # При просмотре (не в редакторе): резолвим VK/Rutube в прямую ссылку для плеера
+            if not for_editor and _needs_video_resolve(b.get("url")):
+                resolved = _resolve_video_to_direct(b.get("url", ""))
+                if resolved:
+                    video_block["direct_url"] = resolved["direct_url"]
+                    video_block["video_format"] = resolved["video_format"]
+            result.append(video_block)
         else:
             result.append(b)
     return result

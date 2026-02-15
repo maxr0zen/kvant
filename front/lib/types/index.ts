@@ -79,7 +79,12 @@ export type LectureBlock =
   | {
       type: "video";
       id: string;
+      /** Исходная ссылка (страница VK/Rutube или прямая). В редакторе хранится только она. */
       url: string;
+      /** Прямая ссылка для воспроизведения (mp4/m3u8), подставляется бэкендом при просмотре. */
+      direct_url?: string;
+      /** Формат прямой ссылки: "mp4" | "m3u8" */
+      video_format?: string;
       pause_points?: VideoPausePoint[];
     };
 

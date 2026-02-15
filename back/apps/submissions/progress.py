@@ -36,6 +36,16 @@ def save_lesson_progress(
 
     lp = LessonProgress.objects(user_id=user_id, lesson_id=lesson_id).first()
     if lp:
+        # Не перезаписывать "completed" на "started" (например при повторном открытии лекции)
+        if lp.status == "completed" and status == "started":
+            if lesson_title:
+                lp.lesson_title = lesson_title
+            if track_id:
+                lp.track_id = track_id
+            if track_title:
+                lp.track_title = track_title
+            lp.save()
+            return
         lp.status = status
         if lesson_title:
             lp.lesson_title = lesson_title

@@ -37,7 +37,13 @@ export function LectureBlocks({ blocks, lectureId }: LectureBlocksProps) {
             block={block}
             lectureId={lectureId}
             blockProgress={blockProgress}
-            onCorrectAnswer={() => {
+            onCorrectAnswer={(blockId) => {
+              if (blockId) {
+                setBlockProgress((prev) => ({
+                  ...prev,
+                  [blockId]: { status: "completed", correct_ids: prev[blockId]?.correct_ids ?? null },
+                }));
+              }
               fetchLectureQuestionBlocksProgress(lectureId!).then(setBlockProgress);
             }}
           />

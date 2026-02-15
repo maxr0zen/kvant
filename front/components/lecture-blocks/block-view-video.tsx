@@ -1,6 +1,5 @@
 "use client";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
   interface Window {
     YT?: {
@@ -20,6 +19,7 @@ interface YTPlayer {
 }
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Hls from "hls.js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -27,6 +27,11 @@ import type { LectureBlock } from "@/lib/types";
 import { checkLectureBlockAnswer } from "@/lib/api/lectures";
 
 type VideoType = "native" | "youtube" | "vimeo" | "rutube" | "vk";
+
+function isM3u8Url(url: string): boolean {
+  const u = (url || "").trim().toLowerCase();
+  return u.includes(".m3u8") || u.includes("m3u8");
+}
 
 interface ParsedVideo {
   type: VideoType;
@@ -88,7 +93,8 @@ interface BlockViewVideoProps {
   block: Extract<LectureBlock, { type: "video" }>;
   lectureId: string;
   blockProgress?: Record<string, { status?: string; correct_ids?: string[] | null }>;
-  onCorrectAnswer?: () => void;
+  /** Вызывается при верном ответе; blockId — для оптимистичного обновления прогресса (videoId::pausePointId). */
+  onCorrectAnswer?: (blockId?: string) => void;
 }
 
 export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrectAnswer }: BlockViewVideoProps) {
@@ -109,9 +115,35 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
 
   const pausePoints = (block.pause_points ?? []).slice().sort((a, b) => a.timestamp - b.timestamp);
   const videoBlockId = block.id;
-  const parsed = parseVideoUrl(block.url || "");
+  // При просмотре используем прямую ссылку (direct_url), если бэкенд её подставил; иначе исходную url
+  const playbackUrl = (block.direct_url ?? block.url) || "";
+  const parsed = parseVideoUrl(playbackUrl);
+  const isNativeDirect = parsed === null && playbackUrl.trim().length > 0;
+  const isM3u8 = isNativeDirect && isM3u8Url(playbackUrl);
 
-  // Паузы для нативного видео (прямые ссылки .mp4 и т.д.)
+  // Воспроизведение m3u8 (HLS) через hls.js; Safari — нативно по src
+  useEffect(() => {
+    if (!isM3u8 || !playbackUrl.trim()) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    let hls: Hls | null = null;
+    if (Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(playbackUrl);
+      hls.attachMedia(video);
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = playbackUrl;
+    }
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [isM3u8, playbackUrl]);
+
+  // Паузы для нативного видео (прямые ссылки .mp4 и m3u8)
   useEffect(() => {
     const video = videoRef.current;
     if (!video || pausePoints.length === 0 || parsed !== null) return;
@@ -199,6 +231,8 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
       if (player?.destroy) player.destroy();
       embedPlayerRef.current = null;
     };
+    // Зависимости: только type/youtubeId, не весь parsed (чтобы не пересоздавать плеер при каждом рендере)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- parsed?.type, parsed?.youtubeId достаточны для YouTube
   }, [parsed?.type, parsed?.youtubeId, pausePoints, videoBlockId]);
 
   // Rutube embed + паузы (postMessage API: player:currentTime, player:pause, player:play)
@@ -411,7 +445,7 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
       setResult(res);
       if (res.passed) {
         toast({ title: "Правильно!", description: res.message });
-        onCorrectAnswer?.();
+        onCorrectAnswer?.(activePause.blockId);
         if (parsed?.type === "vk" || parsed?.type === "rutube") {
           vkShowingQuestionRef.current = false;
         }
@@ -459,7 +493,7 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
             ) : (
               <video
                 ref={videoRef}
-                src={block.url}
+                src={isM3u8 ? undefined : playbackUrl}
                 controls
                 className="absolute inset-0 w-full h-full object-contain"
                 playsInline

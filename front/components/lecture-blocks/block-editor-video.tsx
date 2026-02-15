@@ -135,10 +135,13 @@ export function BlockEditorVideo({ block, onChange, onRemove }: BlockEditorVideo
       </div>
       <div className="space-y-2">
         <Label>Ссылка на видео</Label>
+        <p className="text-xs text-muted-foreground">
+          На данный момент доступны ролики только из Rutube
+        </p>
         <Input
           value={block.url}
           onChange={(e) => onChange({ ...block, url: e.target.value })}
-          placeholder="Ссылка на видео: YouTube, Vimeo, Rutube, VK Video или прямой .mp4"
+          placeholder="https://rutube.ru/video/..."
         />
       </div>
       <div className="space-y-3">
