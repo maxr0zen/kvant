@@ -56,4 +56,78 @@ npm run test
 ## Структура
 
 - **front/** — Next.js приложение (App Router, TypeScript, Tailwind, shadcn/ui)
-- Остальные части проекта (бэкенд и т.д.) — в корне репозитория по мере добавления
+- **back/** — Django DRF бэкенд (MongoDB, Celery, Redis)
+- **nginx/** — конфигурация Nginx для деплоя
+- **video_resolver/** — модуль разрешения видео-ссылок (Rutube, VK и др.)
+- Остальные части проекта — в корне репозитория
+
+---
+
+## Деплой на сервер
+
+Развёртывание выполняется через **Docker** и **Docker Compose**. На сервере поднимаются: Nginx (обратный прокси), бэкенд (Django + Gunicorn), фронтенд (Next.js), воркер Celery, MongoDB и Redis.
+
+### Требования на сервере
+
+- Docker и Docker Compose
+- Доступ по SSH (или консоль VPS)
+
+### Шаг 1. Клонирование и переход в проект
+
+```bash
+git clone <url-репозитория> kavnt_project_test
+cd kavnt_project_test
+```
+
+### Шаг 2. Файл окружения
+
+Создайте файл `.env` в корне проекта (на основе примера для продакшена):
+
+```bash
+cp .env.prod.example .env
+```
+
+Откройте `.env` и задайте:
+
+| Переменная | Описание | Пример |
+|------------|----------|--------|
+| `SECRET_KEY` | Секретный ключ Django (длинная случайная строка) | Сгенерируйте: `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
+| `ALLOWED_HOSTS` | Домены сервера через запятую | `yourdomain.com,www.yourdomain.com` |
+| `CORS_ALLOWED_ORIGINS` | URL фронтенда (через запятую) | `https://yourdomain.com` |
+| `NEXT_PUBLIC_API_URL` | Публичный URL сайта (без слэша в конце) | `https://yourdomain.com` |
+
+Остальные переменные в `.env.prod.example` уже настроены для работы внутри Docker (MongoDB и Redis по именам сервисов). При необходимости измените `MONGODB_NAME`.
+
+### Шаг 3. Сборка и запуск
+
+```bash
+docker compose up -d --build
+```
+
+Первый запуск может занять несколько минут (сборка образов, загрузка MongoDB/Redis). Проверка статуса:
+
+```bash
+docker compose ps
+```
+
+Все сервисы должны быть в состоянии `running`.
+
+### Шаг 4. Проверка
+
+- Сайт: **http://IP-сервера** или **https://ваш-домен** (если настроен SSL).
+- API: **http://IP-сервера/api/** и документация **http://IP-сервера/api/docs/**.
+
+### Шаг 5. Наполнение данными (опционально)
+
+Если нужны тестовые пользователи и данные, выполните мокап внутри контейнера бэкенда (скрипт уже есть в образе в `back/`):
+
+```bash
+docker compose exec backend python mock_data.py
+```
+
+### Дополнительно
+
+- **Логи:** `docker compose logs -f backend` (или `frontend`, `nginx`, `celery`, `mongodb`, `redis`).
+- **Остановка:** `docker compose down`.
+- **Обновление после изменений в коде:** `docker compose up -d --build`.
+- **SSL (HTTPS):** настройте сертификаты (например, Let's Encrypt) и проксируйте Nginx через Traefik/Certbot или добавьте в `nginx/nginx.conf` блок с `listen 443 ssl` и путями к сертификатам.

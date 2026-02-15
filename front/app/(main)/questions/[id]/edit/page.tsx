@@ -12,6 +12,8 @@ import { fetchQuestionById, updateQuestion } from "@/lib/api/questions";
 import { datetimeLocalToISOUTC } from "@/lib/utils/datetime";
 import { useToast } from "@/components/ui/use-toast";
 import { GroupSelector } from "@/components/group-selector";
+import { PageHeader } from "@/components/ui/page-header";
+import { PageSkeleton } from "@/components/ui/loading-skeleton";
 import type { QuestionChoice } from "@/lib/types";
 
 function toDatetimeLocal(iso: string | undefined | null): string {
@@ -106,19 +108,16 @@ export default function EditQuestionPage() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-4">
-        <p className="text-muted-foreground">Загрузка...</p>
-      </div>
-    );
+    return <PageSkeleton cards={2} />;
   }
 
   return (
-    <div className="space-y-4 w-full max-w-full">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Редактирование вопроса</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Измените поля и нажмите «Сохранить».</p>
-      </div>
+    <div className="space-y-6 w-full max-w-3xl">
+      <PageHeader
+        title="Редактирование вопроса"
+        description="Измените поля и нажмите «Сохранить»."
+        breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Вопрос", href: `/questions/${id}` }, { label: "Редактирование" }]}
+      />
       <form onSubmit={handleSubmit} className="space-y-4">
         <Card>
           <CardHeader className="pb-2">
@@ -126,23 +125,25 @@ export default function EditQuestionPage() {
             <CardDescription className="text-sm">Название, формулировка, варианты ответа</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
-            <div className="space-y-1">
-              <Label htmlFor="title">Название</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" required className="h-9" />
+            <div className="grid gap-3 sm:grid-cols-[1fr,auto] items-end">
+              <div className="space-y-1">
+                <Label htmlFor="title">Название</Label>
+                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" required className="h-9" />
+              </div>
+              <label className="flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap rounded-lg border py-2 px-3 h-9 hover:bg-muted/50 transition-colors">
+                <input
+                  type="checkbox"
+                  id="multiple"
+                  checked={multiple}
+                  onChange={(e) => setMultiple(e.target.checked)}
+                  className="rounded border-input"
+                />
+                Несколько ответов
+              </label>
             </div>
             <div className="space-y-1">
               <Label htmlFor="prompt">Формулировка вопроса</Label>
               <Textarea id="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Текст вопроса" rows={3} className="text-sm" />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="multiple"
-                checked={multiple}
-                onChange={(e) => setMultiple(e.target.checked)}
-                className="rounded border-input"
-              />
-              <Label htmlFor="multiple" className="text-sm font-normal cursor-pointer">Несколько правильных ответов</Label>
             </div>
             <div className="space-y-2">
               <Label>Варианты ответа</Label>
@@ -164,15 +165,27 @@ export default function EditQuestionPage() {
                 </div>
               ))}
             </div>
-            <div className="space-y-2">
-              <Label>Область видимости</Label>
-              <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
+            <div className="grid gap-3 sm:grid-cols-[1fr,auto] items-start">
+              <div className="space-y-2">
+                <Label>Область видимости</Label>
+                <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="maxAttempts">Макс. попыток</Label>
+                <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="∞" className="w-28 h-9 text-sm" />
+              </div>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Доступно с / до (UTC)</Label>
-              <div className="flex gap-2 flex-wrap">
-                <Input type="datetime-local" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} className="text-sm h-9 w-48" />
-                <Input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className="text-sm h-9 w-48" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">С</Label>
+                  <Input type="datetime-local" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} className="text-sm h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">До</Label>
+                  <Input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className="text-sm h-9" />
+                </div>
               </div>
             </div>
             <div className="space-y-1">
@@ -184,10 +197,6 @@ export default function EditQuestionPage() {
                 </div>
               ))}
               <Button type="button" variant="outline" size="sm" onClick={() => setHints((prev) => [...prev, ""])}>Добавить подсказку</Button>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="maxAttempts">Ограничение попыток</Label>
-              <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="Не задано" className="w-32 h-9 text-sm" />
             </div>
           </CardContent>
         </Card>

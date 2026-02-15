@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,9 +24,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     setLoading(true);
     try {
       const res = await login({ username, password });
@@ -38,34 +40,38 @@ export default function LoginPage() {
         username: res.user.username,
         full_name: res.user.full_name
       });
-      toast({ title: "Вход выполнен", description: "Добро пожаловать." });
       router.push("/main");
       router.refresh();
     } catch (err) {
-      toast({
-        title: "Ошибка входа",
-        description: err instanceof Error ? err.message : "Проверьте данные",
-        variant: "destructive",
-      });
+      const message = err instanceof Error ? err.message : "Проверьте данные";
+      setError(message);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Card className="w-full max-w-md border-primary/15 rounded-xl">
-      <CardHeader className="space-y-1 pb-2">
-        <CardTitle className="text-2xl">Вход</CardTitle>
-        <CardDescription>Введите логин и пароль для входа в платформу</CardDescription>
+    <Card className="w-full max-w-sm">
+      <CardHeader className="text-center pb-2">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <BookOpen className="h-6 w-6 text-primary" />
+        </div>
+        <CardTitle className="text-xl">Вход в платформу</CardTitle>
+        <CardDescription>Введите логин и пароль</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+              {error}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="username">Логин</Label>
             <Input
               id="username"
               type="text"
-              placeholder="логин"
+              placeholder="Ваш логин"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
@@ -79,7 +85,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
@@ -106,9 +112,9 @@ export default function LoginPage() {
             {loading ? "Вход..." : "Войти"}
           </Button>
         </form>
-        <p className="mt-6 text-sm text-muted-foreground">
+        <p className="mt-5 text-center text-sm text-muted-foreground">
           Нет аккаунта?{" "}
-          <Link href="/main" className="underline hover:text-foreground">
+          <Link href="/main" className="text-primary hover:underline">
             Перейти к трекам
           </Link>
         </p>

@@ -1,0 +1,48 @@
+# Root dockerignore for builds with context=. (docker-compose)
+.git
+.gitignore
+*.md
+.env
+.env.*
+.env.prod.example
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Backend exclusions
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env
+venv
+.venv
+*.egg-info
+.pytest_cache
+*.egg
+*.log
+db.sqlite3
+db.sqlite3-journal
+local_settings.py
+back/media
+back/staticfiles
+tests
+
+# Frontend exclusions
+front/node_modules
+front/.next
+front/out
+front/dist
+npm-debug.log*
+yarn-error.log
+front/.turbo
+
+# IDE / OS
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

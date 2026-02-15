@@ -3,6 +3,8 @@ from .views import (
     LoginView,
     ProfileView,
     TeacherGroupsProgressView,
+    TeacherAnalyticsView,
+    TeacherCreateStudentInGroupView,
     TeacherGroupLinksView,
     TeacherStudentTrackProgressView,
     TeacherStandaloneProgressView,
@@ -11,11 +13,15 @@ from .views import (
     UserListCreateView,
     UserDetailUpdateView,
 )
+from .system_stats import SystemStatsView
 
 urlpatterns = [
     path("login/", LoginView.as_view(), name="auth-login"),
     path("profile/", ProfileView.as_view(), name="auth-profile"),
+    path("admin/system-stats/", SystemStatsView.as_view(), name="admin-system-stats"),
+    path("teacher/analytics/", TeacherAnalyticsView.as_view(), name="teacher-analytics"),
     path("teacher/groups-progress/", TeacherGroupsProgressView.as_view(), name="teacher-groups-progress"),
+    path("teacher/groups/<str:group_id>/students/", TeacherCreateStudentInGroupView.as_view(), name="teacher-group-create-student"),
     path("teacher/groups/<str:group_id>/links/", TeacherGroupLinksView.as_view(), name="teacher-group-links"),
     path("teacher/students/<str:student_id>/track/<str:track_id>/progress/", TeacherStudentTrackProgressView.as_view(), name="teacher-student-track-progress"),
     path("teacher/standalone-progress/", TeacherStandaloneProgressView.as_view(), name="teacher-standalone-progress"),

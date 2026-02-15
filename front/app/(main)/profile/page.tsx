@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { User, LogOut, Activity, BarChart3, CheckCircle2, CircleDot, BookOpen, UsersRound, ChevronDown, ChevronRight, KeyRound, QrCode, Link2, Plus, Trash2, Trophy } from "lucide-react";
+import { User, LogOut, Activity, BarChart3, CheckCircle2, CircleDot, BookOpen, UsersRound, ChevronDown, ChevronRight, KeyRound, QrCode, Link2, Plus, Trash2, Trophy, Clock, Flame, UserPlus } from "lucide-react";
 import { formatLateSeconds } from "@/components/availability-countdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -27,10 +28,16 @@ import {
 import { getStoredToken, getStoredUser, getStoredRole, clearStoredToken, clearStoredRole, clearStoredUser } from "@/lib/api/auth";
 import { fetchProfile, type ProfileData, type GroupLinks } from "@/lib/api/profile";
 import { fetchTeacherGroupsProgress, updateGroupLinks, fetchStudentTrackProgress, type GroupWithStudents, type StudentInGroup, type GroupLink } from "@/lib/api/teacher";
-import { resetStudentPassword } from "@/lib/api/users";
+import { fetchTeacherAnalytics, type TeacherAnalytics } from "@/lib/api/analytics";
+import { ProgressDonut, BarChartCard, AreaChartCard, StatCard } from "@/components/charts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { resetStudentPassword, createStudentInGroup } from "@/lib/api/users";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/components/lib/utils";
 import { QrCodeCard } from "@/components/qr-code-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/loading-skeleton";
 
 const LESSON_TYPE_LABELS: Record<string, string> = {
   lecture: "Лекция",
@@ -62,6 +69,7 @@ export default function ProfilePage() {
   const [role, setRole] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [teacherGroups, setTeacherGroups] = useState<GroupWithStudents[]>([]);
+  const [teacherAnalytics, setTeacherAnalytics] = useState<TeacherAnalytics | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
   const [adminPanelGroupId, setAdminPanelGroupId] = useState<string | null>(null);
@@ -92,9 +100,10 @@ export default function ProfilePage() {
         }
       });
     } else if (role === "teacher" || role === "superuser") {
-      fetchTeacherGroupsProgress().then((res) => {
+      Promise.all([fetchTeacherGroupsProgress(), fetchTeacherAnalytics()]).then(([groupsRes, analyticsRes]) => {
         if (!cancelled) {
-          setTeacherGroups(res?.groups ?? []);
+          setTeacherGroups(groupsRes?.groups ?? []);
+          setTeacherAnalytics(analyticsRes ?? null);
           setLoadingProfile(false);
         }
       });
@@ -133,244 +142,441 @@ export default function ProfilePage() {
   }
 
   if (!mounted) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-4 py-16">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <p className="text-sm text-muted-foreground">Загрузка...</p>
-      </div>
-    );
+    return <ListSkeleton rows={4} className="py-8" />;
   }
 
   if (!getStoredToken() || !user) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-4">
-        <p className="text-muted-foreground">Войдите в систему, чтобы открыть личный кабинет.</p>
-        <Link href="/login">
-          <Button>Войти</Button>
-        </Link>
-      </div>
+      <EmptyState
+        icon={User}
+        title="Требуется авторизация"
+        description="Войдите, чтобы открыть личный кабинет."
+        action={
+          <Link href="/login">
+            <Button>Войти</Button>
+          </Link>
+        }
+      />
     );
   }
 
   const displayName = user.full_name || [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username;
+  const isStudent = role === "student";
+  const isTeacherOrAdmin = role === "teacher" || role === "superuser";
 
   return (
-    <div className="w-full max-w-none flex-1 min-h-0 flex flex-col gap-6 sm:gap-8 overflow-auto">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl mb-1">Личный кабинет</h1>
-        <p className="text-sm text-muted-foreground sm:text-base">Добро пожаловать, {displayName}</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Личный кабинет"
+        description={`${displayName} · ${role === "superuser" ? "Администратор" : role === "teacher" ? "Преподаватель" : "Студент"}`}
+        actions={
+          <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
+            <LogOut className="h-4 w-4" />
+            Выйти
+          </Button>
+        }
+      />
 
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-        {/* Левая колонка: Профиль + Достижения */}
-        <div className="lg:col-span-1 flex flex-col gap-6 w-full min-w-0">
-          <Card className="rounded-xl border-border/60 shadow-sm shrink-0">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Профиль
-              </CardTitle>
-              <CardDescription>Ваши данные</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Имя</p>
-                <p className="text-base">{displayName}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Логин</p>
-                <p className="text-base font-mono">{user.username}</p>
-              </div>
-              {role === "student" && profile?.group && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Группа</p>
-                  <p className="text-base">
-                    {profile.group.title}
-                    {profile.group.teacher_name ? ` (${profile.group.teacher_name})` : ""}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      {/* ── Student view ── */}
+      {isStudent && (
+        <Tabs defaultValue="info" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="info">Профиль</TabsTrigger>
+            <TabsTrigger value="progress">Успеваемость</TabsTrigger>
+            <TabsTrigger value="activity">Активность</TabsTrigger>
+          </TabsList>
 
-          {role === "student" && (
-            <Card className="rounded-xl border-border/60 shadow-sm shrink-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5" />
-                  Достижения
+          {/* Tab: Профиль */}
+          <TabsContent value="info" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Данные
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Имя</p>
+                    <p className="text-sm">{displayName}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Логин</p>
+                    <p className="text-sm font-mono">{user.username}</p>
+                  </div>
+                  {profile?.group && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Группа</p>
+                      <p className="text-sm">
+                        {profile.group.title}
+                        {profile.group.teacher_name ? ` (${profile.group.teacher_name})` : ""}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Trophy className="h-4 w-4" />
+                    Достижения
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {profile?.achievements && profile.achievements.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {profile.achievements.map((a) => (
+                        <div
+                          key={a.id}
+                          className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2"
+                          title={a.description}
+                        >
+                          <span className="text-lg">{a.icon}</span>
+                          <div>
+                            <p className="text-xs font-medium">{a.title}</p>
+                            <p className="text-[11px] text-muted-foreground">{a.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Пока нет достижений. Выполняйте задания, чтобы получить их.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* QR-коды */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <QrCode className="h-4 w-4" />
+                  Ссылки и чаты
                 </CardTitle>
-                <CardDescription>
-                  Разблокируйте достижения, выполняя лекции и задания
-                </CardDescription>
+                <CardDescription>Отсканируйте QR-код для перехода</CardDescription>
               </CardHeader>
               <CardContent>
-                {profile?.achievements && profile.achievements.length > 0 ? (
-                  <div className="flex flex-wrap gap-3">
-                    {profile.achievements.map((a) => (
-                      <div
-                        key={a.id}
-                        className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2"
-                        title={a.description}
-                      >
-                        <span className="text-xl">{a.icon}</span>
-                        <div>
-                          <p className="text-sm font-medium">{a.title}</p>
-                          <p className="text-xs text-muted-foreground">{a.description}</p>
-                        </div>
-                      </div>
+                {profile?.group_links?.child_chat_url || profile?.group_links?.parent_chat_url || (profile?.group_links?.links?.length ?? 0) > 0 ? (
+                  <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
+                    <QrCodeCard title="Детский чат" url={profile?.group_links?.child_chat_url ?? ""} />
+                    <QrCodeCard title="Родительский чат" url={profile?.group_links?.parent_chat_url ?? ""} />
+                    {profile?.group_links?.links?.map((l, i) => (
+                      <QrCodeCard key={i} title={l.label || `Ссылка ${i + 1}`} url={l.url ?? ""} />
                     ))}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Пока нет достижений. Выполняйте лекции и задания в треках, чтобы получить их.
+                    QR-коды появятся, когда учитель добавит ссылки для вашей группы.
                   </p>
                 )}
               </CardContent>
             </Card>
-          )}
-        </div>
+          </TabsContent>
 
-      {role === "student" && (
-        <div className="lg:col-span-2 space-y-6 flex flex-col min-h-0">
-          {/* QR-коды для учеников */}
-          <Card className="rounded-xl border-border/50 shadow-sm overflow-hidden flex flex-col min-h-[280px]">
-            <CardHeader className="pb-2 shrink-0">
-              <CardTitle className="flex items-center gap-2">
-                <QrCode className="h-5 w-5" />
-                Ссылки и чаты
-              </CardTitle>
-              <CardDescription>Отсканируйте QR-код для перехода в чат или по ссылке</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 min-h-0 p-4 pt-0">
-              {profile?.group_links?.child_chat_url || profile?.group_links?.parent_chat_url || (profile?.group_links?.links?.length ?? 0) > 0 ? (
-                <div className="grid gap-5 auto-rows-fr h-full min-h-[260px] w-full" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
-                  <QrCodeCard title="Детский чат" url={profile?.group_links?.child_chat_url ?? ""} />
-                  <QrCodeCard title="Родительский чат" url={profile?.group_links?.parent_chat_url ?? ""} />
-                  {profile?.group_links?.links?.map((l, i) => (
-                    <QrCodeCard key={i} title={l.label || `Ссылка ${i + 1}`} url={l.url ?? ""} />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 px-6 h-full min-h-[200px] flex flex-col justify-center">
-                  <p className="text-sm text-muted-foreground">
-                    QR-коды появятся, когда учитель добавит ссылки для вашей группы.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Tab: Успеваемость */}
+          <TabsContent value="progress" className="space-y-6">
+            {!loadingProfile && profile?.progress && profile.progress.length > 0 && (() => {
+              const totalCompleted = profile.progress.reduce((s, p) => s + p.completed, 0);
+              const totalStarted = profile.progress.reduce((s, p) => s + p.started, 0);
+              const totalLessons = profile.progress.reduce((s, p) => s + p.total, 0);
+              const notStarted = totalLessons - totalCompleted - totalStarted;
+              return (
+                <ProgressDonut
+                  completed={totalCompleted}
+                  started={totalStarted}
+                  notStarted={Math.max(0, notStarted)}
+                  title="Общий прогресс"
+                />
+              );
+            })()}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Прогресс по трекам
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingProfile ? (
+                  <ListSkeleton rows={3} />
+                ) : profile?.progress && profile.progress.length > 0 ? (
+                  <div className="space-y-4">
+                    {profile.progress.map((p) => (
+                      <div key={p.track_id} className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <Link
+                            href={`/main/${p.track_id}`}
+                            className="font-medium hover:underline flex items-center gap-2"
+                          >
+                            <BookOpen className="h-4 w-4 shrink-0 text-primary" />
+                            {p.track_title}
+                          </Link>
+                          <span className="text-muted-foreground tabular-nums">
+                            {p.completed}/{p.total} ({p.percent}%)
+                          </span>
+                        </div>
+                        <Progress value={p.percent} className="h-1.5" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={BarChart3}
+                    title="Нет данных"
+                    description="Начните проходить треки, чтобы видеть прогресс."
+                    className="py-8"
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          <Card className="rounded-xl border-border/60 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Успеваемость
-              </CardTitle>
-              <CardDescription>Прогресс по доступным трекам</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingProfile ? (
-                <p className="text-sm text-muted-foreground">Загрузка...</p>
-              ) : profile?.progress && profile.progress.length > 0 ? (
-                <div className="space-y-4">
-                  {profile.progress.map((p) => (
-                    <div key={p.track_id} className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <Link
-                          href={`/main/${p.track_id}`}
-                          className="font-medium hover:underline flex items-center gap-2"
-                        >
-                          <BookOpen className="h-4 w-4 shrink-0" />
-                          {p.track_title}
+          {/* Tab: Активность */}
+          <TabsContent value="activity" className="space-y-6">
+            {!loadingProfile && profile?.activity && profile.activity.length > 0 && (() => {
+              const completed = profile.activity.filter((a) => a.status === "completed" || a.status === "completed_late").length;
+              const late = profile.activity.filter((a) => a.status === "completed_late").length;
+              const dates = profile.activity
+                .map((a) => a.updated_at)
+                .filter(Boolean)
+                .map((iso) => iso!.slice(0, 10));
+              const uniqueDates = Array.from(new Set(dates)).sort();
+              let streak = 0;
+              const today = new Date().toISOString().slice(0, 10);
+              for (let i = 0; i < 365; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const key = d.toISOString().slice(0, 10);
+                if (uniqueDates.includes(key)) streak++;
+                else break;
+              }
+              const last30 = Array.from({ length: 30 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (29 - i));
+                return d.toISOString().slice(0, 10);
+              });
+              const activityByDay = last30.map((date) => ({
+                date: date.slice(5),
+                count: profile!.activity.filter((a) => a.updated_at?.slice(0, 10) === date).length,
+              }));
+              const typeCounts: Record<string, number> = { lecture: 0, task: 0, puzzle: 0, question: 0, survey: 0 };
+              profile.activity.forEach((a) => {
+                if (a.status === "completed" || a.status === "completed_late") {
+                  if (a.lesson_type in typeCounts) typeCounts[a.lesson_type]++;
+                }
+              });
+              const lessonTypeData = [
+                { name: "Лекции", value: typeCounts.lecture },
+                { name: "Задачи", value: typeCounts.task },
+                { name: "Пазлы", value: typeCounts.puzzle },
+                { name: "Вопросы", value: typeCounts.question },
+                { name: "Опросы", value: typeCounts.survey },
+              ];
+              return (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <StatCard title="Выполнено" value={completed} icon={CheckCircle2} />
+                    <StatCard title="Просрочено" value={late} icon={Clock} />
+                    <StatCard title="Серия дней" value={streak} description="дней подряд с активностью" icon={Flame} />
+                  </div>
+                  <AreaChartCard
+                    title="Активность по дням"
+                    description="Последние 30 дней"
+                    data={activityByDay}
+                  />
+                  <BarChartCard
+                    title="По типу заданий"
+                    data={lessonTypeData}
+                  />
+                </>
+              );
+            })()}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  Последние действия
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingProfile ? (
+                  <ListSkeleton rows={4} />
+                ) : profile?.activity && profile.activity.length > 0 ? (
+                  <ul className="space-y-3">
+                    {profile.activity.map((a, i) => (
+                      <li key={`${a.lesson_id}-${i}`} className="flex items-start gap-3 text-sm">
+                        {a.status === "completed" || a.status === "completed_late" ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
+                        ) : (
+                          <CircleDot className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{a.lesson_title}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {a.track_title} · {LESSON_TYPE_LABELS[a.lesson_type] ?? a.lesson_type}
+                            {a.status === "completed_late" && (a.late_by_seconds ?? 0) > 0
+                              ? ` · Просрочка ${formatLateSeconds(a.late_by_seconds!)}`
+                              : ""}
+                            {" · "}{formatDate(a.updated_at)}
+                          </p>
+                        </div>
+                        <Link href={a.track_id ? `/main/${a.track_id}/lesson/${a.lesson_id}` : (a.lesson_type === "survey" ? `/surveys/${a.lesson_id}` : a.lesson_type === "lecture" ? `/lectures/${a.lesson_id}` : a.lesson_type === "task" ? `/tasks/${a.lesson_id}` : a.lesson_type === "puzzle" ? `/puzzles/${a.lesson_id}` : `/questions/${a.lesson_id}`)}>
+                          <Button variant="ghost" size="sm">Открыть</Button>
                         </Link>
-                        <span className="text-muted-foreground">
-                          {p.completed} / {p.total} ({p.percent}%)
-                        </span>
-                      </div>
-                      <Progress value={p.percent} className="h-2" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Нет данных о прогрессе. Начните проходить треки.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-xl border-border/60 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Активность
-              </CardTitle>
-              <CardDescription>Последние действия по урокам</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingProfile ? (
-                <p className="text-sm text-muted-foreground">Загрузка...</p>
-              ) : profile?.activity && profile.activity.length > 0 ? (
-                <ul className="space-y-3">
-                  {profile.activity.map((a, i) => (
-                    <li key={`${a.lesson_id}-${i}`} className="flex items-start gap-3 text-sm">
-                      {a.status === "completed" || a.status === "completed_late" ? (
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
-                      ) : (
-                        <CircleDot className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{a.lesson_title}</p>
-                        <p className="text-muted-foreground text-xs">
-                          {a.track_title} · {LESSON_TYPE_LABELS[a.lesson_type] ?? a.lesson_type}
-                          {a.status === "completed_late" && (a.late_by_seconds ?? 0) > 0
-                            ? ` · Выполнено после срока (просрочка ${formatLateSeconds(a.late_by_seconds!)})`
-                            : ""}
-                          {" · "}{formatDate(a.updated_at)}
-                        </p>
-                      </div>
-                      <Link href={a.track_id ? `/main/${a.track_id}/lesson/${a.lesson_id}` : (a.lesson_type === "survey" ? `/surveys/${a.lesson_id}` : a.lesson_type === "lecture" ? `/lectures/${a.lesson_id}` : a.lesson_type === "task" ? `/tasks/${a.lesson_id}` : a.lesson_type === "puzzle" ? `/puzzles/${a.lesson_id}` : `/questions/${a.lesson_id}`)}>
-                        <Button variant="ghost" size="sm">Открыть</Button>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">Пока нет активности. Выполните задания в треках.</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyState
+                    icon={Activity}
+                    title="Нет активности"
+                    description="Выполняйте задания, чтобы видеть историю."
+                    className="py-8"
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       )}
 
-      {(role === "teacher" || role === "superuser") && (
-        <div className="lg:col-span-2 xl:col-span-2 space-y-6">
-          <Card className="rounded-xl border-border/60 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UsersRound className="h-5 w-5" />
+      {/* ── Teacher / Admin view ── */}
+      {isTeacherOrAdmin && (
+        <div className="space-y-6">
+          {!loadingProfile && teacherAnalytics && (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard
+                  title="Всего учеников"
+                  value={teacherAnalytics.groups_summary.reduce((s, g) => s + g.total_students, 0)}
+                  icon={UsersRound}
+                />
+                <StatCard
+                  title="Средний прогресс"
+                  value={
+                    teacherAnalytics.groups_summary.length > 0
+                      ? `${Math.round(
+                          teacherAnalytics.groups_summary.reduce((s, g) => s + g.avg_percent, 0) /
+                            teacherAnalytics.groups_summary.length
+                        )}%`
+                      : "0%"
+                  }
+                  icon={BarChart3}
+                />
+                <StatCard
+                  title="Просрочек"
+                  value={teacherAnalytics.groups_summary.reduce((s, g) => s + g.late_count, 0)}
+                  icon={Clock}
+                />
+                <StatCard
+                  title="Самая активная группа"
+                  value={
+                    teacherAnalytics.groups_summary.length > 0
+                      ? teacherAnalytics.groups_summary.reduce((a, b) =>
+                          (a.avg_percent >= b.avg_percent ? a : b)
+                        ).group_title
+                      : "—"
+                  }
+                  icon={Activity}
+                />
+              </div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <BarChartCard
+                  title="Средний прогресс по группам"
+                  data={teacherAnalytics.groups_summary.map((g) => ({
+                    name: g.group_title.length > 18 ? g.group_title.slice(0, 18) + "…" : g.group_title,
+                    value: g.avg_percent,
+                  }))}
+                />
+                <AreaChartCard
+                  title="Активность по дням"
+                  description="Последние 30 дней"
+                  data={teacherAnalytics.activity_heatmap.map((h) => ({ date: h.date.slice(5), count: h.count }))}
+                />
+              </div>
+              {(() => {
+                const breakdown = teacherAnalytics.lesson_type_breakdown;
+                const pieData = [
+                  { name: "Лекции", value: breakdown.lectures ?? 0, color: "hsl(var(--primary))" },
+                  { name: "Задачи", value: breakdown.tasks ?? 0, color: "hsl(var(--success))" },
+                  { name: "Пазлы", value: breakdown.puzzles ?? 0, color: "hsl(var(--warning))" },
+                  { name: "Вопросы", value: breakdown.questions ?? 0, color: "hsl(var(--info))" },
+                  { name: "Опросы", value: breakdown.surveys ?? 0, color: "hsl(var(--muted-foreground))" },
+                ].filter((d) => d.value > 0);
+                if (pieData.length === 0) pieData.push({ name: "Нет данных", value: 1, color: "hsl(var(--muted))" });
+                return (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Типы заданий (выполнено)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[240px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={pieData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={50}
+                              outerRadius={70}
+                              paddingAngle={2}
+                              dataKey="value"
+                            >
+                              {pieData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px",
+                              }}
+                            />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+            </>
+          )}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <UsersRound className="h-4 w-4" />
                 Группы
               </CardTitle>
               <CardDescription>
-                Нажмите на группу для администрирования
+                Нажмите на группу для управления
               </CardDescription>
             </CardHeader>
             <CardContent>
               {loadingProfile ? (
-                <p className="text-sm text-muted-foreground">Загрузка...</p>
+                <ListSkeleton rows={3} />
               ) : teacherGroups.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Нет групп для отображения. {role === "teacher" ? "Учитель видит только группы, которые ведёт." : ""}
-                </p>
+                <EmptyState
+                  icon={UsersRound}
+                  title="Нет групп"
+                  description={role === "teacher" ? "Вы видите только группы, которые ведёте." : "Создайте группу в разделе администрирования."}
+                  className="py-8"
+                />
               ) : (
-                <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}>
+                <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}>
                   {teacherGroups.map((group) => (
                     <button
                       key={group.id}
                       type="button"
                       onClick={() => setAdminPanelGroupId(group.id)}
-                      className="aspect-square rounded-xl border border-border/60 bg-card hover:bg-muted/50 hover:border-primary/40 transition-all flex flex-col items-center justify-center gap-1 p-3 text-center"
+                      className="aspect-square rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-colors flex flex-col items-center justify-center gap-1 p-3 text-center"
                     >
-                      <UsersRound className="h-8 w-8 shrink-0 text-muted-foreground" />
+                      <UsersRound className="h-7 w-7 shrink-0 text-muted-foreground" />
                       <span className="font-medium text-sm line-clamp-2">{group.title}</span>
                       <span className="text-xs text-muted-foreground">{group.students.length} уч.</span>
                     </button>
@@ -408,13 +614,22 @@ export default function ProfilePage() {
                         );
                       }}
                     />
+                    <AddStudentToGroupBlock
+                      groupId={group.id}
+                      groupTitle={group.title}
+                      onAdded={() => {
+                        fetchTeacherGroupsProgress().then((res) => {
+                          if (res?.groups) setTeacherGroups(res.groups);
+                        });
+                      }}
+                    />
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium">Ученики</h4>
                       {group.students.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-2">В группе пока нет учеников</p>
+                        <p className="text-sm text-muted-foreground py-2">В группе пока нет учеников. Добавьте ученика выше.</p>
                       ) : (
-                        <div className="space-y-4">
-                          {                          group.students.map((student) => (
+                        <div className="space-y-3">
+                          {group.students.map((student) => (
                             <StudentProgressCard
                               key={student.id}
                               student={student}
@@ -445,21 +660,11 @@ export default function ProfilePage() {
           )}
         </div>
       )}
-
-      </div>
-
-      <div className="flex gap-2 flex-shrink-0">
-        <Button variant="outline" onClick={handleLogout} className="gap-2">
-          <LogOut className="h-4 w-4" />
-          Выйти
-        </Button>
-        <Link href="/main">
-          <Button variant="ghost">К трекам</Button>
-        </Link>
-      </div>
     </div>
   );
 }
+
+/* ── Sub-components (unchanged logic) ── */
 
 function TrackDetailDialog({
   studentId,
@@ -497,12 +702,12 @@ function TrackDetailDialog({
             {trackTitle}
           </DialogTitle>
           <DialogDescription>
-            {studentName} — выполненные и невыполненные задания
+            {studentName} — задания трека
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto py-2">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Загрузка...</p>
+            <ListSkeleton rows={4} />
           ) : data?.lessons?.length ? (
             <ul className="space-y-2">
               {data.lessons.map((l) => {
@@ -529,7 +734,7 @@ function TrackDetailDialog({
                     <span className="font-medium flex-1 min-w-0 truncate">{l.lesson_title}</span>
                     <span className="text-xs text-muted-foreground shrink-0">
                       {l.status === "completed_late" && (l.late_by_seconds ?? 0) > 0
-                        ? `${l.lesson_type_label} · Выполнено после срока (${formatLateSeconds(l.late_by_seconds!)})`
+                        ? `${l.lesson_type_label} · Просрочка ${formatLateSeconds(l.late_by_seconds!)}`
                         : l.lesson_type_label}
                     </span>
                   </li>
@@ -542,6 +747,131 @@ function TrackDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AddStudentToGroupBlock({
+  groupId,
+  groupTitle,
+  onAdded,
+}: {
+  groupId: string;
+  groupTitle: string;
+  onAdded: () => void;
+}) {
+  const { toast } = useToast();
+  const [expanded, setExpanded] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    username: "",
+    first_name: "",
+    last_name: "",
+    password: "",
+  });
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.username.trim() || !form.first_name.trim() || !form.last_name.trim() || !form.password) {
+      toast({ title: "Ошибка", description: "Заполните все поля", variant: "destructive" });
+      return;
+    }
+    if (form.password.length < 6) {
+      toast({ title: "Ошибка", description: "Пароль не менее 6 символов", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createStudentInGroup(groupId, {
+        username: form.username.trim(),
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        password: form.password,
+      });
+      toast({
+        title: "Ученик добавлен",
+        description: `Логин: ${created.username} · Пароль: указанный при создании. Сообщите их ученику.`,
+      });
+      setForm({ username: "", first_name: "", last_name: "", password: "" });
+      onAdded();
+    } catch (err) {
+      toast({
+        title: "Ошибка",
+        description: err instanceof Error ? err.message : "Не удалось создать ученика",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-primary/5" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-primary/10 transition-colors rounded-lg"
+      >
+        <div className="flex items-center gap-2">
+          <UserPlus className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">Добавить ученика в группу «{groupTitle}»</span>
+        </div>
+        {expanded ? (
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+      </button>
+      {expanded && (
+        <form onSubmit={handleSubmit} className="space-y-3 px-3 pb-3 pt-0 border-t border-primary/10">
+          <div className="grid gap-2 sm:grid-cols-2 pt-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Имя</Label>
+              <Input
+                value={form.first_name}
+                onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
+                placeholder="Иван"
+                className="text-sm h-9"
+                disabled={submitting}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Фамилия</Label>
+              <Input
+                value={form.last_name}
+                onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
+                placeholder="Иванов"
+                className="text-sm h-9"
+                disabled={submitting}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Логин</Label>
+            <Input
+              value={form.username}
+              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+              placeholder="ivanov"
+              className="text-sm h-9"
+              disabled={submitting}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Пароль</Label>
+            <Input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              placeholder="Не менее 6 символов"
+              className="text-sm h-9"
+              disabled={submitting}
+            />
+          </div>
+          <Button type="submit" size="sm" disabled={submitting}>
+            {submitting ? "Создание..." : "Создать ученика"}
+          </Button>
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -594,15 +924,15 @@ function GroupLinksEditor({
   }
 
   return (
-    <div className="border-b bg-muted/20" onClick={(e) => e.stopPropagation()}>
+    <div className="rounded-lg border" onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/30 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/30 transition-colors rounded-lg"
       >
         <div className="flex items-center gap-2">
           <Link2 className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Ссылки для QR-кодов учеников</span>
+          <span className="text-sm font-medium">Ссылки для QR-кодов</span>
         </div>
         {expanded ? (
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -611,59 +941,59 @@ function GroupLinksEditor({
         )}
       </button>
       {expanded && (
-      <form onSubmit={handleSave} className="space-y-3 px-3 pb-3 pt-0">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Детский чат</Label>
-            <Input
-              value={childUrl}
-              onChange={(e) => setChildUrl(e.target.value)}
-              placeholder="https://..."
-              className="text-sm h-9"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Родительский чат</Label>
-            <Input
-              value={parentUrl}
-              onChange={(e) => setParentUrl(e.target.value)}
-              placeholder="https://..."
-              className="text-sm h-9"
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs">Дополнительные ссылки</Label>
-            <Button type="button" variant="ghost" size="sm" onClick={addLink} className="h-7 text-xs gap-1">
-              <Plus className="h-3 w-3" />
-              Добавить
-            </Button>
-          </div>
-          {links.map((l, i) => (
-            <div key={i} className="flex gap-2">
+        <form onSubmit={handleSave} className="space-y-3 px-3 pb-3 pt-0 border-t">
+          <div className="grid gap-2 sm:grid-cols-2 pt-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Детский чат</Label>
               <Input
-                value={l.label}
-                onChange={(e) => updateLink(i, { label: e.target.value })}
-                placeholder="Название"
-                className="text-sm h-9 flex-1"
-              />
-              <Input
-                value={l.url}
-                onChange={(e) => updateLink(i, { url: e.target.value })}
+                value={childUrl}
+                onChange={(e) => setChildUrl(e.target.value)}
                 placeholder="https://..."
-                className="text-sm h-9 flex-1"
+                className="text-sm h-9"
               />
-              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeLink(i)}>
-                <Trash2 className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Родительский чат</Label>
+              <Input
+                value={parentUrl}
+                onChange={(e) => setParentUrl(e.target.value)}
+                placeholder="https://..."
+                className="text-sm h-9"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Дополнительные ссылки</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={addLink} className="h-7 text-xs gap-1">
+                <Plus className="h-3 w-3" />
+                Добавить
               </Button>
             </div>
-          ))}
-        </div>
-        <Button type="submit" size="sm" disabled={saving}>
-          {saving ? "Сохранение..." : "Сохранить ссылки"}
-        </Button>
-      </form>
+            {links.map((l, i) => (
+              <div key={i} className="flex gap-2">
+                <Input
+                  value={l.label}
+                  onChange={(e) => updateLink(i, { label: e.target.value })}
+                  placeholder="Название"
+                  className="text-sm h-9 flex-1"
+                />
+                <Input
+                  value={l.url}
+                  onChange={(e) => updateLink(i, { url: e.target.value })}
+                  placeholder="https://..."
+                  className="text-sm h-9 flex-1"
+                />
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeLink(i)}>
+                  <Trash2 className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button type="submit" size="sm" disabled={saving}>
+            {saving ? "Сохранение..." : "Сохранить ссылки"}
+          </Button>
+        </form>
       )}
     </div>
   );
@@ -684,14 +1014,14 @@ function StudentProgressCard({
 }) {
   const { toast } = useToast();
   const [credentialsOpen, setCredentialsOpen] = useState(false);
-  const [resetPassword, setResetPassword] = useState<string | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
 
   async function handleResetPassword() {
     setResetting(true);
     try {
       const { username, password } = await resetStudentPassword(student.id);
-      setResetPassword(password);
+      setResetPasswordValue(password);
       toast({ title: "Пароль сброшен", description: "Новый пароль сгенерирован." });
     } catch (err) {
       toast({
@@ -712,10 +1042,10 @@ function StudentProgressCard({
       : 0;
 
   return (
-    <div className="rounded-lg border border-border/60 bg-muted/20 overflow-hidden">
+    <div className="rounded-lg border overflow-hidden">
       <div
         className={cn(
-          "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors",
+          "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/30 transition-colors",
           expanded && "border-b"
         )}
         onClick={onToggle}
@@ -727,7 +1057,7 @@ function StudentProgressCard({
         )}
         <User className="h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{student.full_name}</p>
+          <p className="font-medium truncate text-sm">{student.full_name}</p>
           <p className="text-xs text-muted-foreground font-mono">{student.username}</p>
         </div>
         <div className="text-right shrink-0 flex items-center gap-2">
@@ -735,21 +1065,21 @@ function StudentProgressCard({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className="gap-1.5 h-8 text-xs"
               onClick={(e) => {
                 e.stopPropagation();
                 setCredentialsOpen(true);
-                setResetPassword(null);
+                setResetPasswordValue(null);
               }}
             >
               <KeyRound className="h-3.5 w-3.5" />
-              Учётные данные
+              Данные
             </Button>
           )}
           <div>
-            <p className="text-sm font-medium">{avgPercent}%</p>
-            <p className="text-xs text-muted-foreground">
-              {student.progress.filter((p) => p.percent === 100).length} / {student.progress.length} треков
+            <p className="text-sm font-medium tabular-nums">{avgPercent}%</p>
+            <p className="text-[11px] text-muted-foreground">
+              {student.progress.filter((p) => p.percent === 100).length}/{student.progress.length}
             </p>
           </div>
         </div>
@@ -761,21 +1091,21 @@ function StudentProgressCard({
             <DialogHeader>
               <DialogTitle>Учётные данные</DialogTitle>
               <DialogDescription>
-                Логин и пароль для входа ученика {student.full_name}
+                {student.full_name}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div>
-                <p className="text-sm font-medium text-muted-foreground mb-1">Логин</p>
-                <p className="font-mono text-base bg-muted px-3 py-2 rounded-md">{student.username}</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Логин</p>
+                <p className="font-mono text-sm bg-muted px-3 py-2 rounded-md">{student.username}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground mb-1">Пароль</p>
-                {resetPassword ? (
-                  <p className="font-mono text-base bg-muted px-3 py-2 rounded-md break-all">{resetPassword}</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Пароль</p>
+                {resetPasswordValue ? (
+                  <p className="font-mono text-sm bg-muted px-3 py-2 rounded-md break-all">{resetPasswordValue}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Пароль хранится в зашифрованном виде. Сбросьте пароль, чтобы получить новый.
+                  <p className="text-sm text-muted-foreground">
+                    Пароль зашифрован. Сбросьте, чтобы получить новый.
                   </p>
                 )}
               </div>
@@ -792,7 +1122,7 @@ function StudentProgressCard({
         </Dialog>
       )}
       {expanded && (
-        <div className="p-3 pt-0 mt-3 space-y-4 border-t border-border/40">
+        <div className="p-3 space-y-3">
           {student.progress.length === 0 ? (
             <p className="text-sm text-muted-foreground">Нет данных о прогрессе</p>
           ) : (
@@ -810,8 +1140,8 @@ function StudentProgressCard({
                     <BookOpen className="h-3.5 w-3.5 shrink-0" />
                     {p.track_title}
                   </button>
-                  <span className="text-muted-foreground">
-                    {p.completed} / {p.total} ({p.percent}%)
+                  <span className="text-muted-foreground tabular-nums">
+                    {p.completed}/{p.total} ({p.percent}%)
                   </span>
                 </div>
                 <Progress value={p.percent} className="h-1.5" />

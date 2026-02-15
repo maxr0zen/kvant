@@ -7,6 +7,7 @@ import { BookOpen, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { MobileNav } from "@/components/shell/mobile-nav";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,25 +42,28 @@ export function Header() {
   const isLoggedIn = mounted && hasToken && user;
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-16 items-center px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-primary">
-          <BookOpen className="h-6 w-6 shrink-0" />
-          <span className="hidden sm:inline-block">Образовательная платформа</span>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-14 items-center gap-2 px-4 sm:px-6">
+        <MobileNav />
+        <Link href="/" className="flex items-center gap-2.5 text-foreground hover:no-underline">
+          <BookOpen className="h-5 w-5 shrink-0 text-primary" />
+          <span className="hidden sm:inline-block font-semibold text-sm">
+            Образовательная платформа
+          </span>
         </Link>
         <div className="flex-1" />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <ThemeToggle />
-          <Separator orientation="vertical" className="h-6" />
+          <Separator orientation="vertical" className="h-5 mx-1" />
           {isLoggedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
                   <User className="h-4 w-4 shrink-0" />
-                  <span className="max-w-[140px] truncate sm:max-w-[200px]">{user.full_name}</span>
+                  <span className="max-w-[140px] truncate sm:max-w-[200px] text-sm">{user.full_name}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
                   <Link href="/profile" className="cursor-pointer flex items-center gap-2">
                     <User className="h-4 w-4" />

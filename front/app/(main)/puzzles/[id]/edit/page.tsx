@@ -12,6 +12,8 @@ import { fetchPuzzleById, updatePuzzle } from "@/lib/api/puzzles";
 import { datetimeLocalToISOUTC } from "@/lib/utils/datetime";
 import { useToast } from "@/components/ui/use-toast";
 import { GroupSelector } from "@/components/group-selector";
+import { PageHeader } from "@/components/ui/page-header";
+import { PageSkeleton } from "@/components/ui/loading-skeleton";
 import type { PuzzleBlock } from "@/lib/types";
 
 function toDatetimeLocal(iso: string | undefined | null): string {
@@ -96,19 +98,16 @@ export default function EditPuzzlePage() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-4">
-        <p className="text-muted-foreground">Загрузка...</p>
-      </div>
-    );
+    return <PageSkeleton cards={2} />;
   }
 
   return (
-    <div className="space-y-4 w-full max-w-full">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Редактирование puzzle</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Измените поля и нажмите «Сохранить».</p>
-      </div>
+    <div className="space-y-6 w-full max-w-3xl">
+      <PageHeader
+        title="Редактирование puzzle"
+        description="Измените поля и нажмите «Сохранить»."
+        breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Puzzle", href: `/puzzles/${id}` }, { label: "Редактирование" }]}
+      />
       <form onSubmit={handleSubmit} className="space-y-4">
         <Card>
           <CardHeader className="pb-2">
@@ -137,9 +136,15 @@ export default function EditPuzzlePage() {
                 </div>
               ))}
             </div>
-            <div className="space-y-2">
-              <Label>Область видимости</Label>
-              <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
+            <div className="grid gap-3 sm:grid-cols-[1fr,auto] items-start">
+              <div className="space-y-2">
+                <Label>Область видимости</Label>
+                <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="maxAttempts">Макс. попыток</Label>
+                <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="∞" className="w-28 h-9 text-sm" />
+              </div>
             </div>
             <div className="space-y-1">
               <Label htmlFor="solution">Эталонное решение (опционально)</Label>
@@ -147,9 +152,15 @@ export default function EditPuzzlePage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Доступно с / до (UTC)</Label>
-              <div className="flex gap-2 flex-wrap">
-                <Input type="datetime-local" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} className="text-sm h-9 w-48" />
-                <Input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className="text-sm h-9 w-48" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">С</Label>
+                  <Input type="datetime-local" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} className="text-sm h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">До</Label>
+                  <Input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className="text-sm h-9" />
+                </div>
               </div>
             </div>
             <div className="space-y-1">
@@ -161,10 +172,6 @@ export default function EditPuzzlePage() {
                 </div>
               ))}
               <Button type="button" variant="outline" size="sm" onClick={() => setHints((prev) => [...prev, ""])}>Добавить подсказку</Button>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="maxAttempts">Ограничение попыток</Label>
-              <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="Не задано" className="w-32 h-9 text-sm" />
             </div>
           </CardContent>
         </Card>

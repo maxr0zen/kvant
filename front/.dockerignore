@@ -1,0 +1,15 @@
+# Used when building from repo root with: docker build -f front/Dockerfile .
+# Docker uses context root; this documents front-specific exclusions.
+
+node_modules
+.next
+out
+dist
+npm-debug.log*
+yarn-error.log
+.env
+.env.*
+.git
+.gitignore
+*.md
+.turbo

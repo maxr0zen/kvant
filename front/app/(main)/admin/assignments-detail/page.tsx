@@ -24,7 +24,9 @@ import { getStoredRole, getStoredToken } from "@/lib/api/auth";
 import { AvailabilityOverdue, formatLateSeconds } from "@/components/availability-countdown";
 import { parseDateTime } from "@/lib/utils/datetime";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, ArrowLeft, BookOpen, ListChecks, Puzzle, HelpCircle, MessageCircle, Users, FileText, ExternalLink, ChevronDown, ChevronRight, UserCircle, CheckCircle2, Clock } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { PageSkeleton } from "@/components/ui/loading-skeleton";
+import { BookOpen, ListChecks, Puzzle, HelpCircle, MessageCircle, Users, FileText, ExternalLink, ChevronDown, ChevronRight, UserCircle, CheckCircle2, Clock } from "lucide-react";
 import { CodeEditor } from "@/components/editor/code-editor";
 import { cn } from "@/components/lib/utils";
 
@@ -133,27 +135,16 @@ export default function AssignmentsDetailPage() {
   }, [solutionViewer]);
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 space-y-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <p className="text-sm text-muted-foreground">Загрузка детализации…</p>
-      </div>
-    );
+    return <PageSkeleton cards={3} />;
   }
 
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Link href="/main">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-xl font-semibold">Детализация заданий</h1>
-          </div>
-        </div>
+        <PageHeader
+          title="Детализация заданий"
+          breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Детализация" }]}
+        />
         <Card className="border-destructive/50">
           <CardContent className="pt-6">
             <p className="text-destructive font-medium">{error}</p>
@@ -197,25 +188,11 @@ export default function AssignmentsDetailPage() {
 
   return (
     <div className="space-y-6 w-full max-w-5xl">
-      {/* Заголовок */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Link href="/main">
-            <Button variant="ghost" size="icon" className="shrink-0 mt-0.5">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-primary" />
-              Детализация заданий
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Активность учеников и выполнение одиночных заданий
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Детализация заданий"
+        description="Активность учеников и выполнение одиночных заданий"
+        breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Детализация" }]}
+      />
 
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "students" | "assignments")} className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2 h-11 p-1 bg-muted/50">

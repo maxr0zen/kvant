@@ -25,7 +25,9 @@ import {
 import { getStoredRole } from "@/lib/api/auth";
 import { datetimeLocalToISOUTC } from "@/lib/utils/datetime";
 import { useToast } from "@/components/ui/use-toast";
-import { Bell, ArrowLeft, Pencil, Trash2, Clock } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { ListSkeleton } from "@/components/ui/loading-skeleton";
+import { Bell, Pencil, Trash2, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/components/lib/utils";
 
@@ -143,42 +145,19 @@ export default function NewNotificationPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[200px] items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Clock className="h-8 w-8 animate-pulse" />
-          <p className="text-sm">Загрузка…</p>
-        </div>
-      </div>
-    );
+    return <ListSkeleton rows={3} />;
   }
 
   return (
-    <div className="space-y-8 w-full max-w-2xl mx-auto">
-      {/* Шапка */}
-      <header className="space-y-1">
-        <div className="flex items-center gap-3">
-          <Link href="/main">
-            <Button variant="ghost" size="icon" className="shrink-0 rounded-full">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 flex-wrap">
-              <Bell className="h-6 w-6 text-primary shrink-0" />
-              {editingId ? "Редактировать уведомление" : "Создать уведомление"}
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Уведомление появится над треками на главной у выбранных групп.
-            </p>
-          </div>
-          {editingId && (
-            <Button type="button" variant="ghost" size="sm" onClick={resetForm}>
-              Отмена
-            </Button>
-          )}
-        </div>
-      </header>
+    <div className="space-y-6 w-full max-w-2xl mx-auto">
+      <PageHeader
+        title={editingId ? "Редактировать уведомление" : "Создать уведомление"}
+        description="Уведомление появится над треками на главной у выбранных групп."
+        breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Уведомления" }]}
+        actions={editingId ? (
+          <Button type="button" variant="ghost" size="sm" onClick={resetForm}>Отмена</Button>
+        ) : undefined}
+      />
 
       {/* Форма */}
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -207,7 +186,7 @@ export default function NewNotificationPage() {
                 <select
                   value={level}
                   onChange={(e) => setLevel(e.target.value as NotificationLevel)}
-                  className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
                   {LEVELS.map((l) => (
                     <option key={l.value} value={l.value}>
@@ -335,7 +314,7 @@ export default function NewNotificationPage() {
                   <select
                     value={durationUnit}
                     onChange={(e) => setDurationUnit(e.target.value as "minutes" | "hours" | "days")}
-                    className="flex h-9 rounded-lg border border-input bg-transparent px-3 py-1 text-sm"
+                    className="flex h-9 rounded-lg border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="minutes">минут</option>
                     <option value="hours">часов</option>

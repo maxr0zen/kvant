@@ -12,8 +12,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookOpen, ListChecks, Puzzle, HelpCircle, MessageCircle, ArrowLeft, Clock } from "lucide-react";
+import { BookOpen, ListChecks, Puzzle, HelpCircle, MessageCircle, Clock, CheckCircle2 } from "lucide-react";
 import { AvailabilityOverdue } from "@/components/availability-countdown";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 type OrphanItemType = "lecture" | "task" | "puzzle" | "question" | "survey";
 
@@ -29,41 +32,43 @@ const ORPHAN_TYPE_CONFIG: Record<
   OrphanItemType,
   { href: (id: string) => string; label: string; buttonText: string; Icon: typeof BookOpen }
 > = {
-  lecture: { href: (id) => `/lectures/${id}`, label: "Лекция", buttonText: "Открыть лекцию", Icon: BookOpen },
-  task: { href: (id) => `/tasks/${id}`, label: "Задание", buttonText: "Открыть задание", Icon: ListChecks },
-  puzzle: { href: (id) => `/puzzles/${id}`, label: "Puzzle", buttonText: "Открыть puzzle", Icon: Puzzle },
-  question: { href: (id) => `/questions/${id}`, label: "Вопрос", buttonText: "Открыть вопрос", Icon: HelpCircle },
-  survey: { href: (id) => `/surveys/${id}`, label: "Опрос", buttonText: "Открыть опрос", Icon: MessageCircle },
+  lecture: { href: (id) => `/lectures/${id}`, label: "Лекция", buttonText: "Открыть", Icon: BookOpen },
+  task: { href: (id) => `/tasks/${id}`, label: "Задание", buttonText: "Открыть", Icon: ListChecks },
+  puzzle: { href: (id) => `/puzzles/${id}`, label: "Puzzle", buttonText: "Открыть", Icon: Puzzle },
+  question: { href: (id) => `/questions/${id}`, label: "Вопрос", buttonText: "Открыть", Icon: HelpCircle },
+  survey: { href: (id) => `/surveys/${id}`, label: "Опрос", buttonText: "Открыть", Icon: MessageCircle },
 };
 
 function OrphanCard({ item }: { item: OrphanItem }) {
   const { href, label, buttonText, Icon } = ORPHAN_TYPE_CONFIG[item.type];
   return (
-    <Card className="flex flex-col border-amber-500/20 hover:border-amber-500/40 transition-colors">
+    <Card className="flex flex-col border-amber-500/20">
       <CardHeader className="pb-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
-          <div className="min-w-0">
-            <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
-              <Icon className="h-5 w-5 shrink-0" />
-              {item.title}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{item.title}</span>
               {item.type === "task" && item.hard && (
-                <span className="text-amber-500" title="Повышенная сложность">★</span>
+                <span className="text-amber-500 text-sm">&#9733;</span>
               )}
-              <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
+            </CardTitle>
+            <CardDescription className="mt-0.5 flex items-center gap-1.5">
+              {label}
+              <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
                 <Clock className="h-3 w-3" />
                 Просрочено
               </span>
-            </CardTitle>
-            <CardDescription>{label}</CardDescription>
+            </CardDescription>
           </div>
           {item.availableUntil && (
             <AvailabilityOverdue availableUntil={item.availableUntil} className="shrink-0 text-xs" />
           )}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col gap-2">
-        <p className="text-sm text-muted-foreground">
-          Задание можно сдать, но оно будет отмечено как выполненное после срока.
+      <CardContent className="flex-1 flex flex-col gap-2 pt-1">
+        <p className="text-xs text-muted-foreground">
+          Можно сдать, но будет отмечено как выполнение после срока.
         </p>
         <Link href={href(item.id)} className="mt-auto pt-2">
           <Button variant="outline" size="sm" className="w-full">
@@ -126,44 +131,41 @@ export default function OverduePage() {
 
   if (!getStoredToken()) {
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">Войдите, чтобы видеть просроченные задания.</p>
-        <Link href="/login">
-          <Button>Войти</Button>
-        </Link>
-      </div>
+      <EmptyState
+        title="Требуется авторизация"
+        description="Войдите, чтобы видеть просроченные задания."
+        action={
+          <Link href="/login">
+            <Button>Войти</Button>
+          </Link>
+        }
+      />
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Link href="/main">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Clock className="h-6 w-6 text-amber-500" />
-            Просроченные задания
-          </h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            Задания с истёкшим сроком. Их можно сдать — будет отмечено как выполнение после срока.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Просроченные задания"
+        description="Задания с истекшим сроком. Их можно сдать — будет отмечено как выполнение после срока."
+        breadcrumbs={[
+          { label: "Треки", href: "/main" },
+          { label: "Просроченные" },
+        ]}
+      />
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Загрузка…</p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
       ) : orphanItems.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">
-              Нет просроченных заданий.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={CheckCircle2}
+          title="Нет просроченных заданий"
+          description="Все задания выполнены вовремя."
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {orphanItems.map((item) => (

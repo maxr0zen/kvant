@@ -80,6 +80,33 @@ class UserCreateSerializer(serializers.Serializer):
         return user
 
 
+class TeacherCreateStudentSerializer(serializers.Serializer):
+    """Создание ученика в группе (учитель или superuser)."""
+    username = serializers.CharField(required=True, max_length=255)
+    first_name = serializers.CharField(required=True, max_length=100)
+    last_name = serializers.CharField(required=True, max_length=100)
+    password = serializers.CharField(required=True, write_only=True, style={"input_type": "password"}, min_length=6)
+
+    def create(self, validated_data, **kwargs):
+        group_id = kwargs.get("group_id")
+        if not group_id:
+            raise serializers.ValidationError("group_id is required")
+        username = validated_data["username"].strip()
+        if User.objects(username=username).first():
+            raise serializers.ValidationError({"username": "Пользователь с таким логином уже существует."})
+        user = User(
+            username=username,
+            first_name=validated_data["first_name"].strip(),
+            last_name=validated_data["last_name"].strip(),
+            role=UserRole.STUDENT.value,
+            group_id=group_id,
+            group_ids=[],
+        )
+        user.set_password(validated_data["password"])
+        user.save()
+        return user
+
+
 class UserUpdateSerializer(serializers.Serializer):
     """Обновление пользователя: first_name, last_name, group_id (ученик), group_ids (учитель)."""
     first_name = serializers.CharField(required=False, max_length=100)

@@ -114,6 +114,8 @@ export interface Task {
   title: string;
   description: string;
   starterCode: string;
+  /** Язык программирования (python, javascript, cpp) */
+  language?: string;
   testCases: TestCase[];
   trackId?: string;
   /** Повышенная сложность (со звёздочкой) */

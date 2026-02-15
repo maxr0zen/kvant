@@ -13,9 +13,13 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TemporaryAssignmentsIndicator } from "@/components/temporary-assignments-indicator";
 import { AvailabilityCountdown } from "@/components/availability-countdown";
-import { BookOpen, ListChecks, CheckCircle2, Star, Puzzle, HelpCircle, Clock, Search, Filter, MessageCircle } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { BookOpen, ListChecks, CheckCircle2, Star, Puzzle, HelpCircle, Clock, Search, MessageCircle, Inbox } from "lucide-react";
 import type { Track } from "@/lib/types";
 import { parseDateTime } from "@/lib/utils/datetime";
 import { Input } from "@/components/ui/input";
@@ -48,41 +52,43 @@ const ORPHAN_TYPE_CONFIG: Record<
   OrphanItemType,
   { href: (id: string) => string; label: string; buttonText: string; Icon: typeof BookOpen }
 > = {
-  lecture: { href: (id) => `/lectures/${id}`, label: "Лекция", buttonText: "Открыть лекцию", Icon: BookOpen },
-  task: { href: (id) => `/tasks/${id}`, label: "Задание", buttonText: "Открыть задание", Icon: ListChecks },
-  puzzle: { href: (id) => `/puzzles/${id}`, label: "Puzzle", buttonText: "Открыть puzzle", Icon: Puzzle },
-  question: { href: (id) => `/questions/${id}`, label: "Вопрос", buttonText: "Открыть вопрос", Icon: HelpCircle },
-  survey: { href: (id) => `/surveys/${id}`, label: "Опрос", buttonText: "Открыть опрос", Icon: MessageCircle },
+  lecture: { href: (id) => `/lectures/${id}`, label: "Лекция", buttonText: "Открыть", Icon: BookOpen },
+  task: { href: (id) => `/tasks/${id}`, label: "Задание", buttonText: "Открыть", Icon: ListChecks },
+  puzzle: { href: (id) => `/puzzles/${id}`, label: "Puzzle", buttonText: "Открыть", Icon: Puzzle },
+  question: { href: (id) => `/questions/${id}`, label: "Вопрос", buttonText: "Открыть", Icon: HelpCircle },
+  survey: { href: (id) => `/surveys/${id}`, label: "Опрос", buttonText: "Открыть", Icon: MessageCircle },
 };
 
 function OrphanCard({ item }: { item: OrphanItem }) {
   const { href, label, buttonText, Icon } = ORPHAN_TYPE_CONFIG[item.type];
   const isTemp = item.hasDeadline;
   return (
-    <Card className="flex flex-col border-primary/10 hover:border-primary/25 hover:shadow-md transition-shadow">
+    <Card className="flex flex-col">
       <CardHeader className="pb-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
-          <div className="min-w-0">
-            <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
-              <Icon className="h-5 w-5 shrink-0" />
-              {item.title}
-              {item.type === "task" && item.hard && <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{item.title}</span>
+              {item.type === "task" && item.hard && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" />}
+            </CardTitle>
+            <CardDescription className="mt-0.5 flex items-center gap-1.5">
+              {label}
               {isTemp && (
-                <span className="inline-flex items-center gap-1 rounded-md border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   Временное
                 </span>
               )}
-            </CardTitle>
-            <CardDescription>{label}</CardDescription>
+            </CardDescription>
           </div>
           {item.availableUntil && (
             <AvailabilityCountdown availableUntil={item.availableUntil} className="shrink-0 text-xs" />
           )}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col gap-2">
-        <Link href={href(item.id)} className="mt-auto pt-4">
+      <CardContent className="flex-1 flex items-end pt-2">
+        <Link href={href(item.id)} className="w-full">
           <Button variant="outline" size="sm" className="w-full">
             {buttonText}
           </Button>
@@ -91,6 +97,15 @@ function OrphanCard({ item }: { item: OrphanItem }) {
     </Card>
   );
 }
+
+const TAB_FILTERS: { value: OrphanItemType | "all"; label: string }[] = [
+  { value: "all", label: "Все" },
+  { value: "lecture", label: "Лекции" },
+  { value: "task", label: "Задачи" },
+  { value: "puzzle", label: "Пазлы" },
+  { value: "question", label: "Вопросы" },
+  { value: "survey", label: "Опросы" },
+];
 
 export default function MainPage() {
   const [data, setData] = useState<{
@@ -175,7 +190,7 @@ export default function MainPage() {
   const orphanSurveys = useMemo(() => rawOrphanSurveys.filter(stillAvailable.survey), [rawOrphanSurveys, stillAvailable.survey]);
 
   const [orphanSearch, setOrphanSearch] = useState("");
-  const [orphanTypeFilter, setOrphanTypeFilter] = useState<OrphanItemType | "">("");
+  const [orphanTab, setOrphanTab] = useState<string>("all");
 
   const orphanItems = useMemo((): OrphanItem[] => {
     const list: OrphanItem[] = [];
@@ -249,33 +264,34 @@ export default function MainPage() {
       if (a.hasDeadline !== b.hasDeadline) return a.hasDeadline ? -1 : 1;
       return 0;
     });
-    if (orphanTypeFilter) {
-      items = items.filter((i) => i.type === orphanTypeFilter);
+    if (orphanTab && orphanTab !== "all") {
+      items = items.filter((i) => i.type === orphanTab);
     }
     if (orphanSearch.trim()) {
       const q = orphanSearch.trim().toLowerCase();
       items = items.filter((i) => i.title.toLowerCase().includes(q));
     }
     return items;
-  }, [orphanItems, orphanTypeFilter, orphanSearch]);
+  }, [orphanItems, orphanTab, orphanSearch]);
 
   const hasContent = tracks.length > 0 || orphanItems.length > 0;
 
   const notificationLevelClass: Record<string, string> = {
-    info: "border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-200",
-    success: "border-green-500/40 bg-green-500/10 text-green-800 dark:text-green-200",
-    warning: "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
-    error: "border-red-500/40 bg-red-500/10 text-red-800 dark:text-red-200",
+    info: "border-blue-500/30 bg-blue-50 text-blue-800 dark:bg-blue-950/30 dark:text-blue-200",
+    success: "border-green-500/30 bg-green-50 text-green-800 dark:bg-green-950/30 dark:text-green-200",
+    warning: "border-amber-500/30 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200",
+    error: "border-red-500/30 bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-200",
   };
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-6">
+      {/* Notifications */}
       {notifications.length > 0 && (
         <div className="space-y-2">
           {notifications.map((n) => (
             <div
               key={n.id}
-              className={`rounded-xl border px-4 py-3 text-sm ${notificationLevelClass[n.level] ?? notificationLevelClass.info}`}
+              className={`rounded-lg border px-4 py-3 text-sm ${notificationLevelClass[n.level] ?? notificationLevelClass.info}`}
               role="alert"
             >
               {n.message}
@@ -283,14 +299,12 @@ export default function MainPage() {
           ))}
         </div>
       )}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl mb-1">Треки</h1>
-          <p className="text-sm text-muted-foreground sm:text-base">
-            Выберите трек или отдельную лекцию/задание.
-          </p>
-        </div>
-        <div className="shrink-0 sm:ml-auto">
+
+      {/* Page header */}
+      <PageHeader
+        title="Треки"
+        description="Выберите трек или отдельное задание"
+        actions={
           <TemporaryAssignmentsIndicator
             orphanLectures={orphanLectures}
             orphanTasks={orphanTasks}
@@ -298,42 +312,48 @@ export default function MainPage() {
             orphanQuestions={orphanQuestions}
             className=""
           />
-        </div>
-      </div>
+        }
+      />
 
+      {/* Loading */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-16 sm:py-24 gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Загрузка...</p>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
         </div>
       ) : !hasContent ? (
-        <div className="py-12 sm:py-16">
-          <p className="font-medium text-muted-foreground">Нет доступных треков</p>
-          <p className="text-sm text-muted-foreground/80 mt-1">Выполните вход.</p>
-        </div>
+        <EmptyState
+          icon={Inbox}
+          title="Нет доступных треков"
+          description="Войдите в аккаунт, чтобы увидеть доступные учебные материалы."
+        />
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-10">
+          {/* Tracks grid */}
           {tracks.length > 0 && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-medium">Треки</h2>
+            <section className="space-y-4">
+              <h2 className="text-lg font-medium">Учебные треки</h2>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {tracks.map((track) => {
                   const { completed, total, percent } = trackProgress(track);
                   return (
-                    <Card key={track.id} className="flex flex-col border-primary/10 hover:border-primary/25 hover:shadow-md transition-shadow">
+                    <Card key={track.id} className="flex flex-col">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <BookOpen className="h-5 w-5" />
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <BookOpen className="h-4 w-4 text-primary shrink-0" />
                           {track.title}
                         </CardTitle>
-                        <CardDescription>{track.description}</CardDescription>
+                        {track.description && (
+                          <CardDescription className="line-clamp-2">{track.description}</CardDescription>
+                        )}
                         {total > 0 && (
                           <div className="pt-2 space-y-1">
                             <div className="flex justify-between text-xs text-muted-foreground">
                               <span>Прогресс</span>
-                              <span>{completed} / {total}</span>
+                              <span>{completed}/{total}</span>
                             </div>
-                            <Progress value={percent} className="h-2" />
+                            <Progress value={percent} className="h-1.5" />
                           </div>
                         )}
                       </CardHeader>
@@ -352,19 +372,19 @@ export default function MainPage() {
                                   <ListChecks className="h-3 w-3 shrink-0" />
                                 )}
                                 {lesson.hard && <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-500" />}
-                                <span className={isDone ? "text-brand-green" : ""}>
+                                <span className={isDone ? "text-brand-green" : "truncate"}>
                                   {lesson.title}
                                 </span>
                               </li>
                             );
                           })}
                           {(track.lessons || []).length > 4 && (
-                            <li className="text-muted-foreground/80">
-                              и ещё {(track.lessons || []).length - 4}...
+                            <li className="text-muted-foreground/60 text-xs">
+                              +{(track.lessons || []).length - 4} ещё
                             </li>
                           )}
                         </ul>
-                        <Link href={`/main/${track.id}`} className="mt-auto pt-4">
+                        <Link href={`/main/${track.id}`} className="mt-auto pt-3">
                           <Button variant="outline" size="sm" className="w-full">
                             Открыть трек
                           </Button>
@@ -374,80 +394,53 @@ export default function MainPage() {
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
 
+          {/* Orphan items with tabs */}
           {orphanItems.length > 0 && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-medium">Отдельные лекции и задания</h2>
-              <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Поиск по названию..."
-                    value={orphanSearch}
-                    onChange={(e) => setOrphanSearch(e.target.value)}
-                    className="pl-8 h-9"
-                  />
+            <section className="space-y-4">
+              <h2 className="text-lg font-medium">Отдельные задания</h2>
+
+              <Tabs value={orphanTab} onValueChange={setOrphanTab} className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <TabsList className="w-fit">
+                    {TAB_FILTERS.map((t) => (
+                      <TabsTrigger key={t.value} value={t.value} className="text-xs">
+                        {t.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  <div className="relative sm:ml-auto max-w-xs w-full">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="search"
+                      placeholder="Поиск..."
+                      value={orphanSearch}
+                      onChange={(e) => setOrphanSearch(e.target.value)}
+                      className="pl-8 h-9"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm text-muted-foreground shrink-0">Тип:</span>
-                  <Button
-                    variant={orphanTypeFilter === "" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setOrphanTypeFilter("")}
-                  >
-                    Все
-                  </Button>
-                  <Button
-                    variant={orphanTypeFilter === "lecture" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setOrphanTypeFilter("lecture")}
-                  >
-                    Лекции
-                  </Button>
-                  <Button
-                    variant={orphanTypeFilter === "task" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setOrphanTypeFilter("task")}
-                  >
-                    Задачи
-                  </Button>
-                  <Button
-                    variant={orphanTypeFilter === "puzzle" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setOrphanTypeFilter("puzzle")}
-                  >
-                    Пазлы
-                  </Button>
-                  <Button
-                    variant={orphanTypeFilter === "question" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setOrphanTypeFilter("question")}
-                  >
-                    Вопросы
-                  </Button>
-                  <Button
-                    variant={orphanTypeFilter === "survey" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setOrphanTypeFilter("survey")}
-                  >
-                    Опросы
-                  </Button>
-                </div>
-              </div>
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {orphanItemsSortedAndFiltered.length === 0 ? (
-                  <p className="text-sm text-muted-foreground col-span-full">Ничего не найдено.</p>
-                ) : (
-                  orphanItemsSortedAndFiltered.map((item) => (
-                    <OrphanCard key={`${item.type}-${item.id}`} item={item} />
-                  ))
-                )}
-              </div>
-            </div>
+
+                <TabsContent value={orphanTab} className="mt-0">
+                  {orphanItemsSortedAndFiltered.length === 0 ? (
+                    <EmptyState
+                      icon={Search}
+                      title="Ничего не найдено"
+                      description="Попробуйте изменить фильтр или поисковый запрос."
+                      className="py-12"
+                    />
+                  ) : (
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                      {orphanItemsSortedAndFiltered.map((item) => (
+                        <OrphanCard key={`${item.type}-${item.id}`} item={item} />
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </section>
           )}
         </div>
       )}

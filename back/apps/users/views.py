@@ -14,6 +14,7 @@ from .serializers import (
     UserListSerializer,
     UserCreateSerializer,
     UserUpdateSerializer,
+    TeacherCreateStudentSerializer,
 )
 from .permissions import IsSuperuser, IsTeacher, IsTeacherOrSuperuser
 from .teacher_utils import get_teacher_group_ids
@@ -290,6 +291,165 @@ class TeacherGroupsProgressView(APIView):
             })
 
         return Response({"groups": result})
+
+
+class TeacherAnalyticsView(APIView):
+    """GET /api/auth/teacher/analytics/ — group completion summary, activity heatmap, lesson type breakdown."""
+    permission_classes = [IsAuthenticated, IsTeacherOrSuperuser]
+
+    def get(self, request):
+        from apps.submissions.documents import LessonProgress
+        from apps.tracks.documents import Track
+        from apps.tracks.serializers import _get_lesson_display_id, get_lesson_status_for_user
+        from datetime import timedelta
+        from django.utils import timezone
+
+        user = request.user
+        is_superuser = getattr(user, "role", None) == UserRole.SUPERUSER.value
+        teacher_group_ids = list(getattr(user, "group_ids", []) or [])
+        teacher_group_ids = [str(g) for g in teacher_group_ids]
+        if is_superuser:
+            teacher_group_ids = [str(g.id) for g in Group.objects.all().order_by("order", "title")]
+        if not teacher_group_ids:
+            return Response({
+                "groups_summary": [],
+                "activity_heatmap": [],
+                "lesson_type_breakdown": {"lectures": 0, "tasks": 0, "puzzles": 0, "questions": 0, "surveys": 0},
+            })
+
+        group_object_ids = [ObjectId(g) for g in teacher_group_ids if g and ObjectId.is_valid(g)]
+        groups_qs = Group.objects.filter(id__in=group_object_ids).order_by("order", "title")
+        students_qs = User.objects(role="student", group_id__in=teacher_group_ids)
+        student_ids = [str(s.id) for s in students_qs]
+
+        def get_student_avg_percent_and_completed_all(sid):
+            from apps.tracks.serializers import _get_lesson_display_id, get_lesson_status_for_user
+            user_id = str(sid)
+            tracks_qs = Track.objects.order_by("order").filter(__raw__={
+                "$or": [
+                    {"visible_group_ids": {"$exists": False}},
+                    {"visible_group_ids": []},
+                    {"visible_group_ids": {"$in": teacher_group_ids}},
+                ]
+            })
+            total_lessons = 0
+            completed = 0
+            for track in tracks_qs:
+                for lesson in track.lessons:
+                    if lesson.type not in ("lecture", "task", "puzzle", "question"):
+                        continue
+                    total_lessons += 1
+                    display_id = _get_lesson_display_id(lesson)
+                    status, _ = get_lesson_status_for_user(user_id, lesson, display_id)
+                    if status in ("completed", "completed_late"):
+                        completed += 1
+            if total_lessons == 0:
+                return 0, False
+            return (100 * completed // total_lessons), (completed == total_lessons)
+
+        # Groups summary
+        groups_summary = []
+        for group in groups_qs:
+            group_id_str = str(group.id)
+            students_in_group = [s for s in students_qs if str(s.group_id) == group_id_str]
+            total_students = len(students_in_group)
+            if total_students == 0:
+                groups_summary.append({
+                    "group_id": group_id_str,
+                    "group_title": group.title,
+                    "avg_percent": 0,
+                    "total_students": 0,
+                    "completed_all": 0,
+                    "late_count": 0,
+                })
+                continue
+            percents = []
+            completed_all_count = 0
+            for s in students_in_group:
+                pct, done_all = get_student_avg_percent_and_completed_all(s.id)
+                percents.append(pct)
+                if done_all:
+                    completed_all_count += 1
+            late_count = LessonProgress.objects(
+                user_id__in=[str(s.id) for s in students_in_group],
+                status="completed",
+                completed_late=True,
+            ).count()
+            avg_percent = round(sum(percents) / len(percents)) if percents else 0
+            groups_summary.append({
+                "group_id": group_id_str,
+                "group_title": group.title,
+                "avg_percent": avg_percent,
+                "total_students": total_students,
+                "completed_all": completed_all_count,
+                "late_count": late_count,
+            })
+
+        # Activity heatmap: last 30 days, completions per day (LessonProgress with status=completed)
+        now = timezone.now()
+        if timezone.is_naive(now):
+            from datetime import datetime as dt
+            now = timezone.make_aware(dt.utcnow())
+        start_30 = now - timedelta(days=30)
+        heatmap_by_date = {}
+        for lp in LessonProgress.objects(
+            user_id__in=student_ids,
+            status="completed",
+            updated_at__gte=start_30,
+        ).only("updated_at"):
+            if lp.updated_at:
+                d = lp.updated_at.date() if hasattr(lp.updated_at, "date") else lp.updated_at
+                if hasattr(d, "isoformat"):
+                    key = d.isoformat()
+                else:
+                    key = str(d)
+                heatmap_by_date[key] = heatmap_by_date.get(key, 0) + 1
+        activity_heatmap = [{"date": k, "count": v} for k, v in sorted(heatmap_by_date.items())]
+        # Fill missing days with 0
+        from datetime import date
+        for i in range(31):
+            d = (now - timedelta(days=i)).date()
+            key = d.isoformat()
+            if not any(h["date"] == key for h in activity_heatmap):
+                activity_heatmap.append({"date": key, "count": 0})
+        activity_heatmap.sort(key=lambda x: x["date"])
+
+        # Lesson type breakdown: completed counts by type
+        breakdown = {"lectures": 0, "tasks": 0, "puzzles": 0, "questions": 0, "surveys": 0}
+        for lp in LessonProgress.objects(user_id__in=student_ids, status="completed").only("lesson_type"):
+            t = getattr(lp, "lesson_type", None)
+            if t in breakdown:
+                breakdown[t] = breakdown.get(t, 0) + 1
+        lesson_type_breakdown = breakdown
+
+        return Response({
+            "groups_summary": groups_summary,
+            "activity_heatmap": activity_heatmap,
+            "lesson_type_breakdown": lesson_type_breakdown,
+        })
+
+
+class TeacherCreateStudentInGroupView(APIView):
+    """POST /api/auth/teacher/groups/<group_id>/students/ — создание ученика в группе (учитель только в своей группе)."""
+    permission_classes = [IsAuthenticated, IsTeacherOrSuperuser]
+
+    def post(self, request, group_id):
+        try:
+            group = Group.objects.get(id=ObjectId(group_id))
+        except (Group.DoesNotExist, Exception):
+            return Response({"detail": "Группа не найдена."}, status=status.HTTP_404_NOT_FOUND)
+        user = request.user
+        is_superuser = getattr(user, "role", None) == UserRole.SUPERUSER.value
+        teacher_group_ids = [str(g) for g in (getattr(user, "group_ids", []) or [])]
+        if not is_superuser and (not teacher_group_ids or group_id not in teacher_group_ids):
+            return Response({"detail": "Нет доступа к этой группе."}, status=status.HTTP_403_FORBIDDEN)
+        ser = TeacherCreateStudentSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        student = ser.save(group_id=group_id)
+        return Response(
+            UserListSerializer(student).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class TeacherGroupLinksView(APIView):

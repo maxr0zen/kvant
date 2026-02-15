@@ -26,8 +26,11 @@ import { fetchTaskById, updateTask } from "@/lib/api/tasks";
 import { datetimeLocalToISOUTC } from "@/lib/utils/datetime";
 import { useToast } from "@/components/ui/use-toast";
 import { GroupSelector } from "@/components/group-selector";
+import { PageHeader } from "@/components/ui/page-header";
+import { PageSkeleton } from "@/components/ui/loading-skeleton";
 import type { TestCase } from "@/lib/types";
-import { Settings2, Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Settings2 } from "lucide-react";
+import { LanguageSelector } from "@/components/language-selector";
 
 const defaultTestCase: TestCase = {
   id: "1",
@@ -56,6 +59,7 @@ export default function EditTaskPage() {
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [language, setLanguage] = useState("python");
   const [starterCode, setStarterCode] = useState("");
   const [testCases, setTestCases] = useState<TestCase[]>([]);
   const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
@@ -79,6 +83,7 @@ export default function EditTaskPage() {
       }
       setTitle(task.title);
       setDescription(task.description ?? "");
+      setLanguage(task.language ?? "python");
       setStarterCode(task.starterCode ?? "");
       setTestCases(
         (task.testCases ?? []).length > 0
@@ -91,14 +96,12 @@ export default function EditTaskPage() {
           : [{ ...defaultTestCase, id: "1" }]
       );
       setVisibleGroupIds(task.visibleGroupIds ?? []);
-      setHints((task.hints ?? []).length > 0 ? task.hints! : [""]);
+      setHints((task.hints ?? []).length > 0 ? task.hints! : []);
       setAvailableFrom(toDatetimeLocal(task.availableFrom));
       setAvailableUntil(toDatetimeLocal(task.availableUntil));
       setTempMode(
         task.availableUntil ? "until_date" : task.availableFrom ? "until_date" : "none"
       );
-      setDurationHours("");
-      setDurationMinutes("");
       setMaxAttempts(task.maxAttempts != null ? String(task.maxAttempts) : "");
       setHard(task.hard ?? false);
     }).finally(() => {
@@ -129,6 +132,7 @@ export default function EditTaskPage() {
         title: title.trim(),
         description: description.trim(),
         starterCode,
+        language,
         testCases,
         visibleGroupIds: visibleGroupIds.length > 0 ? visibleGroupIds : [],
         hard,
@@ -165,28 +169,24 @@ export default function EditTaskPage() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-4">
-        <p className="text-muted-foreground">Загрузка...</p>
-      </div>
-    );
+    return <PageSkeleton cards={2} />;
   }
 
   return (
-    <div className="space-y-4 w-full max-w-full">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Редактирование задачи</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Измените поля и нажмите «Сохранить».
-        </p>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-6 w-full max-w-3xl">
+      <PageHeader
+        title="Редактирование задачи"
+        description="Измените поля и нажмите «Сохранить»."
+        breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Задача", href: `/tasks/${id}` }, { label: "Редактирование" }]}
+      />
+
+      <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
-                <CardTitle className="text-lg">Основное</CardTitle>
-                <CardDescription className="text-sm">Название и описание задачи</CardDescription>
+                <CardTitle className="text-base">Основное</CardTitle>
+                <CardDescription className="text-sm">Название и описание. Дополнительные настройки — в кнопке справа.</CardDescription>
               </div>
               <Dialog>
                 <DialogTrigger asChild>
@@ -204,51 +204,39 @@ export default function EditTaskPage() {
                   </DialogHeader>
                   <div className="space-y-5 pt-2">
                     <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
-                    <div className="space-y-2">
+                    <div className="space-y-2 border-t pt-5">
                       <Label>Подсказки</Label>
                       {hints.map((h, i) => (
                         <div key={i} className="flex gap-2">
-                          <Textarea
-                            value={h}
-                            onChange={(e) => setHints((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
-                            placeholder={`Подсказка ${i + 1}`}
-                            rows={2}
-                            className="flex-1 text-sm"
-                          />
-                          <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={() => setHints((prev) => prev.filter((_, j) => j !== i))}>
-                            <Trash2 className="h-4 w-4" />
+                          <Textarea value={h} onChange={(e) => setHints((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Подсказка ${i + 1}`} rows={2} className="flex-1 text-sm" />
+                          <Button type="button" variant="ghost" size="icon" className="shrink-0 h-9 w-9" onClick={() => setHints((prev) => prev.filter((_, j) => j !== i))}>
+                            <Trash2 className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </div>
                       ))}
                       <Button type="button" variant="outline" size="sm" onClick={() => setHints((prev) => [...prev, ""])}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> Добавить подсказку
+                        <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить подсказку
                       </Button>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 border-t pt-5">
                       <Label>Временное задание</Label>
-                      <div className="flex flex-wrap gap-4">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input type="radio" name="tempMode" checked={tempMode === "none"} onChange={() => setTempMode("none")} className="rounded" />
-                          Всегда доступно
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input type="radio" name="tempMode" checked={tempMode === "until_date"} onChange={() => setTempMode("until_date")} className="rounded" />
-                          До даты
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input type="radio" name="tempMode" checked={tempMode === "duration"} onChange={() => setTempMode("duration")} className="rounded" />
-                          По длительности
-                        </label>
+                      <div className="flex flex-wrap gap-2">
+                        {([{ value: "none", label: "Всегда доступно" }, { value: "until_date", label: "До даты" }, { value: "duration", label: "По длительности" }] as const).map((opt) => (
+                          <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border py-2 px-3 hover:bg-muted/50 transition-colors">
+                            <input type="radio" name="tempMode" checked={tempMode === opt.value} onChange={() => setTempMode(opt.value)} className="rounded-full border-input" />
+                            {opt.label}
+                          </label>
+                        ))}
                       </div>
                       {tempMode === "until_date" && (
-                        <div className="grid gap-2 sm:grid-cols-2 pt-1">
+                        <div className="grid gap-3 sm:grid-cols-2 pt-1">
                           <div className="space-y-1">
                             <Label className="text-xs">Доступно с (UTC)</Label>
-                            <Input type="datetime-local" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} className="text-sm h-9" />
+                            <Input type="datetime-local" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} className="h-9" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Доступно до (UTC)</Label>
-                            <Input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className="text-sm h-9" />
+                            <Input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className="h-9" />
                           </div>
                         </div>
                       )}
@@ -256,87 +244,94 @@ export default function EditTaskPage() {
                         <div className="flex gap-3 items-end pt-1">
                           <div className="space-y-1">
                             <Label className="text-xs">Часы</Label>
-                            <Input type="number" min={0} value={durationHours} onChange={(e) => setDurationHours(e.target.value)} placeholder="0" className="w-20 h-9 text-sm" />
+                            <Input type="number" min={0} value={durationHours} onChange={(e) => setDurationHours(e.target.value)} placeholder="0" className="w-20 h-9" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Минуты</Label>
-                            <Input type="number" min={0} max={59} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} placeholder="0" className="w-20 h-9 text-sm" />
+                            <Input type="number" min={0} max={59} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} placeholder="0" className="w-20 h-9" />
                           </div>
+                          <p className="text-xs text-muted-foreground pb-2">С текущего момента</p>
                         </div>
                       )}
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 border-t pt-5">
                       <Label htmlFor="maxAttempts">Ограничение попыток</Label>
-                      <Input
-                        id="maxAttempts"
-                        type="number"
-                        min={1}
-                        value={maxAttempts}
-                        onChange={(e) => setMaxAttempts(e.target.value)}
-                        placeholder="Не задано"
-                        className="max-w-[140px] h-9 text-sm"
-                      />
+                      <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="Без ограничения" className="h-9 max-w-[140px]" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="hard"
-                        checked={hard}
-                        onChange={(e) => setHard(e.target.checked)}
-                        className="rounded border-input"
-                      />
-                      <Label htmlFor="hard" className="text-sm font-normal cursor-pointer">Повышенная сложность</Label>
+                    <div className="flex items-center gap-2 border-t pt-5">
+                      <input type="checkbox" id="hard" checked={hard} onChange={(e) => setHard(e.target.checked)} className="rounded border-input" />
+                      <Label htmlFor="hard" className="text-sm font-normal cursor-pointer">Повышенная сложность (&#9733;)</Label>
                     </div>
                   </div>
                 </DialogContent>
               </Dialog>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3 pt-0">
-            <div className="space-y-1">
-              <Label htmlFor="title" className="text-sm">Название</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" required className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="description" className="text-sm">Описание</Label>
-              <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Условие" rows={3} className="text-sm" />
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="title">Название</Label>
+                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Описание</Label>
+                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Условие" rows={3} />
+              </div>
             </div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Шаблон кода</CardTitle>
-            <CardDescription className="text-sm">Начальный код для ученика</CardDescription>
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <CardTitle className="text-base">Шаблон кода</CardTitle>
+                <CardDescription>Начальный код для ученика</CardDescription>
+              </div>
+              <LanguageSelector value={language} onChange={setLanguage} className="w-40" />
+            </div>
           </CardHeader>
-          <CardContent className="pt-0">
-            <CodeEditor value={starterCode} onChange={setStarterCode} />
+          <CardContent>
+            <div className="rounded-lg border overflow-hidden">
+              <CodeEditor value={starterCode} onChange={setStarterCode} language={language} />
+            </div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Тесты</CardTitle>
-            <CardDescription className="text-sm">Ввод и ожидаемый вывод</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Тесты</CardTitle>
+            <CardDescription>Ввод и ожидаемый вывод</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 pt-0">
+          <CardContent className="space-y-3">
             {testCases.map((tc) => (
-              <div key={tc.id} className="rounded-lg border p-4 space-y-2 grid gap-2 sm:grid-cols-2">
+              <div key={tc.id} className="rounded-lg border p-3 grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label>Ввод</Label>
-                  <Input value={tc.input} onChange={(e) => updateTestCase(tc.id, { input: e.target.value })} placeholder="Ввод" />
+                  <Label className="text-xs">Ввод</Label>
+                  <Input value={tc.input} onChange={(e) => updateTestCase(tc.id, { input: e.target.value })} placeholder="например: 1 2" className="h-9" />
                 </div>
                 <div className="space-y-1">
-                  <Label>Ожидаемый вывод</Label>
-                  <Input value={tc.expectedOutput} onChange={(e) => updateTestCase(tc.id, { expectedOutput: e.target.value })} placeholder="Вывод" />
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Ожидаемый вывод</Label>
+                    {testCases.length > 1 && (
+                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setTestCases((prev) => prev.filter((t) => t.id !== tc.id))}>
+                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
+                    )}
+                  </div>
+                  <Input value={tc.expectedOutput} onChange={(e) => updateTestCase(tc.id, { expectedOutput: e.target.value })} placeholder="например: 3" className="h-9" />
                 </div>
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={addTestCase}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
               Добавить тест
             </Button>
           </CardContent>
         </Card>
-        <div className="flex flex-wrap gap-3">
-          <Button type="submit" disabled={saving}>
+
+        <div className="flex gap-3 pt-2">
+          <Button type="submit" disabled={saving} className="min-w-[140px]">
             {saving ? "Сохранение..." : "Сохранить"}
           </Button>
           <Link href={`/tasks/${id}`}>

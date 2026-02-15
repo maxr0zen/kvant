@@ -270,7 +270,7 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
             <CardContent className="p-0">
               <CodeHighlight
                 code={assembledCode || "# Перетащите блоки кода слева"}
-                language="python"
+                language={puzzle.language ?? "python"}
                 className="min-h-[100px] rounded-b-lg"
               />
             </CardContent>

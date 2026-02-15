@@ -66,7 +66,7 @@ export function QrCodeCard({ title, url }: QrCodeCardProps) {
                 {url}
               </div>
             ) : (
-              <div className="rounded-xl border border-border/40 bg-white p-2.5 shadow-inner hover:border-primary/50 hover:bg-muted/30 transition-colors">
+              <div className="rounded-xl border border-border/40 bg-background dark:bg-zinc-100 p-2.5 shadow-inner hover:border-primary/50 hover:bg-muted/30 transition-colors">
                 <QRCodeSVG value={url} size={size} level="M" />
               </div>
             )}

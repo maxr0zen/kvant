@@ -20,6 +20,7 @@ function mapTaskFromApi(data: Record<string, unknown>): Task {
     title: String(data.title),
     description: String(data.description ?? ""),
     starterCode: String(data.starter_code ?? ""),
+    language: data.language != null ? String(data.language) : undefined,
     trackId: data.track_id != null ? String(data.track_id) : undefined,
     testCases,
     hard: Boolean(data.hard),
@@ -66,6 +67,7 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
           title: data.title,
           description: data.description ?? "",
           starter_code: data.starterCode ?? "",
+          language: data.language ?? "python",
           track_id: data.trackId ?? null,
           test_cases: (data.testCases ?? []).map((tc) => ({
             id: tc.id,
@@ -94,7 +96,7 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
   return createTaskStub(data);
 }
 
-export type TaskUpdatePayload = Partial<Pick<Task, "title" | "description" | "starterCode" | "testCases" | "trackId" | "hard" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts">>;
+export type TaskUpdatePayload = Partial<Pick<Task, "title" | "description" | "starterCode" | "language" | "testCases" | "trackId" | "hard" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts">>;
 
 export async function updateTask(id: string, data: TaskUpdatePayload): Promise<Task> {
   if (!hasApi()) throw new Error("API not configured");
@@ -102,6 +104,7 @@ export async function updateTask(id: string, data: TaskUpdatePayload): Promise<T
   if (data.title !== undefined) body.title = data.title;
   if (data.description !== undefined) body.description = data.description;
   if (data.starterCode !== undefined) body.starter_code = data.starterCode;
+  if (data.language !== undefined) body.language = data.language;
   if (data.trackId !== undefined) body.track_id = data.trackId;
   if (data.testCases !== undefined) body.test_cases = data.testCases.map((tc) => ({ id: tc.id, input: tc.input, expected_output: tc.expectedOutput, is_public: tc.isPublic }));
   if (data.visibleGroupIds !== undefined) body.visible_group_ids = data.visibleGroupIds;

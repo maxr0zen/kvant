@@ -26,8 +26,10 @@ import { createTask } from "@/lib/api/tasks";
 import { datetimeLocalToISOUTC } from "@/lib/utils/datetime";
 import { useToast } from "@/components/ui/use-toast";
 import { GroupSelector } from "@/components/group-selector";
+import { PageHeader } from "@/components/ui/page-header";
 import type { TestCase } from "@/lib/types";
-import { Settings2, Trash2, Plus, ArrowLeft, Code2 } from "lucide-react";
+import { Trash2, Plus, Settings2 } from "lucide-react";
+import { LanguageSelector } from "@/components/language-selector";
 
 const defaultTestCase: TestCase = {
   id: "1",
@@ -43,6 +45,7 @@ export default function NewTaskPage() {
   const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [language, setLanguage] = useState("python");
   const [starterCode, setStarterCode] = useState('print("Hello, World!")');
   const [testCases, setTestCases] = useState<TestCase[]>([
     { ...defaultTestCase, id: "1" },
@@ -83,6 +86,7 @@ export default function NewTaskPage() {
         title: title.trim(),
         description: description.trim(),
         starterCode,
+        language,
         testCases,
         trackId: trackId ?? undefined,
         visibleGroupIds: visibleGroupIds.length > 0 ? visibleGroupIds : undefined,
@@ -123,33 +127,26 @@ export default function NewTaskPage() {
     }
   }
 
+  const breadcrumbs = trackId
+    ? [{ label: "Треки", href: "/main" }, { label: "Трек", href: `/main/${trackId}` }, { label: "Новая задача" }]
+    : [{ label: "Треки", href: "/main" }, { label: "Новая задача" }];
+
   return (
     <div className="space-y-6 w-full max-w-3xl">
-      <header className="space-y-1">
-        <div className="flex items-center gap-3">
-          <Link href={trackId ? `/main/${trackId}` : "/main"}>
-            <Button variant="ghost" size="icon" className="shrink-0 rounded-full" aria-label="Назад">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 flex-wrap">
-              <Code2 className="h-6 w-6 text-primary shrink-0" />
-              Создание задачи
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              {trackId ? "Задача будет добавлена в трек после сохранения." : "Заполните поля и добавьте тесты для проверки решений."}
-            </p>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        title="Создание задачи"
+        description={trackId ? "Задача будет добавлена в трек после сохранения." : "Заполните поля и добавьте тесты."}
+        breadcrumbs={breadcrumbs}
+      />
+
       <form onSubmit={handleSubmit} className="space-y-6">
-        <Card className="shadow-sm border-border/80">
-          <CardHeader className="pb-2">
+        {/* Основное */}
+        <Card>
+          <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
-                <CardTitle className="text-lg">Основное</CardTitle>
-                <CardDescription className="text-sm">Название и описание задачи</CardDescription>
+                <CardTitle className="text-base">Основное</CardTitle>
+                <CardDescription className="text-sm">Название и описание. Дополнительные настройки — в кнопке справа.</CardDescription>
               </div>
               <Dialog>
                 <DialogTrigger asChild>
@@ -158,18 +155,16 @@ export default function NewTaskPage() {
                     Дополнительное
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-xl">
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Дополнительное</DialogTitle>
                     <CardDescription className="text-sm">
                       Группы, подсказки, сроки, ограничение попыток, сложность
                     </CardDescription>
                   </DialogHeader>
-                  <div className="space-y-0 pt-2">
-                    <div className="pb-5">
-                      <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
-                    </div>
-                    <div className="border-t border-border/60 pt-5 pb-5 space-y-2">
+                  <div className="space-y-5 pt-2">
+                    <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
+                    <div className="space-y-2 border-t pt-5">
                       <Label>Подсказки</Label>
                       <p className="text-xs text-muted-foreground">Ученик открывает по порядку</p>
                       {hints.map((h, i) => (
@@ -181,40 +176,38 @@ export default function NewTaskPage() {
                             rows={2}
                             className="flex-1 text-sm"
                           />
-                          <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={() => setHints((prev) => prev.filter((_, j) => j !== i))}>
-                            <Trash2 className="h-4 w-4" />
+                          <Button type="button" variant="ghost" size="icon" className="shrink-0 h-9 w-9" onClick={() => setHints((prev) => prev.filter((_, j) => j !== i))}>
+                            <Trash2 className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </div>
                       ))}
                       <Button type="button" variant="outline" size="sm" onClick={() => setHints((prev) => [...prev, ""])}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> Добавить подсказку
+                        <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить подсказку
                       </Button>
                     </div>
-                    <div className="border-t border-border/60 pt-5 pb-5 space-y-2">
+                    <div className="space-y-2 border-t pt-5">
                       <Label>Временное задание</Label>
-                      <div className="flex flex-wrap gap-3">
-                        <label className="flex items-center gap-2 text-sm cursor-pointer rounded-md py-2 px-3 hover:bg-muted/60 transition-colors">
-                          <input type="radio" name="tempMode" checked={tempMode === "none"} onChange={() => setTempMode("none")} className="rounded-full border-input" />
-                          Всегда доступно
-                        </label>
-                        <label className="flex items-center gap-2 text-sm cursor-pointer rounded-md py-2 px-3 hover:bg-muted/60 transition-colors">
-                          <input type="radio" name="tempMode" checked={tempMode === "until_date"} onChange={() => setTempMode("until_date")} className="rounded-full border-input" />
-                          До даты
-                        </label>
-                        <label className="flex items-center gap-2 text-sm cursor-pointer rounded-md py-2 px-3 hover:bg-muted/60 transition-colors">
-                          <input type="radio" name="tempMode" checked={tempMode === "duration"} onChange={() => setTempMode("duration")} className="rounded-full border-input" />
-                          По длительности
-                        </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { value: "none", label: "Всегда доступно" },
+                          { value: "until_date", label: "До даты" },
+                          { value: "duration", label: "По длительности" },
+                        ].map((opt) => (
+                          <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border py-2 px-3 hover:bg-muted/50 transition-colors">
+                            <input type="radio" name="tempMode" checked={tempMode === opt.value} onChange={() => setTempMode(opt.value as "none" | "until_date" | "duration")} className="rounded-full border-input" />
+                            {opt.label}
+                          </label>
+                        ))}
                       </div>
                       {tempMode === "until_date" && (
-                        <div className="grid gap-2 sm:grid-cols-2 pt-1">
+                        <div className="grid gap-3 sm:grid-cols-2 pt-1">
                           <div className="space-y-1">
                             <Label className="text-xs">Доступно с (UTC)</Label>
-                            <Input type="datetime-local" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} className="text-sm h-9" />
+                            <Input type="datetime-local" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} className="h-9" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Доступно до (UTC)</Label>
-                            <Input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className="text-sm h-9" />
+                            <Input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className="h-9" />
                           </div>
                         </div>
                       )}
@@ -222,122 +215,134 @@ export default function NewTaskPage() {
                         <div className="flex gap-3 items-end pt-1">
                           <div className="space-y-1">
                             <Label className="text-xs">Часы</Label>
-                            <Input type="number" min={0} value={durationHours} onChange={(e) => setDurationHours(e.target.value)} placeholder="0" className="w-20 h-9 text-sm" />
+                            <Input type="number" min={0} value={durationHours} onChange={(e) => setDurationHours(e.target.value)} placeholder="0" className="w-20 h-9" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Минуты</Label>
-                            <Input type="number" min={0} max={59} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} placeholder="0" className="w-20 h-9 text-sm" />
+                            <Input type="number" min={0} max={59} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} placeholder="0" className="w-20 h-9" />
                           </div>
-                          <p className="text-xs text-muted-foreground pb-2">Доступно с текущего момента</p>
+                          <p className="text-xs text-muted-foreground pb-2">С текущего момента</p>
                         </div>
                       )}
                     </div>
-                    <div className="border-t border-border/60 pt-5 space-y-1">
+                    <div className="space-y-2 border-t pt-5">
                       <Label htmlFor="maxAttempts">Ограничение попыток</Label>
-                      <Input
-                        id="maxAttempts"
-                        type="number"
-                        min={1}
-                        value={maxAttempts}
-                        onChange={(e) => setMaxAttempts(e.target.value)}
-                        placeholder="Не задано — неограниченно"
-                        className="max-w-[140px] h-9 text-sm rounded-lg"
-                      />
+                      <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="Без ограничения" className="h-9 max-w-[140px]" />
                     </div>
-                    <div className="flex items-center gap-2 pt-4 border-t border-border/60 mt-5">
-                      <input
-                        type="checkbox"
-                        id="hard"
-                        checked={hard}
-                        onChange={(e) => setHard(e.target.checked)}
-                        className="rounded border-input"
-                      />
-                      <Label htmlFor="hard" className="text-sm font-normal cursor-pointer">Повышенная сложность (звёздочка)</Label>
+                    <div className="flex items-center gap-2 border-t pt-5">
+                      <input type="checkbox" id="hard" checked={hard} onChange={(e) => setHard(e.target.checked)} className="rounded border-input" />
+                      <Label htmlFor="hard" className="text-sm font-normal cursor-pointer">Повышенная сложность (&#9733;)</Label>
                     </div>
                   </div>
                 </DialogContent>
               </Dialog>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4 pt-0">
-            <div className="space-y-2">
-              <Label htmlFor="title" className="text-sm font-medium">Название</Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Сумма двух чисел"
-                required
-                className="h-9 rounded-lg"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm font-medium">Описание</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Условие задачи для ученика"
-                rows={3}
-                className="text-sm rounded-lg resize-y min-h-[80px]"
-              />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm border-border/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Шаблон кода</CardTitle>
-            <CardDescription className="text-sm">Начальный код для ученика</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="rounded-lg border overflow-hidden bg-muted/20">
-              <CodeEditor value={starterCode} onChange={setStarterCode} />
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="title">Название</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Сумма двух чисел"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Описание</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Условие задачи для ученика"
+                  rows={3}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-border/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Тесты</CardTitle>
-            <CardDescription className="text-sm">Ввод и ожидаемый вывод для каждого теста</CardDescription>
+
+        {/* Шаблон кода */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <CardTitle className="text-base">Шаблон кода</CardTitle>
+                <CardDescription>Начальный код для ученика</CardDescription>
+              </div>
+              <LanguageSelector value={language} onChange={setLanguage} className="w-40" />
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4 pt-0">
-            {testCases.map((tc) => (
+          <CardContent>
+            <div className="rounded-lg border overflow-hidden">
+              <CodeEditor value={starterCode} onChange={setStarterCode} language={language} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Тесты */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Тесты</CardTitle>
+            <CardDescription>Ввод и ожидаемый вывод для каждого теста</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {testCases.map((tc, idx) => (
               <div
                 key={tc.id}
-                className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-2 grid gap-3 sm:grid-cols-2 transition-colors hover:bg-muted/30"
+                className="rounded-lg border p-3 space-y-2 grid gap-3 sm:grid-cols-2"
               >
                 <div className="space-y-1">
-                  <Label>Ввод</Label>
+                  <Label className="text-xs">Ввод</Label>
                   <Input
                     value={tc.input}
                     onChange={(e) => updateTestCase(tc.id, { input: e.target.value })}
                     placeholder="например: 1 2"
+                    className="h-9"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Ожидаемый вывод</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Ожидаемый вывод</Label>
+                    {testCases.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setTestCases((prev) => prev.filter((t) => t.id !== tc.id))}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
+                    )}
+                  </div>
                   <Input
                     value={tc.expectedOutput}
                     onChange={(e) =>
                       updateTestCase(tc.id, { expectedOutput: e.target.value })
                     }
                     placeholder="например: 3"
+                    className="h-9"
                   />
                 </div>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" onClick={addTestCase} className="rounded-lg">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button type="button" variant="outline" size="sm" onClick={addTestCase}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
               Добавить тест
             </Button>
           </CardContent>
         </Card>
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Button type="submit" disabled={loading} className="rounded-lg min-w-[160px]">
-            {loading ? "Создание…" : "Создать задачу"}
+
+        {/* Actions */}
+        <div className="flex gap-3 pt-2">
+          <Button type="submit" disabled={loading} className="min-w-[160px]">
+            {loading ? "Создание..." : "Создать задачу"}
           </Button>
-          <Link href="/main">
-            <Button type="button" variant="outline" className="rounded-lg">Отмена</Button>
+          <Link href={trackId ? `/main/${trackId}` : "/main"}>
+            <Button type="button" variant="outline">Отмена</Button>
           </Link>
         </div>
       </form>

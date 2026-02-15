@@ -266,7 +266,7 @@ export function TaskView({ task }: { task: Task }) {
       )}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">
-          <CodeEditor value={code} onChange={setCode} />
+          <CodeEditor value={code} onChange={setCode} language={task.language ?? "python"} />
           <div className="flex flex-wrap gap-3 pt-1">
             <Button
               onClick={handleRun}

@@ -3,9 +3,30 @@
 import { useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
-import { oneDark } from "@codemirror/theme-one-dark";
+import { javascript } from "@codemirror/lang-javascript";
+import { cpp } from "@codemirror/lang-cpp";
 import { cn } from "@/components/lib/utils";
 import { CodeHighlight } from "@/components/code-highlight";
+import { useTheme } from "@/components/theme-provider";
+import { languageLabel } from "@/components/language-selector";
+import type { Extension } from "@codemirror/state";
+
+function getLanguageExtension(language: string): Extension {
+  switch (language) {
+    case "javascript":
+    case "js":
+    case "typescript":
+    case "ts":
+      return javascript({ jsx: true, typescript: language === "typescript" || language === "ts" });
+    case "cpp":
+    case "c++":
+    case "c":
+      return cpp();
+    case "python":
+    default:
+      return python();
+  }
+}
 
 export interface CodeEditorProps {
   value: string;
@@ -23,13 +44,15 @@ export function CodeEditor({
   className,
   readOnly = false,
 }: CodeEditorProps) {
-  const extensions = useMemo(() => [python()], []);
+  const { theme } = useTheme();
+  const extensions = useMemo(() => [getLanguageExtension(language)], [language]);
+  const label = languageLabel(language);
 
   if (readOnly) {
     return (
-      <div className={cn("relative rounded-lg border border-border/80 overflow-hidden", className)}>
+      <div className={cn("relative rounded-lg border border-border/80 overflow-hidden bg-card", className)}>
         <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-          <span>Python</span>
+          <span>{label}</span>
         </div>
         <CodeHighlight code={value} language={language} className="min-h-[280px]" />
       </div>
@@ -39,7 +62,7 @@ export function CodeEditor({
   return (
     <div className={cn("code-font-mono relative rounded-lg border border-border/80 overflow-hidden bg-card", className)}>
       <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-        <span>Python</span>
+        <span>{label}</span>
       </div>
       <CodeMirror
         value={value}
@@ -47,7 +70,7 @@ export function CodeEditor({
         minHeight="280px"
         extensions={extensions}
         onChange={onChange}
-        theme={oneDark}
+        theme={theme === "dark" ? "dark" : "light"}
         basicSetup={{
           lineNumbers: true,
           foldGutter: true,

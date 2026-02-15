@@ -2,7 +2,9 @@
 
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import oneDark from "react-syntax-highlighter/dist/esm/styles/prism/one-dark";
+import oneLight from "react-syntax-highlighter/dist/esm/styles/prism/one-light";
 import { cn } from "@/components/lib/utils";
+import { useTheme } from "@/components/theme-provider";
 
 interface CodeHighlightProps {
   code: string;
@@ -17,7 +19,8 @@ export function CodeHighlight({
   className,
   showLineNumbers = false,
 }: CodeHighlightProps) {
-  const style = oneDark;
+  const { theme } = useTheme();
+  const style = theme === "dark" ? oneDark : oneLight;
 
   return (
     <div className={cn("code-font-mono", className)}>

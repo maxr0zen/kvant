@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { fetchTaskById } from "@/lib/api/tasks";
 import { AUTH_TOKEN_COOKIE } from "@/lib/api/auth";
 import { TaskView } from "./task-view";
-import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { AvailabilityCountdown } from "@/components/availability-countdown";
 import { TaskOwnerActions } from "./task-owner-actions";
 
@@ -19,43 +19,36 @@ export default async function TaskPage({
   const task = await fetchTaskById(id, token);
   if (!task) notFound();
 
+  const breadcrumbs = task.trackId
+    ? [
+        { label: "Треки", href: "/main" },
+        { label: "Трек", href: `/main/${task.trackId}` },
+        { label: task.title },
+      ]
+    : [
+        { label: "Треки", href: "/main" },
+        { label: task.title },
+      ];
+
   return (
     <div className="w-full min-w-0 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Link href="/main">
-            <Button variant="ghost" size="sm">
-              К трекам
-            </Button>
-          </Link>
-          {task.trackId && (
-            <Link href={`/main/${task.trackId}/lesson/${id}`}>
-              <Button variant="outline" size="sm">
-                Открыть в треке
-              </Button>
-            </Link>
-          )}
+      <PageHeader
+        title={task.title}
+        description={task.description}
+        breadcrumbs={breadcrumbs}
+        actions={
+          <div className="flex items-center gap-2">
+            <AvailabilityCountdown availableUntil={task.availableUntil} className="shrink-0" />
+            {task.canEdit && <TaskOwnerActions taskId={id} canEdit={task.canEdit} />}
+          </div>
+        }
+      />
+      {task.hard && (
+        <div className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-1.5 text-sm text-amber-700 dark:text-amber-300">
+          <span>&#9733;</span> Повышенная сложность
         </div>
-        {task.canEdit && <TaskOwnerActions taskId={id} canEdit={task.canEdit} />}
-      </div>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
-            {task.title}
-            {task.hard && (
-              <span className="text-amber-500" title="Повышенная сложность">★</span>
-            )}
-          </h1>
-          <p className="text-muted-foreground mt-1">{task.description}</p>
-        </div>
-        <AvailabilityCountdown availableUntil={task.availableUntil} className="shrink-0" />
-      </div>
+      )}
       <TaskView task={task} />
-      <div className="pt-4">
-        <Link href="/main">
-          <Button variant="outline">К списку треков</Button>
-        </Link>
-      </div>
     </div>
   );
 }

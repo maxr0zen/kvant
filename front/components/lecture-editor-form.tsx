@@ -424,7 +424,7 @@ export function LectureEditorForm({
                   {block.type === "code" && (
                     <BlockEditorCode
                       block={block}
-                      onChange={(explanation, code) => updateBlock(index, { ...block, explanation, code })}
+                      onChange={(explanation, code, language) => updateBlock(index, { ...block, explanation, code, ...(language !== undefined ? { language } : {}) })}
                       onRemove={() => removeBlock(index)}
                     />
                   )}

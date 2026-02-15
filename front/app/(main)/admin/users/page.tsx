@@ -31,6 +31,10 @@ import {
 import { fetchGroups, type GroupItem } from "@/lib/api/groups";
 import { getStoredRole } from "@/lib/api/auth";
 import { useToast } from "@/components/ui/use-toast";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/loading-skeleton";
+import { Users } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   superuser: "Суперпользователь",
@@ -168,13 +172,12 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Пользователи</h1>
-        <p className="text-muted-foreground mt-1">
-          Учителя и ученики. Суперпользователь может добавлять новых.
-        </p>
-      </div>
+    <div className="space-y-6 max-w-5xl">
+      <PageHeader
+        title="Пользователи"
+        description="Учителя и ученики. Суперпользователь может добавлять новых."
+        breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Пользователи" }]}
+      />
 
       <Card>
         <CardHeader>
@@ -368,9 +371,9 @@ export default function AdminUsersPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-muted-foreground text-sm">Загрузка...</p>
+            <ListSkeleton rows={5} />
           ) : users.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Нет пользователей</p>
+            <EmptyState icon={Users} title="Нет пользователей" description="Добавьте первого пользователя выше." className="py-8" />
           ) : (
             <Table>
               <TableHeader>
@@ -415,14 +418,7 @@ export default function AdminUsersPage() {
         </CardContent>
       </Card>
 
-      <div className="pt-2 flex gap-2">
-        <Link href="/admin/groups">
-          <Button variant="ghost">Группы</Button>
-        </Link>
-        <Link href="/main">
-          <Button variant="ghost">К трекам</Button>
-        </Link>
-      </div>
+      {/* navigation removed — use sidebar/breadcrumbs */}
     </div>
   );
 }

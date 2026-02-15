@@ -6,6 +6,7 @@ import { Play, Loader2 } from "lucide-react";
 import { runPythonInBrowser } from "@/lib/runner/browser-python";
 import type { LectureBlock } from "@/lib/types";
 import { CodeHighlight } from "@/components/code-highlight";
+import { languageLabel } from "@/components/language-selector";
 
 interface BlockViewCodeProps {
   block: Extract<LectureBlock, { type: "code" }>;
@@ -64,7 +65,7 @@ export function BlockViewCode({ block }: BlockViewCodeProps) {
         )}
         <div className="flex items-center justify-between gap-2 border-b bg-muted/50 px-3 py-2">
           <span className="text-xs font-medium text-muted-foreground">
-            {block.language ?? "Python"}
+            {languageLabel(block.language ?? "python")}
           </span>
           <Button
             type="button"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSidebar } from "./sidebar-context";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -9,8 +10,6 @@ import {
   ListChecks,
   PlusCircle,
   BookOpen,
-  PanelLeftClose,
-  PanelLeftOpen,
   ChevronDown,
   Users,
   UsersRound,
@@ -21,9 +20,10 @@ import {
   MessageCircle,
   HelpCircle,
   Clock,
+  Activity,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +36,8 @@ import { fetchTracks } from "@/lib/api/tracks";
 import { getStoredRole, getStoredToken } from "@/lib/api/auth";
 import type { Track } from "@/lib/types";
 
+/* ---------- Data ---------- */
+
 const teacherCreateItems = [
   { label: "Трек", href: "/admin/tracks/new", icon: PlusCircle },
   { label: "Лекцию", href: "/admin/lectures/new", icon: FileText },
@@ -45,15 +47,49 @@ const teacherCreateItems = [
   { label: "Опрос", href: "/admin/surveys/new", icon: MessageCircle },
 ];
 
-const teacherOtherItems = [
-  { label: "Личный кабинет", href: "/profile", icon: UserCircle },
-  { label: "Уведомления", href: "/admin/notifications/new", icon: Bell },
-  { label: "Детализация заданий", href: "/admin/assignments-detail", icon: BarChart3 },
-];
+/* ---------- Small helpers ---------- */
+
+interface NavItemProps {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
+  collapsed: boolean;
+}
+
+function NavItem({ href, label, icon: Icon, active, collapsed }: NavItemProps) {
+  return (
+    <Link
+      href={href}
+      title={collapsed ? label : undefined}
+      className={cn(
+        "flex items-center rounded-lg text-sm transition-colors duration-150",
+        collapsed ? "justify-center p-2" : "gap-3 px-3 py-2",
+        active
+          ? "bg-primary/10 text-primary font-medium"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
+    </Link>
+  );
+}
+
+function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean }) {
+  if (collapsed) return null;
+  return (
+    <span className="px-3 pt-3 pb-1 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider select-none">
+      {label}
+    </span>
+  );
+}
+
+/* ---------- Sidebar ---------- */
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed } = useSidebar();
   const [tracksOpen, setTracksOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -80,236 +116,152 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "hidden shrink-0 border-r border-primary/10 bg-card transition-[width] duration-200 ease-in-out lg:block overflow-hidden",
-        collapsed ? "w-[4.25rem]" : "w-56"
+        "hidden shrink-0 border-r bg-card/50 transition-[width] duration-200 ease-in-out lg:flex lg:flex-col",
+        collapsed ? "w-[4.25rem]" : "w-60"
       )}
     >
-      <div className="flex h-full flex-col gap-4 p-3">
-        {/* Раздел «Платформа»: заголовок + раскрывающийся список треков внутри сайдбара */}
-        <div className="flex flex-col gap-0.5">
-          <div
-            className={cn(
-              "flex h-8 items-center gap-2 px-2",
-              collapsed && "justify-center px-0"
-            )}
-          >
-            <BookOpen className="h-5 w-5 shrink-0" />
-            {!collapsed && (
-              <span className="font-semibold whitespace-nowrap text-muted-foreground text-xs uppercase tracking-wider">
-                Платформа
-              </span>
-            )}
-          </div>
+      <nav className="flex flex-1 flex-col gap-0.5 p-3 overflow-y-auto">
+        {/* ── Платформа ── */}
+        <SectionLabel label="Платформа" collapsed={collapsed} />
 
-          {collapsed ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  title="Треки"
-                  className={cn(
-                    "flex w-full items-center justify-center rounded-lg px-2 py-2 text-sm transition-colors",
-                    isMainActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  )}
-                >
-                  <LayoutDashboard className="h-4 w-4 shrink-0" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" align="start" className="w-56">
-                <DropdownMenuItem asChild>
-                  <Link href="/main" className="cursor-pointer font-medium">
-                    Все треки
-                  </Link>
-                </DropdownMenuItem>
-                {tracks.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider py-1">
-                      По трекам
-                    </DropdownMenuLabel>
-                    {tracks.map((track) => (
-                      <DropdownMenuItem key={track.id} asChild>
-                        <Link href={`/main/${track.id}`} className="cursor-pointer">
-                          {track.title}
-                        </Link>
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <>
+        {collapsed ? (
+          /* Collapsed: dropdown для треков */
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <button
-                onClick={() => setTracksOpen((o) => !o)}
+                title="Треки"
                 className={cn(
-                  "flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors gap-3",
+                  "flex w-full items-center justify-center rounded-lg p-2 text-sm transition-colors duration-150",
                   isMainActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <LayoutDashboard className="h-4 w-4 shrink-0" />
-                <span className="whitespace-nowrap">Треки</span>
-                <ChevronDown
-                  className={cn(
-                    "h-3.5 w-3.5 shrink-0 ml-auto transition-transform",
-                    tracksOpen && "rotate-180"
-                  )}
-                />
               </button>
-              {tracksOpen && (
-                <div className="flex flex-col gap-0.5 pl-4 pt-2 pb-1 border-l border-border ml-3 mt-1">
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="start" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link href="/main" className="cursor-pointer font-medium">
+                  Все треки
+                </Link>
+              </DropdownMenuItem>
+              {tracks.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider py-1">
+                    По трекам
+                  </DropdownMenuLabel>
+                  {tracks.map((track) => (
+                    <DropdownMenuItem key={track.id} asChild>
+                      <Link href={`/main/${track.id}`} className="cursor-pointer">
+                        {track.title}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          /* Expanded: inline tree */
+          <>
+            <button
+              onClick={() => setTracksOpen((o) => !o)}
+              className={cn(
+                "flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors duration-150 gap-3",
+                isMainActive
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <LayoutDashboard className="h-4 w-4 shrink-0" />
+              <span className="truncate">Треки</span>
+              <ChevronDown
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0 ml-auto transition-transform duration-150",
+                  tracksOpen && "rotate-180"
+                )}
+              />
+            </button>
+            {tracksOpen && (
+              <div className="flex flex-col gap-0.5 ml-5 pl-3 border-l border-border/60">
+                <Link
+                  href="/main"
+                  className={cn(
+                    "rounded-md px-2 py-1.5 text-sm transition-colors duration-150",
+                    pathname === "/main"
+                      ? "text-primary font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Все треки
+                </Link>
+                {tracks.map((track) => (
                   <Link
-                    href="/main"
+                    key={track.id}
+                    href={`/main/${track.id}`}
                     className={cn(
-                      "rounded-md px-2 py-1.5 text-sm transition-colors font-medium",
-                      pathname === "/main"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      "rounded-md px-2 py-1.5 text-sm transition-colors duration-150 truncate",
+                      pathname === `/main/${track.id}`
+                        ? "text-primary font-medium"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    Все треки
+                    {track.title}
                   </Link>
-                  {tracks.length > 0 && (
-                    <>
-                      <div className="my-1.5 border-t border-border w-full" />
-                      <span className="px-2 py-0.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        По трекам
-                      </span>
-                      {tracks.map((track) => (
-                        <Link
-                          key={track.id}
-                          href={`/main/${track.id}`}
-                          className={cn(
-                            "rounded-md px-2 py-1.5 text-sm transition-colors truncate",
-                            pathname === `/main/${track.id}`
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                          )}
-                        >
-                          {track.title}
-                        </Link>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
 
-        {/* Просроченные задания: для всех авторизованных */}
+        {/* ── Просроченные ── */}
         {isLoggedIn && (
-          <div className="flex flex-col gap-0.5 pt-4 border-t border-border">
-            <Link
-              href="/overdue"
-              title={collapsed ? "Просроченные задания" : undefined}
-              className={cn(
-                "flex items-center rounded-lg px-3 py-2 text-sm transition-colors",
-                collapsed ? "justify-center px-2" : "gap-3",
-                (pathname === "/overdue" || pathname.startsWith("/overdue/"))
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Clock className="h-4 w-4 shrink-0" />
-              {!collapsed && (
-                <span className="whitespace-nowrap">Просроченные задания</span>
-              )}
-            </Link>
-          </div>
+          <NavItem
+            href="/overdue"
+            label="Просроченные"
+            icon={Clock}
+            active={pathname === "/overdue" || pathname.startsWith("/overdue/")}
+            collapsed={collapsed}
+          />
         )}
 
-        {/* Администрирование: только для superuser */}
+        {/* ── Администрирование ── */}
         {isSuperuser && (
-          <div className="flex flex-col gap-0.5 pt-4 border-t border-border">
-            {!collapsed && (
-              <div className="px-3 pt-1 pb-0.5">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Администрирование
-                </span>
-              </div>
-            )}
-            <Link
-              href="/admin/groups"
-              title={collapsed ? "Группы" : undefined}
-              className={cn(
-                "flex items-center rounded-lg px-3 py-2 text-sm transition-colors",
-                collapsed ? "justify-center px-2" : "gap-3",
-                pathname === "/admin/groups" || pathname.startsWith("/admin/groups")
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <UsersRound className="h-4 w-4 shrink-0" />
-              {!collapsed && <span className="whitespace-nowrap">Группы</span>}
-            </Link>
-            <Link
-              href="/admin/users"
-              title={collapsed ? "Пользователи" : undefined}
-              className={cn(
-                "flex items-center rounded-lg px-3 py-2 text-sm transition-colors",
-                collapsed ? "justify-center px-2" : "gap-3",
-                pathname === "/admin/users" || pathname.startsWith("/admin/users")
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Users className="h-4 w-4 shrink-0" />
-              {!collapsed && <span className="whitespace-nowrap">Пользователи</span>}
-            </Link>
-          </div>
+          <>
+            <SectionLabel label="Администрирование" collapsed={collapsed} />
+            <NavItem href="/admin/dashboard" label="Панель мониторинга" icon={Activity} active={pathname.startsWith("/admin/dashboard")} collapsed={collapsed} />
+            <NavItem href="/admin/groups" label="Группы" icon={UsersRound} active={pathname.startsWith("/admin/groups")} collapsed={collapsed} />
+            <NavItem href="/admin/groups" label="Добавить группу" icon={PlusCircle} active={false} collapsed={collapsed} />
+            <NavItem href="/admin/users" label="Пользователи" icon={Users} active={pathname.startsWith("/admin/users")} collapsed={collapsed} />
+          </>
         )}
 
-        {/* Кнопки только для учителей */}
+        {/* ── Для учителей ── */}
         {isTeacher && (
-          <div className="flex flex-col gap-0.5 pt-4 border-t border-border">
-            {!collapsed && (
-              <div className="px-3 pt-1 pb-0.5">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Для учителей
-                </span>
-              </div>
-            )}
+          <>
+            <SectionLabel label="Управление" collapsed={collapsed} />
+            <NavItem href="/profile" label="Кабинет" icon={UserCircle} active={pathname === "/profile"} collapsed={collapsed} />
 
-            {/* Личный кабинет — первым */}
-            <Link
-              href={teacherOtherItems[0].href}
-              title={collapsed ? teacherOtherItems[0].label : undefined}
-              className={cn(
-                "flex items-center rounded-lg px-3 py-2 text-sm transition-colors",
-                collapsed ? "justify-center px-2" : "gap-3",
-                (pathname === teacherOtherItems[0].href || pathname.startsWith(teacherOtherItems[0].href + "/"))
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <UserCircle className="h-4 w-4 shrink-0" />
-              {!collapsed && (
-                <span className="whitespace-nowrap">{teacherOtherItems[0].label}</span>
-              )}
-            </Link>
-
-            {/* Выпадающий список «Создать» — вторым */}
+            {/* Создать — dropdown или inline */}
             {collapsed ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     title="Создать"
                     className={cn(
-                      "flex w-full items-center justify-center rounded-lg px-2 py-2 text-sm transition-colors",
+                      "flex w-full items-center justify-center rounded-lg p-2 text-sm transition-colors duration-150",
                       isCreateActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                   >
                     <PlusCircle className="h-4 w-4 shrink-0" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent side="right" align="start" className="w-56">
-                  <DropdownMenuLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider py-1">
+                <DropdownMenuContent side="right" align="start" className="w-52">
+                  <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider py-1">
                     Создать
                   </DropdownMenuLabel>
                   {teacherCreateItems.map((item) => (
@@ -327,26 +279,23 @@ export function Sidebar() {
                 <button
                   onClick={() => setCreateOpen((o) => !o)}
                   className={cn(
-                    "flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors gap-3",
+                    "flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors duration-150 gap-3",
                     isCreateActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <PlusCircle className="h-4 w-4 shrink-0" />
-                  <span className="whitespace-nowrap">Создать</span>
+                  <span className="truncate">Создать</span>
                   <ChevronDown
                     className={cn(
-                      "h-3.5 w-3.5 shrink-0 ml-auto transition-transform",
+                      "h-3.5 w-3.5 shrink-0 ml-auto transition-transform duration-150",
                       createOpen && "rotate-180"
                     )}
                   />
                 </button>
                 {createOpen && (
-                  <div className="flex flex-col gap-0.5 pl-4 pt-2 pb-1 border-l border-border ml-3 mt-1">
-                    <span className="px-2 py-0.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Создать
-                    </span>
+                  <div className="flex flex-col gap-0.5 ml-5 pl-3 border-l border-border/60">
                     {teacherCreateItems.map((item) => {
                       const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                       return (
@@ -354,10 +303,10 @@ export function Sidebar() {
                           key={item.href}
                           href={item.href}
                           className={cn(
-                            "rounded-md px-2 py-1.5 text-sm transition-colors flex items-center gap-2",
+                            "rounded-md px-2 py-1.5 text-sm transition-colors duration-150 flex items-center gap-2",
                             isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              ? "text-primary font-medium"
+                              : "text-muted-foreground hover:text-foreground"
                           )}
                         >
                           <item.icon className="h-3.5 w-3.5 shrink-0" />
@@ -370,51 +319,11 @@ export function Sidebar() {
               </>
             )}
 
-            {/* Остальные пункты: уведомления, детализация */}
-            {teacherOtherItems.slice(1).map((item) => {
-              const isActive =
-                pathname === item.href || pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={collapsed ? item.label : undefined}
-                  className={cn(
-                    "flex items-center rounded-lg px-3 py-2 text-sm transition-colors",
-                    collapsed ? "justify-center px-2" : "gap-3",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  )}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  {!collapsed && (
-                    <span className="whitespace-nowrap">{item.label}</span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+            <NavItem href="/admin/notifications/new" label="Уведомления" icon={Bell} active={pathname.startsWith("/admin/notifications")} collapsed={collapsed} />
+            <NavItem href="/admin/assignments-detail" label="Детализация" icon={BarChart3} active={pathname.startsWith("/admin/assignments-detail")} collapsed={collapsed} />
+          </>
         )}
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "shrink-0 mt-auto",
-            collapsed ? "w-full justify-center" : "self-start"
-          )}
-          onClick={() => setCollapsed((c) => !c)}
-          title={collapsed ? "Развернуть меню" : "Свернуть меню"}
-          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
+      </nav>
     </aside>
   );
 }

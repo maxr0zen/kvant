@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { fetchLectureById, updateLecture } from "@/lib/api/lectures";
 import { LectureEditorForm } from "@/components/lecture-editor-form";
+import { PageHeader } from "@/components/ui/page-header";
+import { PageSkeleton } from "@/components/ui/loading-skeleton";
 
 export default function LectureEditPage() {
   const router = useRouter();
@@ -57,7 +59,7 @@ export default function LectureEditPage() {
   }, [id]);
 
   if (!id || loading) {
-    return <div className="text-sm text-muted-foreground">Загрузка...</div>;
+    return <PageSkeleton cards={2} />;
   }
 
   if (error || !lecture) {
@@ -77,14 +79,11 @@ export default function LectureEditPage() {
 
   return (
     <div className="space-y-6 w-full max-w-full">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Редактирование лекции
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Внесите изменения в название и блоки лекции.
-        </p>
-      </div>
+      <PageHeader
+        title="Редактирование лекции"
+        description="Внесите изменения в название и блоки лекции."
+        breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Лекция", href: `/lectures/${id}` }, { label: "Редактирование" }]}
+      />
       <LectureEditorForm
         mode="edit"
         lectureId={id}
