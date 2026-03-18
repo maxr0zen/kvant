@@ -219,6 +219,30 @@ def test_lecture(test_track):
 
 
 @pytest.fixture
+def test_layout(test_track):
+    """Create a layout lesson (for API tests)."""
+    from apps.layouts.documents import LayoutLesson, LayoutSubtaskEmbed
+    layout = LayoutLesson(
+        title="Test Layout",
+        description="HTML/CSS/JS task",
+        track_id=str(test_track.id),
+        template_html="<div class='box'>Hi</div>",
+        template_css=".box { color: red; }",
+        template_js="",
+        editable_files=["html", "css", "js"],
+        subtasks=[
+            LayoutSubtaskEmbed(id="s1", title="Box exists", check_type="selector_exists", check_value=".box"),
+        ],
+    )
+    layout.save()
+    yield layout
+    try:
+        layout.delete()
+    except Exception:
+        pass
+
+
+@pytest.fixture
 def test_group():
     """Create a group (for API tests)."""
     from apps.groups.documents import Group

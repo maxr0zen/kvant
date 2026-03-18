@@ -149,7 +149,7 @@ export default function NewNotificationPage() {
   }
 
   return (
-    <div className="space-y-6 w-full max-w-2xl mx-auto">
+    <div className="content-block w-full max-w-5xl mx-auto">
       <PageHeader
         title={editingId ? "Редактировать уведомление" : "Создать уведомление"}
         description="Уведомление появится над треками на главной у выбранных групп."

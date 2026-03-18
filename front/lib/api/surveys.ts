@@ -12,6 +12,8 @@ export interface SurveyResponseItem {
   group_title: string;
   answer: string;
   created_at: string | null;
+  status?: "completed" | "completed_late" | "started" | "not_started";
+  completed_at?: string | null;
 }
 
 export interface CreateSurveyPayload {
@@ -95,6 +97,25 @@ export async function fetchSurveyResponses(surveyId: string, token?: string | nu
   } catch {
     return [];
   }
+}
+
+/** Принять ответ ученика и отметить опрос как выполненный (teacher/admin). */
+export async function acceptSurveyResponse(
+  surveyId: string,
+  userId: string,
+  token?: string | null
+): Promise<{ ok: boolean; message?: string }> {
+  if (!hasApi()) return { ok: false };
+  const res = await apiFetch(
+    `/api/surveys/${encodeURIComponent(surveyId)}/responses/${encodeURIComponent(userId)}/accept/`,
+    { method: "POST", token: token ?? undefined }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Не удалось принять ответ");
+  }
+  const data = await res.json();
+  return { ok: Boolean(data.ok), message: data.message };
 }
 
 function mapSurveyFromApi(data: Record<string, unknown>): Survey {

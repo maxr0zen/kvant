@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     LoginView,
     ProfileView,
+    PlatformCompletedAssignmentsView,
     TeacherGroupsProgressView,
     TeacherAnalyticsView,
     TeacherCreateStudentInGroupView,
@@ -18,6 +19,7 @@ from .system_stats import SystemStatsView
 urlpatterns = [
     path("login/", LoginView.as_view(), name="auth-login"),
     path("profile/", ProfileView.as_view(), name="auth-profile"),
+    path("profile/platform-completed/", PlatformCompletedAssignmentsView.as_view(), name="auth-platform-completed"),
     path("admin/system-stats/", SystemStatsView.as_view(), name="admin-system-stats"),
     path("teacher/analytics/", TeacherAnalyticsView.as_view(), name="teacher-analytics"),
     path("teacher/groups-progress/", TeacherGroupsProgressView.as_view(), name="teacher-groups-progress"),

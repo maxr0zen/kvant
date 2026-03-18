@@ -22,6 +22,9 @@ def _resolve_lesson_id(lesson_type: str, lesson_id: str) -> str:
     elif lesson_type == "survey":
         from apps.surveys.documents import Survey
         doc = get_doc_by_pk(Survey, str(lesson_id))
+    elif lesson_type == "layout":
+        from apps.layouts.documents import LayoutLesson
+        doc = get_doc_by_pk(LayoutLesson, str(lesson_id))
     else:
         raise serializers.ValidationError({"lessons": f"Unknown lesson type: {lesson_type}."})
     return str(doc.id)
@@ -66,6 +69,13 @@ def _get_lesson_display_id(lesson_ref) -> str:
                 return str(getattr(s, "public_id", None) or str(s.id))
             except Exception:
                 return str(lesson_ref.id)
+        if getattr(lesson_ref, "type", None) == "layout":
+            from apps.layouts.documents import LayoutLesson
+            try:
+                lay = LayoutLesson.objects.get(id=ObjectId(lesson_ref.id))
+                return str(getattr(lay, "public_id", None) or str(lay.id))
+            except Exception:
+                return str(lesson_ref.id)
     except Exception:
         pass
     return str(getattr(lesson_ref, "id", ""))
@@ -90,6 +100,9 @@ def _get_lesson_availability(lesson_ref):
         elif getattr(lesson_ref, "type", None) == "survey":
             from apps.surveys.documents import Survey
             doc = Survey.objects.get(id=ObjectId(lesson_ref.id))
+        elif getattr(lesson_ref, "type", None) == "layout":
+            from apps.layouts.documents import LayoutLesson
+            doc = LayoutLesson.objects.get(id=ObjectId(lesson_ref.id))
         else:
             return None, None
         af = getattr(doc, "available_from", None)
@@ -148,6 +161,12 @@ def _get_all_lesson_ids_for_lookup(lesson_ref) -> list:
             if getattr(s, "public_id", None):
                 ids.add(str(s.public_id))
             ids.add(str(s.id))
+        elif getattr(lesson_ref, "type", None) == "layout":
+            from apps.layouts.documents import LayoutLesson
+            lay = LayoutLesson.objects.get(id=ObjectId(lesson_ref.id))
+            if getattr(lay, "public_id", None):
+                ids.add(str(lay.public_id))
+            ids.add(str(lay.id))
     except Exception:
         pass
     return [i for i in ids if i]
@@ -271,7 +290,7 @@ def get_standalone_status_for_user(user_id: str, lesson_type: str, lesson_ids: l
 
 class LessonRefSerializer(serializers.Serializer):
     id = serializers.CharField(required=True)  # for write (public_id or ObjectId); for read see to_representation
-    type = serializers.ChoiceField(choices=["lecture", "task", "puzzle", "question", "survey"])
+    type = serializers.ChoiceField(choices=["lecture", "task", "puzzle", "question", "survey", "layout"])
     title = serializers.CharField()
     order = serializers.IntegerField()
     hard = serializers.SerializerMethodField()
@@ -334,7 +353,7 @@ class TrackSerializer(serializers.Serializer):
         user_id = str(request.user.id)
         result = {}
         for lesson in obj.lessons:
-            if lesson.type not in ("lecture", "task", "puzzle", "question", "survey"):
+            if lesson.type not in ("lecture", "task", "puzzle", "question", "survey", "layout"):
                 continue
             display_id = _get_lesson_display_id(lesson)
             status_val, _ = get_lesson_status_for_user(user_id, lesson, display_id)
@@ -349,7 +368,7 @@ class TrackSerializer(serializers.Serializer):
         user_id = str(request.user.id)
         result = {}
         for lesson in obj.lessons:
-            if lesson.type not in ("lecture", "task", "puzzle", "question", "survey"):
+            if lesson.type not in ("lecture", "task", "puzzle", "question", "survey", "layout"):
                 continue
             display_id = _get_lesson_display_id(lesson)
             status_val, late_by = get_lesson_status_for_user(user_id, lesson, display_id)

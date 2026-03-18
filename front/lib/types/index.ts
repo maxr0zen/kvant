@@ -34,7 +34,7 @@ export interface Track {
 
 export interface LessonRef {
   id: string;
-  type: "lecture" | "task" | "puzzle" | "question" | "survey";
+  type: "lecture" | "task" | "puzzle" | "question" | "survey" | "layout";
   title: string;
   order: number;
   /** Повышенная сложность (со звёздочкой) */
@@ -229,4 +229,36 @@ export interface Survey {
   myResponse?: string | null;
   /** Преподаватель или админ — может видеть все ответы на странице опроса */
   isTeacherOrAdmin?: boolean;
+}
+
+/** Задание верстки: HTML/CSS/JS с подзадачами-чекерами */
+export interface LayoutSubtask {
+  id: string;
+  title: string;
+  checkType: "selector_exists" | "html_contains";
+  checkValue: string;
+}
+
+export interface Layout {
+  id: string;
+  title: string;
+  description: string;
+  trackId?: string;
+  templateHtml: string;
+  templateCss: string;
+  templateJs: string;
+  /** Какие файлы пользователь может редактировать */
+  editableFiles: ("html" | "css" | "js")[];
+  subtasks: LayoutSubtask[];
+  visibleGroupIds?: string[];
+  hints?: string[];
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  maxAttempts?: number | null;
+  canEdit?: boolean;
+}
+
+export interface LayoutCheckResult {
+  passed: boolean;
+  subtasks: { id: string; title: string; passed: boolean; message: string }[];
 }

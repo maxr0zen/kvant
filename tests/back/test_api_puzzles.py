@@ -79,3 +79,51 @@ def test_puzzle_check_max_attempts_403(auth_client, test_puzzle):
         format="json",
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_puzzle_update_delete_acl(teacher_client, test_track, test_user, test_superuser):
+    from rest_framework.test import APIClient
+    from rest_framework_simplejwt.tokens import AccessToken
+
+    def client_for(u):
+        c = APIClient()
+
+        class _W:
+            id = str(u.id)
+
+        token = AccessToken.for_user(_W())
+        c.credentials(HTTP_AUTHORIZATION=f"Bearer {str(token)}")
+        return c
+
+    student_client = client_for(test_user)
+    admin_client = client_for(test_superuser)
+
+    created = teacher_client.post(
+        "/api/puzzles/create/",
+        {
+            "title": "ACL P",
+            "description": "",
+            "track_id": str(test_track.id),
+            "blocks": [{"id": "b1", "code": "print(1)", "order": "1", "indent": ""}],
+            "visible_group_ids": [],
+        },
+        format="json",
+    )
+    assert created.status_code == status.HTTP_201_CREATED, created.json()
+    pid = created.json()["id"]
+
+    # student cannot update/delete
+    r_patch_student = student_client.patch(f"/api/puzzles/{pid}/", {"title": "X"}, format="json")
+    assert r_patch_student.status_code == status.HTTP_403_FORBIDDEN
+    r_del_student = student_client.delete(f"/api/puzzles/{pid}/")
+    assert r_del_student.status_code == status.HTTP_403_FORBIDDEN
+
+    # creator can update
+    r_patch_teacher = teacher_client.patch(f"/api/puzzles/{pid}/", {"title": "ACL P2"}, format="json")
+    assert r_patch_teacher.status_code == status.HTTP_200_OK, r_patch_teacher.json()
+    assert r_patch_teacher.json()["title"] == "ACL P2"
+
+    # superuser can delete
+    r_del_admin = admin_client.delete(f"/api/puzzles/{pid}/")
+    assert r_del_admin.status_code == status.HTTP_204_NO_CONTENT

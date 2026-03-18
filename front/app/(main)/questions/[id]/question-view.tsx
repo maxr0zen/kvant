@@ -101,14 +101,14 @@ export function QuestionView({ question }: QuestionViewProps) {
       )}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="text-3xl font-semibold tracking-tight">{question.title}</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight break-words">{question.title}</h1>
           <p className="text-muted-foreground mt-2">{question.prompt}</p>
         </div>
         <AvailabilityCountdown availableUntil={question.availableUntil} className="shrink-0" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div>
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+        <div className="min-w-0">
           <Card>
             <CardHeader>
               <CardTitle>Варианты ответа</CardTitle>
@@ -150,7 +150,7 @@ export function QuestionView({ question }: QuestionViewProps) {
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           <HintsBlock hints={question.hints ?? []} />
           <Card>
             <CardHeader>

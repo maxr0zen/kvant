@@ -58,6 +58,13 @@ export interface OrphanSurvey {
   available_until?: string | null;
 }
 
+export interface OrphanLayout {
+  id: string;
+  title: string;
+  available_from?: string | null;
+  available_until?: string | null;
+}
+
 export interface TracksWithOrphans {
   tracks: Track[];
   orphan_lectures: OrphanLecture[];
@@ -65,11 +72,13 @@ export interface TracksWithOrphans {
   orphan_puzzles: OrphanPuzzle[];
   orphan_questions: OrphanQuestion[];
   orphan_surveys: OrphanSurvey[];
+  orphan_layouts: OrphanLayout[];
   orphan_overdue_lectures: OrphanLecture[];
   orphan_overdue_tasks: OrphanTask[];
   orphan_overdue_puzzles: OrphanPuzzle[];
   orphan_overdue_questions: OrphanQuestion[];
   orphan_overdue_surveys: OrphanSurvey[];
+  orphan_overdue_layouts: OrphanLayout[];
 }
 
 export async function fetchTracks(): Promise<TracksWithOrphans> {
@@ -122,6 +131,14 @@ export async function fetchTracks(): Promise<TracksWithOrphans> {
             available_until: s.available_until ?? null,
           }))
         : [];
+      const orphan_layouts = Array.isArray(data.orphan_layouts)
+        ? data.orphan_layouts.map((l: { id: string; title: string; available_from?: string | null; available_until?: string | null }) => ({
+            id: String(l.id),
+            title: String(l.title),
+            available_from: l.available_from ?? null,
+            available_until: l.available_until ?? null,
+          }))
+        : [];
       const odl = Array.isArray(data.orphan_overdue_lectures) ? data.orphan_overdue_lectures.map((l: { id: string; title: string; available_from?: string | null; available_until?: string | null }) => ({
         id: String(l.id),
         title: String(l.title),
@@ -153,6 +170,12 @@ export async function fetchTracks(): Promise<TracksWithOrphans> {
         available_from: s.available_from ?? null,
         available_until: s.available_until ?? null,
       })) : [];
+      const odLayout = Array.isArray(data.orphan_overdue_layouts) ? data.orphan_overdue_layouts.map((l: { id: string; title: string; available_from?: string | null; available_until?: string | null }) => ({
+        id: String(l.id),
+        title: String(l.title),
+        available_from: l.available_from ?? null,
+        available_until: l.available_until ?? null,
+      })) : [];
       return {
         tracks,
         orphan_lectures,
@@ -160,11 +183,13 @@ export async function fetchTracks(): Promise<TracksWithOrphans> {
         orphan_puzzles,
         orphan_questions,
         orphan_surveys,
+        orphan_layouts,
         orphan_overdue_lectures: odl,
         orphan_overdue_tasks: odt,
         orphan_overdue_puzzles: odp,
         orphan_overdue_questions: odq,
         orphan_overdue_surveys: ods,
+        orphan_overdue_layouts: odLayout,
       };
     } catch {
       return fetchTracksStub();
@@ -249,26 +274,48 @@ export async function updateTrack(
   throw new Error("API not configured");
 }
 
+const MOCK_LAYOUT_TRACK: Track = {
+  id: "mock-layout-track",
+  title: "Верстка",
+  description: "Трек по HTML/CSS/JS с задачами на реальную верстку и интерактив.",
+  order: 1,
+  lessons: [
+    { id: "mock-layout-1", type: "layout", title: "Карточка профиля: HTML + CSS", order: 0 },
+    { id: "mock-layout-2", type: "layout", title: "Кнопки и состояния hover/focus", order: 1 },
+    { id: "mock-layout-3", type: "layout", title: "Табы и интерактив на JS", order: 2 },
+  ],
+  progress: {
+    "mock-layout-1": "not_started",
+    "mock-layout-2": "not_started",
+    "mock-layout-3": "not_started",
+  },
+};
+
+const MOCK_TRACKS: Track[] = [MOCK_LAYOUT_TRACK];
+
 export async function fetchTracksStub(): Promise<TracksWithOrphans> {
   await new Promise((r) => setTimeout(r, 300));
   return {
-    tracks: [],
+    tracks: MOCK_TRACKS,
     orphan_lectures: [],
     orphan_tasks: [],
     orphan_puzzles: [],
     orphan_questions: [],
     orphan_surveys: [],
+    orphan_layouts: [],
     orphan_overdue_lectures: [],
     orphan_overdue_tasks: [],
     orphan_overdue_puzzles: [],
     orphan_overdue_questions: [],
     orphan_overdue_surveys: [],
+    orphan_overdue_layouts: [],
   };
 }
 
 export async function fetchTrackByIdStub(id: string): Promise<Track | null> {
   await new Promise((r) => setTimeout(r, 200));
-  return null;
+  const track = MOCK_TRACKS.find((t) => t.id === id);
+  return track ?? null;
 }
 
 export async function createTrackStub(

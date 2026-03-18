@@ -43,7 +43,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-14 items-center gap-2 px-4 sm:px-6">
+      <div className="flex h-16 items-center gap-2 px-4 sm:px-6 md:px-8 lg:px-10 xl:px-14 2xl:px-16">
         <MobileNav />
         <Link href="/" className="flex items-center gap-2.5 text-foreground hover:no-underline">
           <BookOpen className="h-5 w-5 shrink-0 text-primary" />

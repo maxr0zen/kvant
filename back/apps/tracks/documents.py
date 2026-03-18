@@ -3,7 +3,7 @@ from mongoengine import Document, StringField, IntField, ListField, EmbeddedDocu
 
 class LessonRef(EmbeddedDocument):
     id = StringField(required=True)
-    type = StringField(required=True, choices=["lecture", "task", "puzzle", "question", "survey"])
+    type = StringField(required=True, choices=["lecture", "task", "puzzle", "question", "survey", "layout"])
     title = StringField(required=True)
     order = IntField(required=True, default=0)
 

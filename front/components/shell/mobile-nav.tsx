@@ -20,6 +20,8 @@ import {
   Clock,
   Menu,
   X,
+  CheckCircle2,
+  Code2,
 } from "lucide-react";
 import { cn } from "@/components/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ const teacherCreateItems = [
   { label: "Puzzle", href: "/admin/puzzles/new", icon: Puzzle },
   { label: "Вопрос", href: "/admin/questions/new", icon: HelpCircle },
   { label: "Опрос", href: "/admin/surveys/new", icon: MessageCircle },
+  { label: "Верстку", href: "/admin/layouts/new", icon: Code2 },
 ];
 
 function MobileNavItem({ href, label, icon: Icon, active, onClose }: { href: string; label: string; icon: typeof BookOpen; active: boolean; onClose: () => void }) {
@@ -42,11 +45,12 @@ function MobileNavItem({ href, label, icon: Icon, active, onClose }: { href: str
       href={href}
       onClick={onClose}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+        "flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors min-h-[44px] touch-manipulation",
         active
           ? "bg-primary/10 text-primary font-medium"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80"
       )}
+      aria-current={active ? "page" : undefined}
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span>{label}</span>
@@ -56,7 +60,7 @@ function MobileNavItem({ href, label, icon: Icon, active, onClose }: { href: str
 
 function MobileNavSection({ label }: { label: string }) {
   return (
-    <span className="px-3 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider select-none">
+    <span className="px-3 pt-5 pb-2 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider select-none block">
       {label}
     </span>
   );
@@ -118,11 +122,11 @@ export function MobileNav() {
             className="fixed inset-0 z-50 bg-black/40 lg:hidden"
             onClick={() => setOpen(false)}
           />
-          <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-background border-r shadow-xl lg:hidden flex flex-col animate-in slide-in-from-left duration-200">
+          <aside className="fixed inset-y-0 left-0 z-50 w-[min(85vw,320px)] max-w-[320px] bg-background border-r shadow-xl lg:hidden flex flex-col animate-in slide-in-from-left duration-200">
             {/* Header */}
-            <div className="flex items-center justify-between h-14 px-4 border-b">
-              <span className="font-semibold text-sm flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-between h-14 px-4 border-b shrink-0">
+              <span className="font-semibold text-base flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-primary shrink-0" />
                 Меню
               </span>
               <Button
@@ -137,7 +141,7 @@ export function MobileNav() {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+            <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Основное меню">
               <MobileNavSection label="Платформа" />
               <MobileNavItem
                 href="/main"
@@ -152,16 +156,26 @@ export function MobileNav() {
                   href={`/main/${track.id}`}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ml-4",
+                    "flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ml-4 min-h-[44px] touch-manipulation",
                     pathname === `/main/${track.id}`
-                      ? "text-primary font-medium"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "text-primary font-medium bg-primary/5"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80"
                   )}
+                  aria-current={pathname === `/main/${track.id}` ? "page" : undefined}
                 >
                   {track.title}
                 </Link>
               ))}
 
+              {isLoggedIn && (
+                <MobileNavItem
+                  href="/platform"
+                  label="Выполненные"
+                  icon={CheckCircle2}
+                  active={pathname === "/platform" || pathname.startsWith("/platform/")}
+                  onClose={() => setOpen(false)}
+                />
+              )}
               {isLoggedIn && (
                 <MobileNavItem
                   href="/overdue"

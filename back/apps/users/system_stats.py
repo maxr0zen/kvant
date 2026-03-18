@@ -1,7 +1,10 @@
 """
 System stats endpoint for superuser: server (CPU/RAM/disk), MongoDB, app metrics.
 """
-import psutil
+try:
+    import psutil  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    psutil = None
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -20,17 +23,24 @@ class SystemStatsView(APIView):
 
     def get(self, request):
         # Server: CPU, RAM, disk
-        cpu_percent = psutil.cpu_percent(interval=0.1)
-        mem = psutil.virtual_memory()
-        ram_used_mb = round(mem.used / (1024 * 1024))
-        ram_total_mb = round(mem.total / (1024 * 1024))
-        disk = psutil.disk_usage("/")
-        try:
-            disk = psutil.disk_usage("C:\\") if disk.total == 0 else disk
-        except Exception:
-            pass
-        disk_used_gb = round(disk.used / (1024 ** 3), 2)
-        disk_total_gb = round(disk.total / (1024 ** 3), 2)
+        if psutil is None:
+            cpu_percent = 0
+            ram_used_mb = 0
+            ram_total_mb = 0
+            disk_used_gb = 0
+            disk_total_gb = 0
+        else:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            ram_used_mb = round(mem.used / (1024 * 1024))
+            ram_total_mb = round(mem.total / (1024 * 1024))
+            disk = psutil.disk_usage("/")
+            try:
+                disk = psutil.disk_usage("C:\\") if disk.total == 0 else disk
+            except Exception:
+                pass
+            disk_used_gb = round(disk.used / (1024 ** 3), 2)
+            disk_total_gb = round(disk.total / (1024 ** 3), 2)
 
         server = {
             "cpu_percent": cpu_percent,

@@ -35,6 +35,8 @@ class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateMo
             return [IsAuthenticated(), IsTeacher()]
         if self.action in ["retrieve"]:
             return [AllowAny()]
+        if self.action == "draft" and self.request.method == "GET":
+            return [AllowAny()]
         return [IsAuthenticated()]
 
     def get_object(self):

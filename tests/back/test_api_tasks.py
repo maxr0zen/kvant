@@ -118,3 +118,45 @@ def test_tasks_submit_max_attempts_403(auth_client, test_task, test_user):
     r2 = auth_client.post(f"/api/tasks/{task_id}/submit/", {"code": code}, format="json")
     assert r2.status_code == status.HTTP_403_FORBIDDEN
     assert "попыток" in r2.json().get("detail", "")
+
+
+@pytest.mark.django_db
+def test_tasks_draft_get_unauth_returns_none(api_client, test_task):
+    r = api_client.get(f"/api/tasks/{test_task.id}/draft/")
+    assert r.status_code == status.HTTP_200_OK
+    assert r.json() == {"code": None}
+
+
+@pytest.mark.django_db
+def test_tasks_draft_put_unauth_401(api_client, test_task):
+    r = api_client.put(f"/api/tasks/{test_task.id}/draft/", {"code": "x"}, format="json")
+    assert r.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_tasks_draft_put_then_get(auth_client, test_task):
+    put = auth_client.put(
+        f"/api/tasks/{test_task.id}/draft/",
+        {"code": "draft-code"},
+        format="json",
+    )
+    assert put.status_code == status.HTTP_200_OK, put.json()
+    assert put.json().get("status") == "ok"
+
+    get = auth_client.get(f"/api/tasks/{test_task.id}/draft/")
+    assert get.status_code == status.HTTP_200_OK
+    assert get.json() == {"code": "draft-code"}
+
+
+@pytest.mark.django_db
+def test_tasks_draft_get_falls_back_to_last_submission(auth_client, test_task):
+    # No draft yet, but a submission exists
+    auth_client.post(
+        f"/api/tasks/{test_task.id}/submit/",
+        {"code": "submission-code"},
+        format="json",
+    )
+
+    r = auth_client.get(f"/api/tasks/{test_task.id}/draft/")
+    assert r.status_code == status.HTTP_200_OK
+    assert r.json() == {"code": "submission-code"}

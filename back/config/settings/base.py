@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "apps.puzzles",
     "apps.questions",
     "apps.surveys",
+    "apps.layouts",
     "apps.achievements",
     "apps.notifications",
 ]

@@ -14,6 +14,7 @@ import {
   type OrphanPuzzle,
   type OrphanQuestion,
   type OrphanSurvey,
+  type OrphanLayout,
 } from "@/lib/api/tracks";
 import { useToast } from "@/components/ui/use-toast";
 import type { Track, LessonRef } from "@/lib/types";
@@ -29,9 +30,10 @@ import {
   ChevronUp,
   ChevronDown,
   PenLine,
+  Code2,
 } from "lucide-react";
 
-const LESSON_TYPES: LessonRef["type"][] = ["lecture", "task", "puzzle", "question", "survey"];
+const LESSON_TYPES: LessonRef["type"][] = ["lecture", "task", "puzzle", "question", "survey", "layout"];
 
 const TYPE_LABELS: Record<LessonRef["type"], string> = {
   lecture: "Лекция",
@@ -39,6 +41,7 @@ const TYPE_LABELS: Record<LessonRef["type"], string> = {
   puzzle: "Puzzle",
   question: "Вопрос",
   survey: "Опрос",
+  layout: "Верстка",
 };
 
 const TYPE_ICONS: Record<LessonRef["type"], React.ComponentType<{ className?: string }>> = {
@@ -47,6 +50,7 @@ const TYPE_ICONS: Record<LessonRef["type"], React.ComponentType<{ className?: st
   puzzle: Puzzle,
   question: HelpCircle,
   survey: ClipboardList,
+  layout: Code2,
 };
 
 interface TrackEditLessonsProps {
@@ -67,6 +71,7 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
     orphan_puzzles: OrphanPuzzle[];
     orphan_questions: OrphanQuestion[];
     orphan_surveys: OrphanSurvey[];
+    orphan_layouts: OrphanLayout[];
   } | null>(null);
   const [lessons, setLessons] = useState<LessonRef[]>([]);
   const [saving, setSaving] = useState(false);
@@ -107,6 +112,7 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
             orphan_puzzles: data.orphan_puzzles,
             orphan_questions: data.orphan_questions,
             orphan_surveys: data.orphan_surveys,
+            orphan_layouts: data.orphan_layouts,
           });
           const trackFromApi = data.tracks?.find((t) => t.id === trackId) as Track | undefined;
           let base = [...(trackFromApi?.lessons ?? track.lessons)].sort((a, b) => a.order - b.order);
@@ -340,6 +346,12 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
                 Новый опрос
               </Button>
             </Link>
+            <Link href={`${createBase}/layouts/new?${trackIdQuery}`}>
+              <Button type="button" variant="outline" size="sm" className="gap-2 rounded-lg">
+                <Code2 className="h-4 w-4" />
+                Новая верстка
+              </Button>
+            </Link>
           </div>
         </section>
 
@@ -466,6 +478,29 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
                   </ul>
                 </div>
               )}
+              {orphans.orphan_layouts.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-medium text-muted-foreground mb-2">Верстка</h4>
+                  <ul className="space-y-1">
+                    {orphans.orphan_layouts
+                      .filter((l) => !inTrackIds.has(l.id))
+                      .map((l) => (
+                        <li key={l.id} className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 rounded-lg justify-start max-w-full min-w-0"
+                            onClick={() => addLesson("layout", l.id, l.title)}
+                          >
+                            <Plus className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{l.title}</span>
+                          </Button>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
             </div>
             {[
               orphans.orphan_lectures,
@@ -473,6 +508,7 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
               orphans.orphan_puzzles,
               orphans.orphan_questions,
               orphans.orphan_surveys,
+              orphans.orphan_layouts,
             ].every((arr) => arr.filter((x) => !inTrackIds.has(x.id)).length === 0) && (
               <p className="text-sm text-muted-foreground mt-2">Нет доступных уроков для добавления.</p>
             )}

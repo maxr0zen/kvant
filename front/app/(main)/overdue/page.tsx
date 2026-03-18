@@ -81,6 +81,7 @@ function OrphanCard({ item }: { item: OrphanItem }) {
 }
 
 export default function OverduePage() {
+  const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<{
     orphan_overdue_lectures: OrphanLecture[];
     orphan_overdue_tasks: OrphanTask[];
@@ -91,10 +92,19 @@ export default function OverduePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!getStoredToken()) {
+      setLoading(false);
+      return;
+    }
+    let active = true;
     fetchTracks()
       .then((d) => {
-        if (mounted) {
+        if (active) {
           setData({
             orphan_overdue_lectures: d.orphan_overdue_lectures ?? [],
             orphan_overdue_tasks: d.orphan_overdue_tasks ?? [],
@@ -104,9 +114,9 @@ export default function OverduePage() {
           });
         }
       })
-      .finally(() => mounted && setLoading(false));
-    return () => { mounted = false; };
-  }, []);
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [mounted]);
 
   const orphanItems = useMemo((): OrphanItem[] => {
     if (!data) return [];
@@ -129,6 +139,8 @@ export default function OverduePage() {
     return list;
   }, [data]);
 
+  if (!mounted) return null;
+
   if (!getStoredToken()) {
     return (
       <EmptyState
@@ -144,7 +156,7 @@ export default function OverduePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="content-block">
       <PageHeader
         title="Просроченные задания"
         description="Задания с истекшим сроком. Их можно сдать — будет отмечено как выполнение после срока."
@@ -155,7 +167,7 @@ export default function OverduePage() {
       />
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <CardSkeleton key={i} />
           ))}
@@ -167,7 +179,7 @@ export default function OverduePage() {
           description="Все задания выполнены вовремя."
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {orphanItems.map((item) => (
             <OrphanCard key={`${item.type}-${item.id}`} item={item} />
           ))}

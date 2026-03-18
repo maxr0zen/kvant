@@ -50,9 +50,18 @@ def parse_utc_datetime(s):
         raw = raw[:-1] + "+00:00"
     elif len(raw) == 10:  # только дата
         raw = raw + "T00:00:00+00:00"
-    elif raw[-1].isdigit() or raw[-1] == ":" or (len(raw) >= 5 and raw[-1] == "0" and raw[-2] == ":"):
-        # Нет суффикса таймзоны (заканчивается на цифры или :) — считаем UTC
-        raw = raw + "+00:00"
+    else:
+        # Если уже есть offset вида ±HH:MM, ничего не добавляем
+        has_explicit_offset = (
+            len(raw) >= 6
+            and raw[-6] in ("+", "-")
+            and raw[-3] == ":"
+            and raw[-5:-3].isdigit()
+            and raw[-2:].isdigit()
+        )
+        if not has_explicit_offset:
+            # Нет суффикса таймзоны — считаем UTC
+            raw = raw + "+00:00"
     try:
         dt = datetime.fromisoformat(raw)
     except Exception:

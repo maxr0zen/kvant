@@ -61,6 +61,15 @@ export interface ProfileData {
   achievements?: ProfileAchievement[];
 }
 
+export interface PlatformCompletedItem {
+  lesson_id: string;
+  lesson_title: string;
+  lesson_type: "task" | "puzzle" | "question" | "lecture" | "survey";
+  status: "completed" | "completed_late";
+  late_by_seconds?: number;
+  completed_at: string | null;
+}
+
 export async function fetchProfile(): Promise<ProfileData | null> {
   if (!hasApi()) return null;
   try {
@@ -69,5 +78,17 @@ export async function fetchProfile(): Promise<ProfileData | null> {
     return (await res.json()) as ProfileData;
   } catch {
     return null;
+  }
+}
+
+export async function fetchPlatformCompleted(): Promise<PlatformCompletedItem[]> {
+  if (!hasApi()) return [];
+  try {
+    const res = await apiFetch("/api/auth/profile/platform-completed/");
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.items) ? data.items : [];
+  } catch {
+    return [];
   }
 }

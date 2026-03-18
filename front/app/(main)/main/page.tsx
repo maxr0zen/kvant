@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { fetchTracks, type OrphanLecture, type OrphanTask, type OrphanPuzzle, type OrphanQuestion, type OrphanSurvey } from "@/lib/api/tracks";
+import { fetchTracks, type OrphanLecture, type OrphanTask, type OrphanPuzzle, type OrphanQuestion, type OrphanSurvey, type OrphanLayout } from "@/lib/api/tracks";
 import { fetchNotifications, type Notification } from "@/lib/api/notifications";
 import {
   Card,
@@ -19,12 +19,12 @@ import { AvailabilityCountdown } from "@/components/availability-countdown";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { BookOpen, ListChecks, CheckCircle2, Star, Puzzle, HelpCircle, Clock, Search, MessageCircle, Inbox } from "lucide-react";
+import { BookOpen, ListChecks, CheckCircle2, Star, Puzzle, HelpCircle, Clock, Search, MessageCircle, Inbox, Code2 } from "lucide-react";
 import type { Track } from "@/lib/types";
 import { parseDateTime } from "@/lib/utils/datetime";
 import { Input } from "@/components/ui/input";
 
-type OrphanItemType = "lecture" | "task" | "puzzle" | "question" | "survey";
+type OrphanItemType = "lecture" | "task" | "puzzle" | "question" | "survey" | "layout";
 
 interface OrphanItem {
   id: string;
@@ -38,7 +38,7 @@ interface OrphanItem {
 
 function trackProgress(track: Track): { completed: number; total: number; percent: number } {
   const lessons = (track.lessons || []).filter(
-    (l) => l.type === "lecture" || l.type === "task" || l.type === "puzzle" || l.type === "question" || l.type === "survey"
+    (l) => l.type === "lecture" || l.type === "task" || l.type === "puzzle" || l.type === "question" || l.type === "survey" || l.type === "layout"
   );
   const total = lessons.length;
   const completed = lessons.filter((l) => {
@@ -57,6 +57,7 @@ const ORPHAN_TYPE_CONFIG: Record<
   puzzle: { href: (id) => `/puzzles/${id}`, label: "Puzzle", buttonText: "Открыть", Icon: Puzzle },
   question: { href: (id) => `/questions/${id}`, label: "Вопрос", buttonText: "Открыть", Icon: HelpCircle },
   survey: { href: (id) => `/surveys/${id}`, label: "Опрос", buttonText: "Открыть", Icon: MessageCircle },
+  layout: { href: (id) => `/layouts/${id}`, label: "Верстка", buttonText: "Открыть", Icon: Code2 },
 };
 
 function OrphanCard({ item }: { item: OrphanItem }) {
@@ -105,6 +106,7 @@ const TAB_FILTERS: { value: OrphanItemType | "all"; label: string }[] = [
   { value: "puzzle", label: "Пазлы" },
   { value: "question", label: "Вопросы" },
   { value: "survey", label: "Опросы" },
+  { value: "layout", label: "Верстка" },
 ];
 
 export default function MainPage() {
@@ -115,6 +117,7 @@ export default function MainPage() {
     orphan_puzzles: OrphanPuzzle[];
     orphan_questions: OrphanQuestion[];
     orphan_surveys: OrphanSurvey[];
+    orphan_layouts: OrphanLayout[];
   } | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,6 +155,7 @@ export default function MainPage() {
   const rawOrphanPuzzles = data?.orphan_puzzles ?? [];
   const rawOrphanQuestions = data?.orphan_questions ?? [];
   const rawOrphanSurveys = data?.orphan_surveys ?? [];
+  const rawOrphanLayouts = data?.orphan_layouts ?? [];
 
   const stillAvailable = useMemo(() => {
     const untilTs = (item: { available_until?: string | null; availableUntil?: string | null }) => {
@@ -180,6 +184,10 @@ export default function MainPage() {
         const ts = untilTs(s);
         return ts == null || ts > now;
       },
+      layout: (l: OrphanLayout) => {
+        const ts = untilTs(l);
+        return ts == null || ts > now;
+      },
     };
   }, [now]);
 
@@ -188,6 +196,7 @@ export default function MainPage() {
   const orphanPuzzles = useMemo(() => rawOrphanPuzzles.filter(stillAvailable.puzzle), [rawOrphanPuzzles, stillAvailable.puzzle]);
   const orphanQuestions = useMemo(() => rawOrphanQuestions.filter(stillAvailable.question), [rawOrphanQuestions, stillAvailable.question]);
   const orphanSurveys = useMemo(() => rawOrphanSurveys.filter(stillAvailable.survey), [rawOrphanSurveys, stillAvailable.survey]);
+  const orphanLayouts = useMemo(() => rawOrphanLayouts.filter(stillAvailable.layout), [rawOrphanLayouts, stillAvailable.layout]);
 
   const [orphanSearch, setOrphanSearch] = useState("");
   const [orphanTab, setOrphanTab] = useState<string>("all");
@@ -255,8 +264,20 @@ export default function MainPage() {
         availableFrom: from ?? null,
       });
     }
+    for (const l of orphanLayouts) {
+      const until = (l as { available_until?: string | null }).available_until ?? (l as { availableUntil?: string | null }).availableUntil;
+      const from = (l as { available_from?: string | null }).available_from ?? (l as { availableFrom?: string | null }).availableFrom;
+      list.push({
+        id: l.id,
+        title: l.title,
+        type: "layout",
+        hasDeadline: !!(until ?? from),
+        availableUntil: until ?? null,
+        availableFrom: from ?? null,
+      });
+    }
     return list;
-  }, [orphanLectures, orphanTasks, orphanPuzzles, orphanQuestions, orphanSurveys]);
+  }, [orphanLectures, orphanTasks, orphanPuzzles, orphanQuestions, orphanSurveys, orphanLayouts]);
 
   const orphanItemsSortedAndFiltered = useMemo(() => {
     let items = [...orphanItems];
@@ -284,7 +305,7 @@ export default function MainPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="content-block">
       {/* Notifications */}
       {notifications.length > 0 && (
         <div className="space-y-2">
@@ -310,6 +331,7 @@ export default function MainPage() {
             orphanTasks={orphanTasks}
             orphanPuzzles={orphanPuzzles}
             orphanQuestions={orphanQuestions}
+            orphanLayouts={orphanLayouts}
             className=""
           />
         }
@@ -317,7 +339,7 @@ export default function MainPage() {
 
       {/* Loading */}
       {loading ? (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <CardSkeleton key={i} />
           ))}
@@ -334,7 +356,7 @@ export default function MainPage() {
           {tracks.length > 0 && (
             <section className="space-y-4">
               <h2 className="text-lg font-medium">Учебные треки</h2>
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {tracks.map((track) => {
                   const { completed, total, percent } = trackProgress(track);
                   return (
@@ -404,7 +426,7 @@ export default function MainPage() {
 
               <Tabs value={orphanTab} onValueChange={setOrphanTab} className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <TabsList className="w-fit">
+                  <TabsList className="w-full sm:w-fit">
                     {TAB_FILTERS.map((t) => (
                       <TabsTrigger key={t.value} value={t.value} className="text-xs">
                         {t.label}
@@ -432,7 +454,7 @@ export default function MainPage() {
                       className="py-12"
                     />
                   ) : (
-                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                       {orphanItemsSortedAndFiltered.map((item) => (
                         <OrphanCard key={`${item.type}-${item.id}`} item={item} />
                       ))}

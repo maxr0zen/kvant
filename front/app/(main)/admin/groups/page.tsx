@@ -262,7 +262,7 @@ export default function AdminGroupsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="content-block max-w-5xl">
       <PageHeader
         title="Группы"
         description="Создавайте группы, назначайте учителей и добавляйте учеников."

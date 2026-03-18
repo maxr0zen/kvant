@@ -122,13 +122,13 @@ class ProfileView(APIView):
         progress_summary = []
         from apps.tracks.serializers import _get_lesson_display_id, get_lesson_status_for_user
         for track in tracks_qs:
-            total = sum(1 for l in track.lessons if l.type in ("lecture", "task", "puzzle", "question"))
+            total = sum(1 for l in track.lessons if l.type in ("lecture", "task", "puzzle", "question", "layout"))
             if total == 0:
                 continue
             completed = 0
             started = 0
             for lesson in track.lessons:
-                if lesson.type not in ("lecture", "task", "puzzle", "question"):
+                if lesson.type not in ("lecture", "task", "puzzle", "question", "layout"):
                     continue
                 display_id = _get_lesson_display_id(lesson)
                 status, _ = get_lesson_status_for_user(user_id, lesson, display_id)
@@ -201,6 +201,37 @@ class ProfileView(APIView):
         })
 
 
+class PlatformCompletedAssignmentsView(APIView):
+    """Список выполненных отдельных заданий текущего пользователя (раздел Платформа)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.submissions.documents import LessonProgress
+
+        user_id = str(request.user.id)
+        qs = (
+            LessonProgress.objects(
+                user_id=user_id,
+                status="completed",
+                track_id__in=["", None],
+                lesson_type__in=["lecture", "task", "puzzle", "question", "survey", "layout"],
+            )
+            .order_by("-updated_at")
+        )
+        items = []
+        for lp in qs:
+            status_val = "completed_late" if getattr(lp, "completed_late", False) else "completed"
+            items.append({
+                "lesson_id": lp.lesson_id,
+                "lesson_title": lp.lesson_title or "Урок",
+                "lesson_type": lp.lesson_type,
+                "status": status_val,
+                "late_by_seconds": getattr(lp, "late_by_seconds", 0) or 0,
+                "completed_at": lp.updated_at.isoformat() if getattr(lp, "updated_at", None) else None,
+            })
+        return Response({"items": items})
+
+
 class TeacherGroupsProgressView(APIView):
     """Прогресс учеников по группам (для учителей). Учитель видит только свои группы; superuser — все."""
     permission_classes = [IsAuthenticated, IsTeacherOrSuperuser]
@@ -242,13 +273,13 @@ class TeacherGroupsProgressView(APIView):
                 ]
             })
             for track in tracks_qs:
-                total = sum(1 for l in track.lessons if l.type in ("lecture", "task", "puzzle", "question"))
+                total = sum(1 for l in track.lessons if l.type in ("lecture", "task", "puzzle", "question", "layout"))
                 if total == 0:
                     continue
                 completed = 0
                 started = 0
                 for lesson in track.lessons:
-                    if lesson.type not in ("lecture", "task", "puzzle", "question"):
+                    if lesson.type not in ("lecture", "task", "puzzle", "question", "layout"):
                         continue
                     display_id = _get_lesson_display_id(lesson)
                     status, _ = get_lesson_status_for_user(user_id, lesson, display_id)
@@ -314,7 +345,7 @@ class TeacherAnalyticsView(APIView):
             return Response({
                 "groups_summary": [],
                 "activity_heatmap": [],
-                "lesson_type_breakdown": {"lectures": 0, "tasks": 0, "puzzles": 0, "questions": 0, "surveys": 0},
+                "lesson_type_breakdown": {"lectures": 0, "tasks": 0, "puzzles": 0, "questions": 0, "surveys": 0, "layouts": 0},
             })
 
         group_object_ids = [ObjectId(g) for g in teacher_group_ids if g and ObjectId.is_valid(g)]
@@ -336,7 +367,7 @@ class TeacherAnalyticsView(APIView):
             completed = 0
             for track in tracks_qs:
                 for lesson in track.lessons:
-                    if lesson.type not in ("lecture", "task", "puzzle", "question"):
+                    if lesson.type not in ("lecture", "task", "puzzle", "question", "layout"):
                         continue
                     total_lessons += 1
                     display_id = _get_lesson_display_id(lesson)
@@ -415,10 +446,12 @@ class TeacherAnalyticsView(APIView):
         activity_heatmap.sort(key=lambda x: x["date"])
 
         # Lesson type breakdown: completed counts by type
-        breakdown = {"lectures": 0, "tasks": 0, "puzzles": 0, "questions": 0, "surveys": 0}
+        breakdown = {"lectures": 0, "tasks": 0, "puzzles": 0, "questions": 0, "surveys": 0, "layouts": 0}
         for lp in LessonProgress.objects(user_id__in=student_ids, status="completed").only("lesson_type"):
             t = getattr(lp, "lesson_type", None)
-            if t in breakdown:
+            if t == "layout":
+                breakdown["layouts"] = breakdown.get("layouts", 0) + 1
+            elif t in breakdown:
                 breakdown[t] = breakdown.get(t, 0) + 1
         lesson_type_breakdown = breakdown
 
@@ -520,9 +553,9 @@ class TeacherStudentTrackProgressView(APIView):
 
         user_id = str(student_id)
         lessons_out = []
-        LESSON_TYPE_LABELS = {"lecture": "Лекция", "task": "Задача", "puzzle": "Пазл", "question": "Вопрос", "survey": "Опрос"}
+        LESSON_TYPE_LABELS = {"lecture": "Лекция", "task": "Задача", "puzzle": "Пазл", "question": "Вопрос", "survey": "Опрос", "layout": "Верстка"}
         for lesson in track.lessons:
-            if lesson.type not in ("lecture", "task", "puzzle", "question", "survey"):
+            if lesson.type not in ("lecture", "task", "puzzle", "question", "survey", "layout"):
                 continue
             display_id = _get_lesson_display_id(lesson)
             status_val, late_by_seconds = get_lesson_status_for_user(user_id, lesson, display_id)
@@ -557,9 +590,10 @@ def _get_in_track_lesson_ids():
     from apps.puzzles.documents import Puzzle
     from apps.questions.documents import Question
     from apps.surveys.documents import Survey
+    from apps.layouts.documents import LayoutLesson
 
     ids = set()
-    by_type = {"lecture": [], "task": [], "puzzle": [], "question": [], "survey": []}
+    by_type = {"lecture": [], "task": [], "puzzle": [], "question": [], "survey": [], "layout": []}
     for track in Track.objects.all():
         for lesson in getattr(track, "lessons", []) or []:
             lid = getattr(lesson, "id", None)
@@ -570,7 +604,7 @@ def _get_in_track_lesson_ids():
             t = getattr(lesson, "type", None)
             if t in by_type:
                 by_type[t].append(sid)
-    for model, key in [(Lecture, "lecture"), (Task, "task"), (Puzzle, "puzzle"), (Question, "question"), (Survey, "survey")]:
+    for model, key in [(Lecture, "lecture"), (Task, "task"), (Puzzle, "puzzle"), (Question, "question"), (Survey, "survey"), (LayoutLesson, "layout")]:
         ref_ids = by_type[key]
         if not ref_ids:
             continue
@@ -599,6 +633,7 @@ class TeacherStandaloneProgressView(APIView):
         from apps.puzzles.documents import Puzzle
         from apps.questions.documents import Question
         from apps.surveys.documents import Survey, SurveyResponse
+        from apps.layouts.documents import LayoutLesson
         from apps.tracks.serializers import get_standalone_status_for_user
 
         user = request.user
@@ -750,6 +785,32 @@ class TeacherStandaloneProgressView(APIView):
             au = getattr(survey, "available_until", None)
             assignments.append({
                 "id": lid, "title": survey.title, "type": "survey", "students": students,
+                "available_until": datetime_to_iso_utc(au),
+            })
+
+        for layout in LayoutLesson.objects.all():
+            lid = str(getattr(layout, "public_id", None) or layout.id)
+            oid = str(layout.id)
+            if oid in in_track_ids or lid in in_track_ids:
+                continue
+            if not _standalone_visible_to_user(layout, teacher_group_ids):
+                continue
+            lesson_ids = [lid, oid] if lid != oid else [lid]
+            students = []
+            for s in students_qs:
+                status, late_by, completed_at = get_standalone_status_for_user(str(s.id), "layout", lesson_ids)
+                students.append({
+                    "user_id": str(s.id),
+                    "full_name": s.full_name,
+                    "group_id": str(s.group_id) if s.group_id else "",
+                    "group_title": group_titles.get(str(s.group_id), ""),
+                    "status": status,
+                    "late_by_seconds": late_by,
+                    "completed_at": completed_at,
+                })
+            au = getattr(layout, "available_until", None)
+            assignments.append({
+                "id": lid, "title": layout.title, "type": "layout", "students": students,
                 "available_until": datetime_to_iso_utc(au),
             })
 

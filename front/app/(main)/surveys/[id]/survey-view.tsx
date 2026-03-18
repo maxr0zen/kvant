@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import type { Survey } from "@/lib/types";
-import { submitSurveyResponse, fetchSurveyResponses, type SurveyResponseItem } from "@/lib/api/surveys";
+import { submitSurveyResponse, fetchSurveyResponses, acceptSurveyResponse, type SurveyResponseItem } from "@/lib/api/surveys";
 import { AvailabilityNotice } from "@/components/availability-notice";
 
 interface SurveyViewProps {
@@ -36,6 +36,7 @@ export function SurveyView({ survey }: SurveyViewProps) {
   const [loading, setLoading] = useState(false);
   const [responses, setResponses] = useState<SurveyResponseItem[]>([]);
   const [responsesLoaded, setResponsesLoaded] = useState(false);
+  const [acceptingUserId, setAcceptingUserId] = useState<string | null>(null);
   /** group_id для фильтрации ответов (пустая = все группы) */
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const { toast } = useToast();
@@ -56,14 +57,17 @@ export function SurveyView({ survey }: SurveyViewProps) {
     }
   }, [survey.myResponse]);
 
+  async function loadResponses() {
+    const list = await fetchSurveyResponses(survey.id);
+    setResponses(list);
+    setResponsesLoaded(true);
+  }
+
   useEffect(() => {
     if (!survey.isTeacherOrAdmin) return;
     let cancelled = false;
-    fetchSurveyResponses(survey.id).then((list) => {
-      if (!cancelled) {
-        setResponses(list);
-        setResponsesLoaded(true);
-      }
+    loadResponses().then(() => {
+      if (cancelled) return;
     });
     return () => { cancelled = true; };
   }, [survey.id, survey.isTeacherOrAdmin]);
@@ -84,6 +88,20 @@ export function SurveyView({ survey }: SurveyViewProps) {
       toast({ title: "Ошибка", description: String(err), variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleAccept(studentUserId: string) {
+    setAcceptingUserId(studentUserId);
+    try {
+      await acceptSurveyResponse(survey.id, studentUserId);
+      await loadResponses();
+      toast({ title: "Опрос принят", description: "Задание засчитано как выполненное." });
+      router.refresh();
+    } catch (err) {
+      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+    } finally {
+      setAcceptingUserId(null);
     }
   }
 
@@ -183,7 +201,21 @@ export function SurveyView({ survey }: SurveyViewProps) {
               <ul className="space-y-4">
                 {filteredResponses.map((r) => (
                   <li key={r.user_id} className="border-b pb-3 last:border-0 last:pb-0">
-                    <div className="font-medium text-sm">{r.full_name}</div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-medium text-sm">{r.full_name}</div>
+                      {(r.status === "completed" || r.status === "completed_late") ? (
+                        <span className="text-xs text-green-600">Принято</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAccept(r.user_id)}
+                          disabled={acceptingUserId === r.user_id}
+                        >
+                          {acceptingUserId === r.user_id ? "Принятие..." : "Принять"}
+                        </Button>
+                      )}
+                    </div>
                     <div className="mt-1 text-sm whitespace-pre-wrap rounded bg-muted/50 p-2">{r.answer || "(пусто)"}</div>
                   </li>
                 ))}
@@ -206,7 +238,21 @@ export function SurveyView({ survey }: SurveyViewProps) {
                       <ul className="space-y-4">
                         {items.map((r) => (
                           <li key={r.user_id} className="border-b pb-3 last:border-0 last:pb-0">
-                            <div className="font-medium text-sm">{r.full_name}</div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="font-medium text-sm">{r.full_name}</div>
+                              {(r.status === "completed" || r.status === "completed_late") ? (
+                                <span className="text-xs text-green-600">Принято</span>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleAccept(r.user_id)}
+                                  disabled={acceptingUserId === r.user_id}
+                                >
+                                  {acceptingUserId === r.user_id ? "Принятие..." : "Принять"}
+                                </Button>
+                              )}
+                            </div>
                             <div className="mt-1 text-sm whitespace-pre-wrap rounded bg-muted/50 p-2">{r.answer || "(пусто)"}</div>
                           </li>
                         ))}

@@ -187,7 +187,7 @@ export default function AssignmentsDetailPage() {
   };
 
   return (
-    <div className="space-y-6 w-full max-w-5xl">
+    <div className="content-block w-full max-w-6xl">
       <PageHeader
         title="Детализация заданий"
         description="Активность учеников и выполнение одиночных заданий"

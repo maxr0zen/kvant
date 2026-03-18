@@ -42,7 +42,7 @@ describe("getPrevNextLesson", () => {
 
 describe("getLessonHref", () => {
   it("returns href for track and lesson", () => {
-    expect(getLessonHref(lesson1, "t1")).toBe("/tracks/t1/lesson/l1");
-    expect(getLessonHref(lesson2, "track-id")).toBe("/tracks/track-id/lesson/l2");
+    expect(getLessonHref(lesson1, "t1")).toBe("/main/t1/lesson/l1");
+    expect(getLessonHref(lesson2, "track-id")).toBe("/main/track-id/lesson/l2");
   });
 });

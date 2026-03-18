@@ -122,7 +122,7 @@ export default function AdminUsersPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.username.trim() || !form.name.trim() || !form.password) {
+    if (!form.username.trim() || !form.name?.trim() || !form.password) {
       toast({
         title: "Ошибка",
         description: "Заполните все поля",
@@ -172,7 +172,7 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="content-block max-w-6xl">
       <PageHeader
         title="Пользователи"
         description="Учителя и ученики. Суперпользователь может добавлять новых."

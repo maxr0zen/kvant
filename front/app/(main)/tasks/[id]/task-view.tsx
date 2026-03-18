@@ -264,8 +264,8 @@ export function TaskView({ task }: { task: Task }) {
             : `Попыток осталось: ${maxAttempts - attemptsUsed} из ${maxAttempts}`}
         </p>
       )}
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-4">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+        <div className="space-y-4 min-w-0">
           <CodeEditor value={code} onChange={setCode} language={task.language ?? "python"} />
           <div className="flex flex-wrap gap-3 pt-1">
             <Button
@@ -285,7 +285,7 @@ export function TaskView({ task }: { task: Task }) {
             )}
           </div>
         </div>
-        <div className="lg:border-l lg:pl-6 space-y-4">
+        <div className="lg:border-l lg:pl-6 space-y-4 min-w-0">
           <TestCasesPanel
             testCases={task.testCases.map((c) => ({
               id: c.id,

@@ -8,6 +8,7 @@ interface TemporaryAssignmentsIndicatorProps {
   orphanTasks: { available_until?: string | null; availableUntil?: string | null }[];
   orphanPuzzles: { available_until?: string | null; availableUntil?: string | null }[];
   orphanQuestions: { available_until?: string | null; availableUntil?: string | null }[];
+  orphanLayouts?: { available_until?: string | null; availableUntil?: string | null }[];
   className?: string;
 }
 
@@ -35,6 +36,7 @@ export function TemporaryAssignmentsIndicator({
   orphanTasks,
   orphanPuzzles,
   orphanQuestions,
+  orphanLayouts = [],
   className = "",
 }: TemporaryAssignmentsIndicatorProps) {
   const [now, setNow] = useState(() => Date.now());
@@ -57,8 +59,12 @@ export function TemporaryAssignmentsIndicator({
       const u = parseUntil(q.available_until ?? q.availableUntil);
       if (u != null && u > now) list.push({ until: u });
     }
+    for (const l of orphanLayouts) {
+      const u = parseUntil(l.available_until ?? l.availableUntil);
+      if (u != null && u > now) list.push({ until: u });
+    }
     return list;
-  }, [orphanLectures, orphanTasks, orphanPuzzles, orphanQuestions, now]);
+  }, [orphanLectures, orphanTasks, orphanPuzzles, orphanQuestions, orphanLayouts, now]);
 
   const nearest = useMemo(() => {
     if (items.length === 0) return null;

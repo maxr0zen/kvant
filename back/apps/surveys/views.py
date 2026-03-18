@@ -19,6 +19,24 @@ def _can_edit_survey(request, survey):
     return creator and str(creator) == str(request.user.id)
 
 
+def _authorize_teacher_or_admin_for_survey(user, survey):
+    """Проверка доступа преподавателя/админа к опросу; возвращает (ok, teacher_group_ids)."""
+    from apps.users.documents import UserRole
+    from apps.groups.documents import Group
+
+    is_superuser = getattr(user, "role", None) == UserRole.SUPERUSER.value
+    teacher_group_ids = [str(g) for g in (getattr(user, "group_ids", []) or [])]
+    if is_superuser:
+        teacher_group_ids = [str(g.id) for g in Group.objects.all()]
+
+    survey_vg = getattr(survey, "visible_group_ids", None) or []
+    if not is_superuser and not teacher_group_ids:
+        return False, teacher_group_ids
+    if survey_vg and not is_superuser and not (set(survey_vg) & set(teacher_group_ids)):
+        return False, teacher_group_ids
+    return True, teacher_group_ids
+
+
 @api_view(["GET", "POST"])
 @permission_classes([AllowAny])
 def survey_list(request):
@@ -127,8 +145,9 @@ def submit_survey_response(request, survey_id):
                 track_title = t.title
         except Exception:
             pass
+    # Отправка ответа фиксирует "started"; "completed" ставится только после принятия учителем/админом.
     save_lesson_progress(
-        user_id, lesson_id, "survey", True,
+        user_id, lesson_id, "survey", False,
         lesson_title=survey.title, track_id=survey.track_id or "", track_title=track_title,
         available_until=getattr(survey, "available_until", None),
     )
@@ -150,19 +169,19 @@ def survey_responses_list(request, survey_id):
         return Response({"detail": "Опрос не найден."}, status=status.HTTP_404_NOT_FOUND)
 
     user = request.user
-    is_superuser = getattr(user, "role", None) == UserRole.SUPERUSER.value
-    teacher_group_ids = [str(g) for g in (getattr(user, "group_ids", []) or [])]
-    if is_superuser:
-        teacher_group_ids = [str(g.id) for g in Group.objects.all()]
-    survey_vg = getattr(survey, "visible_group_ids", None) or []
-    if not is_superuser and not teacher_group_ids:
-        return Response({"detail": "Нет доступа."}, status=status.HTTP_403_FORBIDDEN)
-    if survey_vg and not is_superuser and not (set(survey_vg) & set(teacher_group_ids)):
+    ok, teacher_group_ids = _authorize_teacher_or_admin_for_survey(user, survey)
+    if not ok:
         return Response({"detail": "Нет доступа к этому опросу."}, status=status.HTTP_403_FORBIDDEN)
 
     responses = SurveyResponse.objects(survey_id=str(survey.id))
     user_ids = list({r.user_id for r in responses})
     users = {str(u.id): u for u in User.objects(id__in=[ObjectId(uid) for uid in user_ids if len(uid) == 24 and ObjectId.is_valid(uid)])}
+    lesson_id = str(getattr(survey, "public_id", None) or survey.id)
+    from apps.submissions.documents import LessonProgress
+    progress_map = {
+        lp.user_id: lp
+        for lp in LessonProgress.objects(lesson_id=lesson_id, lesson_type="survey")
+    }
     group_titles = {}
     for u in users.values():
         if getattr(u, "group_id", None):
@@ -176,6 +195,10 @@ def survey_responses_list(request, survey_id):
     result = []
     for r in responses:
         u = users.get(r.user_id)
+        lp = progress_map.get(r.user_id)
+        status_val = lp.status if lp else "not_started"
+        if lp and lp.status == "completed" and getattr(lp, "completed_late", False):
+            status_val = "completed_late"
         result.append({
             "user_id": r.user_id,
             "full_name": u.full_name if u else r.user_id,
@@ -183,6 +206,69 @@ def survey_responses_list(request, survey_id):
             "group_title": group_titles.get(str(u.group_id) if u and getattr(u, "group_id", None) else "", ""),
             "answer": r.answer,
             "created_at": r.created_at.isoformat() if r.created_at else None,
+            "status": status_val,
+            "completed_at": lp.updated_at.isoformat() if lp and getattr(lp, "updated_at", None) else None,
         })
     result.sort(key=lambda x: (x["group_title"], x["full_name"]))
     return Response({"responses": result})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def accept_survey_response(request, survey_id, user_id):
+    """Отметить опрос как выполненный у ученика (teacher/superuser)."""
+    from apps.users.documents import User, UserRole
+    from bson import ObjectId
+
+    try:
+        survey = get_doc_by_pk(Survey, survey_id)
+    except Survey.DoesNotExist:
+        return Response({"detail": "Опрос не найден."}, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user
+    role = getattr(user, "role", None)
+    if role not in (UserRole.TEACHER.value, UserRole.SUPERUSER.value):
+        return Response({"detail": "Нет доступа."}, status=status.HTTP_403_FORBIDDEN)
+
+    ok, teacher_group_ids = _authorize_teacher_or_admin_for_survey(user, survey)
+    if not ok:
+        return Response({"detail": "Нет доступа к этому опросу."}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        student = User.objects.get(id=ObjectId(user_id))
+    except Exception:
+        return Response({"detail": "Ученик не найден."}, status=status.HTTP_404_NOT_FOUND)
+
+    if getattr(student, "role", None) != UserRole.STUDENT.value:
+        return Response({"detail": "Можно принимать только у учеников."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if role != UserRole.SUPERUSER.value:
+        if not getattr(student, "group_id", None) or str(student.group_id) not in teacher_group_ids:
+            return Response({"detail": "Нет доступа к этому ученику."}, status=status.HTTP_403_FORBIDDEN)
+
+    response_doc = SurveyResponse.objects(survey_id=str(survey.id), user_id=str(student.id)).first()
+    if not response_doc:
+        return Response({"detail": "У ученика нет ответа на этот опрос."}, status=status.HTTP_400_BAD_REQUEST)
+
+    lesson_id = str(getattr(survey, "public_id", None) or survey.id)
+    track_title = ""
+    if survey.track_id:
+        try:
+            from apps.tracks.documents import Track
+            t = Track.objects(id=ObjectId(survey.track_id)).first()
+            if t:
+                track_title = t.title
+        except Exception:
+            pass
+
+    save_lesson_progress(
+        str(student.id),
+        lesson_id,
+        "survey",
+        True,
+        lesson_title=survey.title,
+        track_id=survey.track_id or "",
+        track_title=track_title,
+        available_until=getattr(survey, "available_until", None),
+    )
+    return Response({"ok": True, "message": "Задание принято."})

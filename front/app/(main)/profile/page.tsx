@@ -165,7 +165,7 @@ export default function ProfilePage() {
   const isTeacherOrAdmin = role === "teacher" || role === "superuser";
 
   return (
-    <div className="space-y-6">
+    <div className="content-block">
       <PageHeader
         title="Личный кабинет"
         description={`${displayName} · ${role === "superuser" ? "Администратор" : role === "teacher" ? "Преподаватель" : "Студент"}`}

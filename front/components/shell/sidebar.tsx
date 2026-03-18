@@ -21,6 +21,8 @@ import {
   HelpCircle,
   Clock,
   Activity,
+  CheckCircle2,
+  Code2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils";
@@ -45,6 +47,7 @@ const teacherCreateItems = [
   { label: "Puzzle", href: "/admin/puzzles/new", icon: Puzzle },
   { label: "Вопрос", href: "/admin/questions/new", icon: HelpCircle },
   { label: "Опрос", href: "/admin/surveys/new", icon: MessageCircle },
+  { label: "Верстку", href: "/admin/layouts/new", icon: Code2 },
 ];
 
 /* ---------- Small helpers ---------- */
@@ -117,7 +120,7 @@ export function Sidebar() {
     <aside
       className={cn(
         "hidden shrink-0 border-r bg-card/50 transition-[width] duration-200 ease-in-out lg:flex lg:flex-col",
-        collapsed ? "w-[4.25rem]" : "w-60"
+        collapsed ? "w-[var(--sidebar-width-collapsed)]" : "w-[var(--sidebar-width)]"
       )}
     >
       <nav className="flex flex-1 flex-col gap-0.5 p-3 overflow-y-auto">
@@ -214,6 +217,16 @@ export function Sidebar() {
               </div>
             )}
           </>
+        )}
+
+        {isLoggedIn && (
+          <NavItem
+            href="/platform"
+            label="Выполненные"
+            icon={CheckCircle2}
+            active={pathname === "/platform" || pathname.startsWith("/platform/")}
+            collapsed={collapsed}
+          />
         )}
 
         {/* ── Просроченные ── */}

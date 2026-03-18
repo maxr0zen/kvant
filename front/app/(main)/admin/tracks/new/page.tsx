@@ -61,7 +61,7 @@ export default function NewTrackPage() {
   }
 
   return (
-    <div className="space-y-6 w-full max-w-2xl">
+    <div className="content-block w-full max-w-5xl">
       <PageHeader
         title="Создание трека"
         description="Трек объединяет лекции и задачи в один курс. Уроки можно добавить позже."

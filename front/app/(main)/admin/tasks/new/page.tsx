@@ -132,7 +132,7 @@ export default function NewTaskPage() {
     : [{ label: "Треки", href: "/main" }, { label: "Новая задача" }];
 
   return (
-    <div className="space-y-6 w-full max-w-3xl">
+    <div className="content-block w-full max-w-5xl">
       <PageHeader
         title="Создание задачи"
         description={trackId ? "Задача будет добавлена в трек после сохранения." : "Заполните поля и добавьте тесты."}

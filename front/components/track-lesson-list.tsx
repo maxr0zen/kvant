@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { BookOpen, ListChecks, CheckCircle2, CircleDot, Puzzle, HelpCircle, Star, MessageCircle } from "lucide-react";
+import { BookOpen, ListChecks, CheckCircle2, CircleDot, Puzzle, HelpCircle, Star, MessageCircle, Code2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/lib/utils";
 import { fetchTrackProgress } from "@/lib/api/tracks";
@@ -47,7 +47,7 @@ export function TrackLessonList({ track, trackId }: TrackLessonListProps) {
     <ul className="space-y-2">
       {lessons.map((lesson) => {
         const status: LessonProgressStatus | undefined =
-          (lesson.type === "lecture" || lesson.type === "task" || lesson.type === "puzzle" || lesson.type === "question" || lesson.type === "survey")
+          (lesson.type === "lecture" || lesson.type === "task" || lesson.type === "puzzle" || lesson.type === "question" || lesson.type === "survey" || lesson.type === "layout")
             ? (progress?.[lesson.id] ?? "not_started")
             : undefined;
         const statusClass = lessonStatusStyle(status);
@@ -56,6 +56,7 @@ export function TrackLessonList({ track, trackId }: TrackLessonListProps) {
             : lesson.type === "puzzle" ? Puzzle
             : lesson.type === "question" ? HelpCircle
             : lesson.type === "survey" ? MessageCircle
+            : lesson.type === "layout" ? Code2
             : ListChecks;
         const StatusIcon =
           status === "completed" || status === "completed_late" ? CheckCircle2 : status === "started" ? CircleDot : null;

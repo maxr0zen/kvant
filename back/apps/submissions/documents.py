@@ -31,6 +31,24 @@ class TaskDraft(Document):
     updated_at = DateTimeField(default=datetime.utcnow)
 
 
+class LayoutDraft(Document):
+    """Черновик верстки (html, css, js) по заданию layout."""
+    meta = {
+        "collection": "layout_drafts",
+        "indexes": [
+            {"fields": ["user_id", "layout_id"], "unique": True},
+            "user_id",
+            "layout_id",
+        ],
+    }
+    user_id = StringField(required=True)
+    layout_id = StringField(required=True)
+    html = StringField(default="")
+    css = StringField(default="")
+    js = StringField(default="")
+    updated_at = DateTimeField(default=datetime.utcnow)
+
+
 class LessonProgress(Document):
     """Прогресс пользователя по уроку (lecture, task, puzzle, question)."""
     meta = {
@@ -44,7 +62,7 @@ class LessonProgress(Document):
     }
     user_id = StringField(required=True)
     lesson_id = StringField(required=True)  # id урока (ObjectId или public_id)
-    lesson_type = StringField(required=True, choices=["lecture", "task", "puzzle", "question", "survey"])
+    lesson_type = StringField(required=True, choices=["lecture", "task", "puzzle", "question", "survey", "layout"])
     lesson_title = StringField(default="")  # для отображения в активности
     track_id = StringField(default="")  # для отображения в активности
     track_title = StringField(default="")  # для отображения в активности
@@ -65,3 +83,5 @@ class AssignmentAttempt(Document):
     target_type = StringField(required=True, choices=["puzzle", "question"])
     target_id = StringField(required=True)
     created_at = DateTimeField(default=datetime.utcnow)
+
+

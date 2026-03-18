@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchTracks, fetchTrackById, type TracksWithOrphans } from "@/lib/api/tracks";
+import { fetchTracks, fetchTrackById, fetchTrackProgress, type TracksWithOrphans } from "@/lib/api/tracks";
 
 describe("tracks API", () => {
   beforeEach(() => {
@@ -22,6 +22,8 @@ describe("tracks API", () => {
       orphan_tasks: [{ id: "o2", title: "Orphan T", hard: true }],
       orphan_puzzles: [{ id: "o3", title: "Orphan P" }],
       orphan_questions: [{ id: "o4", title: "Orphan Q" }],
+      orphan_surveys: [{ id: "o5", title: "Orphan S" }],
+      orphan_overdue_tasks: [{ id: "od1", title: "Overdue T", hard: false }],
     };
 
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -41,6 +43,8 @@ describe("tracks API", () => {
     expect(data.orphan_tasks[0]!.hard).toBe(true);
     expect(data.orphan_puzzles).toHaveLength(1);
     expect(data.orphan_questions).toHaveLength(1);
+    expect(data.orphan_surveys).toHaveLength(1);
+    expect(data.orphan_overdue_tasks).toHaveLength(1);
   });
 
   it("fetchTrackById maps track from response", async () => {
@@ -60,5 +64,20 @@ describe("tracks API", () => {
     expect(result).not.toBeNull();
     expect(result!.title).toBe("Single");
     expect(result!.id).toBe("tr2");
+  });
+
+  it("fetchTrackProgress maps progress and progress_late", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          progress: { l1: "completed", l2: "started" },
+          progress_late: { l1: 300 },
+        }),
+    });
+
+    const result = await fetchTrackProgress("tr1");
+    expect(result.progress).toEqual({ l1: "completed", l2: "started" });
+    expect(result.progressLate).toEqual({ l1: 300 });
   });
 });

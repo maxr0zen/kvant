@@ -5,6 +5,8 @@ import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { cpp } from "@codemirror/lang-cpp";
+import { html } from "@codemirror/lang-html";
+import { css } from "@codemirror/lang-css";
 import { cn } from "@/components/lib/utils";
 import { CodeHighlight } from "@/components/code-highlight";
 import { useTheme } from "@/components/theme-provider";
@@ -13,6 +15,10 @@ import type { Extension } from "@codemirror/state";
 
 function getLanguageExtension(language: string): Extension {
   switch (language) {
+    case "html":
+      return html();
+    case "css":
+      return css();
     case "javascript":
     case "js":
     case "typescript":
@@ -79,7 +85,7 @@ export function CodeEditor({
           indentOnInput: true,
           bracketMatching: true,
           closeBrackets: true,
-          autocompletion: false,
+          autocompletion: language === "html" || language === "css" || language === "javascript" || language === "js",
         }}
         className="[&_.cm-editor]:rounded-b-lg [&_.cm-scroller]:overflow-auto [&_.cm-content]:min-h-[260px] [&_.cm-content]:py-4 [&_.cm-content]:px-4 [&_.cm-line]:leading-relaxed"
       />

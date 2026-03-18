@@ -17,6 +17,8 @@ import { PuzzleView } from "@/app/(main)/puzzles/[id]/puzzle-view";
 import { QuestionView } from "@/app/(main)/questions/[id]/question-view";
 import { SurveyView } from "@/app/(main)/surveys/[id]/survey-view";
 import { fetchSurveyById } from "@/lib/api/surveys";
+import { LayoutView } from "@/app/(main)/layouts/[id]/layout-view";
+import { fetchLayoutById } from "@/lib/api/layouts";
 import { LectureViewTracker } from "@/components/lecture-view-tracker";
 import { AUTH_TOKEN_COOKIE } from "@/lib/api/auth";
 
@@ -144,6 +146,35 @@ export default async function MainTrackLessonPage({
           className="rounded-lg border bg-muted/30 px-4 py-4"
         />
         <QuestionView question={question} />
+        <TrackLessonNav
+          trackId={trackId}
+          trackTitle={track.title}
+          prev={prev}
+          next={next}
+          className="rounded-lg border bg-muted/30 px-4 py-4"
+        />
+        <div className="pt-4">
+          <Link href={`/main/${trackId}`}>
+            <Button variant="outline">К списку уроков</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (lesson.type === "layout") {
+    const layout = await fetchLayoutById(lessonId, token);
+    if (!layout) notFound();
+    return (
+      <div className="w-full min-w-0 space-y-6">
+        <TrackLessonNav
+          trackId={trackId}
+          trackTitle={track.title}
+          prev={prev}
+          next={next}
+          className="rounded-lg border bg-muted/30 px-4 py-4"
+        />
+        <LayoutView layout={layout} />
         <TrackLessonNav
           trackId={trackId}
           trackTitle={track.title}

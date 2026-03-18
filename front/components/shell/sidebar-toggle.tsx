@@ -4,8 +4,6 @@ import { useRef, useCallback } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useSidebar } from "./sidebar-context";
 
-const SIDEBAR_WIDTH = 15 * 16; // 15rem = 240px
-const SIDEBAR_COLLAPSED = 4.25 * 16; // 4.25rem = 68px
 const SWIPE_THRESHOLD = 40;
 
 export function SidebarToggle() {
@@ -43,17 +41,19 @@ export function SidebarToggle() {
     toggle();
   }, [toggle]);
 
-  const left = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH;
   const touchZoneWidth = 32;
+  const left = collapsed
+    ? "calc(var(--sidebar-width-collapsed) - 12px)"
+    : "calc(var(--sidebar-width) - 12px)";
 
   return (
     <div
       ref={zoneRef}
       role="presentation"
       className={
-        "fixed top-14 bottom-0 z-40 flex items-center justify-center transition-[left] duration-200 ease-in-out hidden lg:flex"
+        "fixed top-16 bottom-0 z-40 flex items-center justify-center transition-[left] duration-200 ease-in-out hidden lg:flex"
       }
-      style={{ left: `${left - 12}px`, width: `${touchZoneWidth}px` }}
+      style={{ left, width: `${touchZoneWidth}px` }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

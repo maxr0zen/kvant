@@ -43,9 +43,10 @@ def _get_lesson_ids_from_tracks(tracks_qs):
     from apps.puzzles.documents import Puzzle
     from apps.questions.documents import Question
     from apps.surveys.documents import Survey
+    from apps.layouts.documents import LayoutLesson
 
     ids = set()
-    by_type = {"lecture": [], "task": [], "puzzle": [], "question": [], "survey": []}
+    by_type = {"lecture": [], "task": [], "puzzle": [], "question": [], "survey": [], "layout": []}
     for track in tracks_qs:
         for lesson in getattr(track, "lessons", []) or []:
             lid = getattr(lesson, "id", None)
@@ -58,7 +59,7 @@ def _get_lesson_ids_from_tracks(tracks_qs):
                 by_type[t].append(sid)
 
     # Добавляем public_id всех уроков, чтобы исключать и по 12-символьному id (на случай разного формата в ref)
-    for model, key in [(Lecture, "lecture"), (Task, "task"), (Puzzle, "puzzle"), (Question, "question"), (Survey, "survey")]:
+    for model, key in [(Lecture, "lecture"), (Task, "task"), (Puzzle, "puzzle"), (Question, "question"), (Survey, "survey"), (LayoutLesson, "layout")]:
         ref_ids = by_type[key]
         if not ref_ids:
             continue
@@ -96,6 +97,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
     from apps.puzzles.documents import Puzzle
     from apps.questions.documents import Question
     from apps.surveys.documents import Survey
+    from apps.layouts.documents import LayoutLesson
 
     now_utc = datetime.now(timezone.utc)
     all_tracks = Track.objects.all()
@@ -105,6 +107,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
     orphan_puzzles = []
     orphan_questions = []
     orphan_surveys = []
+    orphan_layouts = []
 
     for lec in Lecture.objects.all():
         lid = str(getattr(lec, "public_id", None) or lec.id)
@@ -202,18 +205,38 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
             "available_until": datetime_to_iso_utc(au),
         })
 
-    return orphan_lectures, orphan_tasks, orphan_puzzles, orphan_questions, orphan_surveys
+    for layout in LayoutLesson.objects.all():
+        lid = str(getattr(layout, "public_id", None) or layout.id)
+        oid = str(layout.id)
+        if oid in in_track_ids or lid in in_track_ids:
+            continue
+        if not _visible_to_user(layout, user_group_ids, is_anonymous):
+            continue
+        af = getattr(layout, "available_from", None)
+        au = getattr(layout, "available_until", None)
+        au_utc = _dt_utc_for_compare(au)
+        if au_utc is not None and au_utc < now_utc:
+            continue
+        orphan_layouts.append({
+            "id": lid,
+            "title": layout.title,
+            "available_from": datetime_to_iso_utc(af),
+            "available_until": datetime_to_iso_utc(au),
+        })
+
+    return orphan_lectures, orphan_tasks, orphan_puzzles, orphan_questions, orphan_surveys, orphan_layouts
 
 
-def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
+def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id=None):
     """Орфаны с истёкшим сроком (available_until < now UTC). Только для авторизованных."""
     if is_anonymous:
-        return [], [], [], [], []
+        return [], [], [], [], [], []
     from apps.lectures.documents import Lecture
     from apps.tasks.documents import Task
     from apps.puzzles.documents import Puzzle
     from apps.questions.documents import Question
     from apps.surveys.documents import Survey
+    from apps.layouts.documents import LayoutLesson
 
     now_utc = datetime.now(timezone.utc)
     all_tracks = Track.objects.all()
@@ -223,6 +246,8 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
     overdue_puzzles = []
     overdue_questions = []
     overdue_surveys = []
+    overdue_layouts = []
+    from .serializers import get_standalone_status_for_user
 
     for lec in Lecture.objects.all():
         lid = str(getattr(lec, "public_id", None) or lec.id)
@@ -235,6 +260,10 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         au_utc = _dt_utc_for_compare(au)
         if au_utc is None or au_utc >= now_utc:
             continue
+        if user_id:
+            status_val, _, _ = get_standalone_status_for_user(str(user_id), "lecture", [lid, oid] if lid != oid else [lid])
+            if status_val in ("completed", "completed_late"):
+                continue
         overdue_lectures.append({
             "id": lid,
             "title": lec.title,
@@ -253,6 +282,10 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         au_utc = _dt_utc_for_compare(au)
         if au_utc is None or au_utc >= now_utc:
             continue
+        if user_id:
+            status_val, _, _ = get_standalone_status_for_user(str(user_id), "task", [lid, oid] if lid != oid else [lid])
+            if status_val in ("completed", "completed_late"):
+                continue
         overdue_tasks.append({
             "id": lid,
             "title": task.title,
@@ -272,6 +305,10 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         au_utc = _dt_utc_for_compare(au)
         if au_utc is None or au_utc >= now_utc:
             continue
+        if user_id:
+            status_val, _, _ = get_standalone_status_for_user(str(user_id), "puzzle", [lid, oid] if lid != oid else [lid])
+            if status_val in ("completed", "completed_late"):
+                continue
         overdue_puzzles.append({
             "id": lid,
             "title": puzzle.title,
@@ -290,6 +327,10 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         au_utc = _dt_utc_for_compare(au)
         if au_utc is None or au_utc >= now_utc:
             continue
+        if user_id:
+            status_val, _, _ = get_standalone_status_for_user(str(user_id), "question", [lid, oid] if lid != oid else [lid])
+            if status_val in ("completed", "completed_late"):
+                continue
         overdue_questions.append({
             "id": lid,
             "title": question.title,
@@ -308,6 +349,10 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         au_utc = _dt_utc_for_compare(au)
         if au_utc is None or au_utc >= now_utc:
             continue
+        if user_id:
+            status_val, _, _ = get_standalone_status_for_user(str(user_id), "survey", [lid, oid] if lid != oid else [lid])
+            if status_val in ("completed", "completed_late"):
+                continue
         overdue_surveys.append({
             "id": lid,
             "title": survey.title,
@@ -315,7 +360,29 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
             "available_until": datetime_to_iso_utc(au),
         })
 
-    return overdue_lectures, overdue_tasks, overdue_puzzles, overdue_questions, overdue_surveys
+    for layout in LayoutLesson.objects.all():
+        lid = str(getattr(layout, "public_id", None) or layout.id)
+        oid = str(layout.id)
+        if oid in in_track_ids or lid in in_track_ids:
+            continue
+        if not _visible_to_user(layout, user_group_ids, is_anonymous):
+            continue
+        au = getattr(layout, "available_until", None)
+        au_utc = _dt_utc_for_compare(au)
+        if au_utc is None or au_utc >= now_utc:
+            continue
+        if user_id:
+            status_val, _, _ = get_standalone_status_for_user(str(user_id), "layout", [lid, oid] if lid != oid else [lid])
+            if status_val in ("completed", "completed_late"):
+                continue
+        overdue_layouts.append({
+            "id": lid,
+            "title": layout.title,
+            "available_from": datetime_to_iso_utc(getattr(layout, "available_from", None)),
+            "available_until": datetime_to_iso_utc(au),
+        })
+
+    return overdue_lectures, overdue_tasks, overdue_puzzles, overdue_questions, overdue_surveys, overdue_layouts
 
 
 class TrackViewSet(ModelViewSet):
@@ -371,7 +438,7 @@ class TrackViewSet(ModelViewSet):
         user = getattr(request, "user", None)
         is_anonymous = not user or not getattr(user, "id", None)
         user_group_ids = _get_user_group_ids(user)
-        orphan_lectures, orphan_tasks, orphan_puzzles, orphan_questions, orphan_surveys = _get_orphan_lessons(
+        orphan_lectures, orphan_tasks, orphan_puzzles, orphan_questions, orphan_surveys, orphan_layouts = _get_orphan_lessons(
             qs, user_group_ids, is_anonymous
         )
         data = {
@@ -381,14 +448,18 @@ class TrackViewSet(ModelViewSet):
             "orphan_puzzles": orphan_puzzles,
             "orphan_questions": orphan_questions,
             "orphan_surveys": orphan_surveys,
+            "orphan_layouts": orphan_layouts,
         }
         if not is_anonymous:
-            od_lec, od_task, od_puz, od_q, od_s = _get_overdue_orphan_lessons(qs, user_group_ids, is_anonymous)
+            od_lec, od_task, od_puz, od_q, od_s, od_layout = _get_overdue_orphan_lessons(
+                qs, user_group_ids, is_anonymous, user_id=str(user.id)
+            )
             data["orphan_overdue_lectures"] = od_lec
             data["orphan_overdue_tasks"] = od_task
             data["orphan_overdue_puzzles"] = od_puz
             data["orphan_overdue_questions"] = od_q
             data["orphan_overdue_surveys"] = od_s
+            data["orphan_overdue_layouts"] = od_layout
         return Response(data)
 
     def retrieve(self, request, *args, **kwargs):

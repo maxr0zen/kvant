@@ -131,3 +131,4 @@ docker compose exec backend python mock_data.py
 - **Остановка:** `docker compose down`.
 - **Обновление после изменений в коде:** `docker compose up -d --build`.
 - **SSL (HTTPS):** настройте сертификаты (например, Let's Encrypt) и проксируйте Nginx через Traefik/Certbot или добавьте в `nginx/nginx.conf` блок с `listen 443 ssl` и путями к сертификатам.
+	

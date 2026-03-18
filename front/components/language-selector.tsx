@@ -16,9 +16,18 @@ export const SUPPORTED_LANGUAGES = [
 
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]["value"];
 
+const LANG_LABELS: Record<string, string> = {
+  python: "Python",
+  javascript: "JavaScript",
+  js: "JavaScript",
+  cpp: "C++",
+  html: "HTML",
+  css: "CSS",
+};
+
 /** Возвращает человеко-читаемое название языка */
 export function languageLabel(lang: string): string {
-  return SUPPORTED_LANGUAGES.find((l) => l.value === lang)?.label ?? lang;
+  return LANG_LABELS[lang] ?? SUPPORTED_LANGUAGES.find((l) => l.value === lang)?.label ?? lang;
 }
 
 interface LanguageSelectorProps {

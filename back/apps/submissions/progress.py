@@ -71,7 +71,7 @@ def save_lesson_progress(
         ).save()
 
     # Начисление достижений при завершении урока (только для основных типов)
-    if passed and lesson_type in ("lecture", "task", "puzzle", "survey"):
+    if passed and lesson_type in ("lecture", "task", "puzzle", "survey", "layout"):
         try:
             from apps.achievements.registry import check_and_award_achievements
             check_and_award_achievements(user_id, lesson_type, passed)
