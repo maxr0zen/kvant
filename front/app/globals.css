@@ -110,6 +110,16 @@
   .tabs-scroll-container {
     -webkit-overflow-scrolling: touch;
   }
+  /* Reusable responsive guards against collision/overlap */
+  .collision-safe-row {
+    @apply flex flex-wrap items-center gap-2 min-w-0;
+  }
+  .collision-safe-stack {
+    @apply min-w-0 break-words;
+  }
+  .compact-density {
+    @apply gap-2 p-3 sm:gap-3 sm:p-4;
+  }
 }
 
 /* Responsive spacing scale for content blocks */

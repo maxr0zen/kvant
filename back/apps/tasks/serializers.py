@@ -20,6 +20,7 @@ class TaskSerializer(serializers.Serializer):
     hard = serializers.BooleanField(required=False, default=False)
     visible_group_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     hints = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    reward_achievement_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     available_from = serializers.DateTimeField(required=False, allow_null=True, default=None)
     available_until = serializers.DateTimeField(required=False, allow_null=True, default=None)
     max_attempts = serializers.IntegerField(required=False, allow_null=True, default=None)
@@ -50,6 +51,7 @@ class TaskSerializer(serializers.Serializer):
         hard = validated_data.pop("hard", False)
         visible_group_ids = validated_data.pop("visible_group_ids", [])
         hints = validated_data.pop("hints", [])
+        reward_achievement_ids = validated_data.pop("reward_achievement_ids", [])
         available_from = to_utc_datetime(validated_data.pop("available_from", None))
         available_until = to_utc_datetime(validated_data.pop("available_until", None))
         max_attempts = validated_data.pop("max_attempts", None)
@@ -63,6 +65,7 @@ class TaskSerializer(serializers.Serializer):
             hard=hard,
             visible_group_ids=visible_group_ids,
             hints=hints,
+            reward_achievement_ids=reward_achievement_ids,
             available_from=available_from,
             available_until=available_until,
             max_attempts=max_attempts,
@@ -92,7 +95,7 @@ class TaskSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         tcs = validated_data.pop("test_cases", None)
         for attr in ("title", "description", "starter_code", "hard", "visible_group_ids",
-                     "hints", "max_attempts"):
+                     "hints", "reward_achievement_ids", "max_attempts"):
             if attr in validated_data:
                 setattr(instance, attr, validated_data[attr])
         if "available_from" in validated_data:

@@ -31,6 +31,7 @@ function mapTaskFromApi(data: Record<string, unknown>): Task {
     maxAttempts: data.max_attempts != null ? Number(data.max_attempts) : undefined,
     attemptsUsed: data.attempts_used != null ? Number(data.attempts_used) : undefined,
     canEdit: Boolean(data.can_edit),
+    rewardAchievementIds: Array.isArray(data.reward_achievement_ids) ? (data.reward_achievement_ids as string[]) : undefined,
   };
 }
 
@@ -81,6 +82,7 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
           available_from: data.availableFrom ?? null,
           available_until: data.availableUntil ?? null,
           max_attempts: data.maxAttempts ?? null,
+          reward_achievement_ids: data.rewardAchievementIds ?? [],
         },
       });
       if (!res.ok) {
@@ -96,7 +98,7 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
   return createTaskStub(data);
 }
 
-export type TaskUpdatePayload = Partial<Pick<Task, "title" | "description" | "starterCode" | "language" | "testCases" | "trackId" | "hard" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts">>;
+export type TaskUpdatePayload = Partial<Pick<Task, "title" | "description" | "starterCode" | "language" | "testCases" | "trackId" | "hard" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts" | "rewardAchievementIds">>;
 
 export async function updateTask(id: string, data: TaskUpdatePayload): Promise<Task> {
   if (!hasApi()) throw new Error("API not configured");
@@ -113,6 +115,7 @@ export async function updateTask(id: string, data: TaskUpdatePayload): Promise<T
   if (data.availableFrom !== undefined) body.available_from = data.availableFrom;
   if (data.availableUntil !== undefined) body.available_until = data.availableUntil;
   if (data.maxAttempts !== undefined) body.max_attempts = data.maxAttempts;
+  if (data.rewardAchievementIds !== undefined) body.reward_achievement_ids = data.rewardAchievementIds;
   const res = await apiFetch(`/api/tasks/${id}/`, {
     method: "PATCH",
     body,
@@ -194,6 +197,14 @@ export async function submitTask(taskId: string, code: string): Promise<SubmitRe
         passed: Boolean(data.passed),
         results,
         message: data.message != null ? String(data.message) : undefined,
+        unlockedAchievements: Array.isArray(data.unlocked_achievements)
+          ? data.unlocked_achievements.map((a: Record<string, unknown>) => ({
+              id: String(a.id ?? ""),
+              title: String(a.title ?? ""),
+              description: String(a.description ?? ""),
+              icon: String(a.icon ?? "🏆"),
+            }))
+          : [],
       };
     } catch (e) {
       throw e;

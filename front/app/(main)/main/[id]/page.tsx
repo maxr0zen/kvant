@@ -5,6 +5,7 @@ import { AUTH_TOKEN_COOKIE } from "@/lib/api/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrackLessonList } from "@/components/track-lesson-list";
 import { TrackEditLessons } from "@/components/track-edit-lessons";
+import { TrackVisibilityEditor } from "@/components/track-visibility-editor";
 import { TrackOwnerActions } from "./track-owner-actions";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -32,6 +33,11 @@ export default async function MainTrackDetailPage({
           <CardTitle className="text-base">Уроки</CardTitle>
         </CardHeader>
         <CardContent>
+          <TrackVisibilityEditor
+            trackId={id}
+            initialVisibleGroupIds={track.visibleGroupIds ?? []}
+            canEdit={track.canEdit ?? false}
+          />
           <TrackLessonList track={track} trackId={id} />
           <TrackEditLessons track={track} trackId={id} />
         </CardContent>

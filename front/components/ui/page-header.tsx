@@ -13,11 +13,12 @@ interface PageHeaderProps {
   breadcrumbs?: BreadcrumbItem[];
   actions?: React.ReactNode;
   className?: string;
+  compact?: boolean;
 }
 
-export function PageHeader({ title, description, breadcrumbs, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, description, breadcrumbs, actions, className, compact = false }: PageHeaderProps) {
   return (
-    <div className={cn("mb-6 space-y-1", className)}>
+    <div className={cn(compact ? "mb-4 space-y-1" : "mb-6 space-y-1", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label="Навигация" className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground mb-2">
           {breadcrumbs.map((item, i) => (
@@ -34,13 +35,13 @@ export function PageHeader({ title, description, breadcrumbs, actions, className
           ))}
         </nav>
       )}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className={cn("flex flex-col sm:flex-row sm:items-start sm:justify-between", compact ? "gap-2" : "gap-4")}>
         <div className="space-y-1 min-w-0 flex-1">
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight break-words">{title}</h1>
+          <h1 className={cn("font-semibold tracking-tight break-words", compact ? "text-lg sm:text-xl" : "text-xl sm:text-2xl")}>{title}</h1>
           {description && <p className="text-sm text-muted-foreground break-words">{description}</p>}
         </div>
         {actions && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0" role="group" aria-label="Действия страницы">
+          <div className={cn("flex flex-wrap items-center shrink-0", compact ? "gap-1.5" : "gap-2")} role="group" aria-label="Действия страницы">
             {actions}
           </div>
         )}

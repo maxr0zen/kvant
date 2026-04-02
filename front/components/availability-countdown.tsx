@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { Clock } from "lucide-react";
 import { parseDateTime } from "@/lib/utils/datetime";
+import { useNow } from "@/lib/hooks/use-now";
 
 interface AvailabilityCountdownProps {
   availableUntil?: string | null;
@@ -57,34 +58,13 @@ export function AvailabilityCountdown({
 }: AvailabilityCountdownProps) {
   const until = useMemo(() => parseUntil(availableUntil), [availableUntil]);
 
-  const [remaining, setRemaining] = useState<string | null>(() => {
-    if (until == null) return null;
-    const ms = until - Date.now();
-    if (ms <= 0) return null;
-    return formatRemaining(ms);
-  });
+  const now = useNow(1000);
 
-  useEffect(() => {
-    if (until == null) {
-      setRemaining(null);
-      return;
-    }
+  if (until == null) return null;
+  const ms = until - now;
+  if (ms <= 0) return null;
 
-    const update = () => {
-      const now = Date.now();
-      if (until <= now) {
-        setRemaining(null);
-        return;
-      }
-      setRemaining(formatRemaining(until - now));
-    };
-
-    update();
-    const t = setInterval(update, 1000);
-    return () => clearInterval(t);
-  }, [until]);
-
-  if (remaining === null) return null;
+  const remaining = formatRemaining(ms);
 
   return (
     <div
@@ -101,45 +81,32 @@ export function AvailabilityCountdown({
 export function AvailabilityOverdue({
   availableUntil,
   className = "",
+  compact = false,
+  iconOnly = false,
 }: {
   availableUntil?: string | null;
   className?: string;
+  compact?: boolean;
+  iconOnly?: boolean;
 }) {
   const until = useMemo(() => parseUntil(availableUntil), [availableUntil]);
-  const [overdue, setOverdue] = useState<string | null>(() => {
-    if (until == null) return null;
-    const ms = Date.now() - until;
-    if (ms <= 0) return null;
-    return formatOverdue(ms);
-  });
 
-  useEffect(() => {
-    if (until == null) {
-      setOverdue(null);
-      return;
-    }
-    const update = () => {
-      const ms = Date.now() - until;
-      if (ms <= 0) {
-        setOverdue(null);
-        return;
-      }
-      setOverdue(formatOverdue(ms));
-    };
-    update();
-    const t = setInterval(update, 1000);
-    return () => clearInterval(t);
-  }, [until]);
+  const now = useNow(1000);
 
-  if (overdue === null) return null;
+  if (until == null) return null;
+  const ms = now - until;
+  if (ms <= 0) return null;
+
+  const overdue = formatOverdue(ms);
 
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 ${className}`}
-      title="Задание просрочено"
+      className={`inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 font-medium text-amber-800 dark:text-amber-200 ${compact ? "gap-1 px-2 py-1 text-xs" : "gap-2 px-3 py-1.5 text-sm"} ${className}`}
+      title={iconOnly ? `Просрочено на ${overdue}` : "Задание просрочено"}
+      aria-label={`Просрочено на ${overdue}`}
     >
-      <Clock className="h-4 w-4 shrink-0" />
-      <span>Просрочено на {overdue}</span>
+      <Clock className={`${compact ? "h-3 w-3" : "h-4 w-4"} shrink-0`} />
+      {!iconOnly && <span>{compact ? `${overdue}` : `Просрочено на ${overdue}`}</span>}
     </div>
   );
 }

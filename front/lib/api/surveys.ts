@@ -23,6 +23,7 @@ export interface CreateSurveyPayload {
   visibleGroupIds?: string[];
   availableFrom?: string;
   availableUntil?: string;
+  rewardAchievementIds?: string[];
 }
 
 export async function createSurvey(payload: CreateSurveyPayload, token?: string | null): Promise<Survey> {
@@ -36,6 +37,7 @@ export async function createSurvey(payload: CreateSurveyPayload, token?: string 
       visible_group_ids: payload.visibleGroupIds ?? [],
       available_from: payload.availableFrom ?? null,
       available_until: payload.availableUntil ?? null,
+      reward_achievement_ids: payload.rewardAchievementIds ?? [],
     },
     token: token ?? undefined,
   });
@@ -130,5 +132,6 @@ function mapSurveyFromApi(data: Record<string, unknown>): Survey {
     canEdit: Boolean(data.can_edit),
     myResponse: data.my_response != null ? String(data.my_response) : undefined,
     isTeacherOrAdmin: Boolean(data.is_teacher_or_admin),
+    rewardAchievementIds: Array.isArray(data.reward_achievement_ids) ? (data.reward_achievement_ids as string[]) : undefined,
   };
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { fetchTracks, type OrphanLecture, type OrphanTask, type OrphanPuzzle, type OrphanQuestion, type OrphanSurvey, type OrphanLayout } from "@/lib/api/tracks";
 import { fetchNotifications, type Notification } from "@/lib/api/notifications";
+import { fetchPlatformCompleted, type PlatformCompletedItem } from "@/lib/api/profile";
 import {
   Card,
   CardContent,
@@ -23,6 +24,7 @@ import { BookOpen, ListChecks, CheckCircle2, Star, Puzzle, HelpCircle, Clock, Se
 import type { Track } from "@/lib/types";
 import { parseDateTime } from "@/lib/utils/datetime";
 import { Input } from "@/components/ui/input";
+import { useNow } from "@/lib/hooks/use-now";
 
 type OrphanItemType = "lecture" | "task" | "puzzle" | "question" | "survey" | "layout";
 
@@ -120,16 +122,18 @@ export default function MainPage() {
     orphan_layouts: OrphanLayout[];
   } | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [completedPlatformItems, setCompletedPlatformItems] = useState<PlatformCompletedItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     async function load() {
       try {
-        const [t, notif] = await Promise.all([fetchTracks(), fetchNotifications()]);
+        const [t, notif, completed] = await Promise.all([fetchTracks(), fetchNotifications(), fetchPlatformCompleted()]);
         if (mounted) {
           setData(t);
           setNotifications(notif);
+          setCompletedPlatformItems(completed);
         }
       } catch (e) {
         // silent
@@ -143,11 +147,7 @@ export default function MainPage() {
     };
   }, []);
 
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(t);
-  }, []);
+  const now = useNow(60_000);
 
   const tracks = data?.tracks ?? [];
   const rawOrphanLectures = data?.orphan_lectures ?? [];
@@ -157,46 +157,119 @@ export default function MainPage() {
   const rawOrphanSurveys = data?.orphan_surveys ?? [];
   const rawOrphanLayouts = data?.orphan_layouts ?? [];
 
-  const stillAvailable = useMemo(() => {
-    const untilTs = (item: { available_until?: string | null; availableUntil?: string | null }) => {
-      const u = item.available_until ?? (item as { availableUntil?: string | null }).availableUntil;
-      const d = parseDateTime(u ?? null);
-      return d ? d.getTime() : null;
-    };
-    return {
-      lecture: (lec: OrphanLecture) => {
-        const ts = untilTs(lec);
-        return ts == null || ts > now;
-      },
-      task: (task: OrphanTask) => {
-        const ts = untilTs(task);
-        return ts == null || ts > now;
-      },
-      puzzle: (p: OrphanPuzzle) => {
-        const ts = untilTs(p);
-        return ts == null || ts > now;
-      },
-      question: (q: OrphanQuestion) => {
-        const ts = untilTs(q);
-        return ts == null || ts > now;
-      },
-      survey: (s: OrphanSurvey) => {
-        const ts = untilTs(s);
-        return ts == null || ts > now;
-      },
-      layout: (l: OrphanLayout) => {
-        const ts = untilTs(l);
-        return ts == null || ts > now;
-      },
-    };
-  }, [now]);
+  // Parse `available_until` once per data refresh.
+  const orphanLectureUntilTsById = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const lec of rawOrphanLectures) {
+      const u = lec.available_until ?? lec.availableUntil ?? null;
+      const d = parseDateTime(u);
+      map.set(lec.id, d ? d.getTime() : null);
+    }
+    return map;
+  }, [rawOrphanLectures]);
+  const orphanTaskUntilTsById = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const t of rawOrphanTasks) {
+      const u = t.available_until ?? t.availableUntil ?? null;
+      const d = parseDateTime(u);
+      map.set(t.id, d ? d.getTime() : null);
+    }
+    return map;
+  }, [rawOrphanTasks]);
+  const orphanPuzzleUntilTsById = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const p of rawOrphanPuzzles) {
+      const u = p.available_until ?? p.availableUntil ?? null;
+      const d = parseDateTime(u);
+      map.set(p.id, d ? d.getTime() : null);
+    }
+    return map;
+  }, [rawOrphanPuzzles]);
+  const orphanQuestionUntilTsById = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const q of rawOrphanQuestions) {
+      const u = q.available_until ?? q.availableUntil ?? null;
+      const d = parseDateTime(u);
+      map.set(q.id, d ? d.getTime() : null);
+    }
+    return map;
+  }, [rawOrphanQuestions]);
+  const orphanSurveyUntilTsById = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const s of rawOrphanSurveys) {
+      const u = s.available_until ?? s.availableUntil ?? null;
+      const d = parseDateTime(u);
+      map.set(s.id, d ? d.getTime() : null);
+    }
+    return map;
+  }, [rawOrphanSurveys]);
+  const orphanLayoutUntilTsById = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const l of rawOrphanLayouts) {
+      const u = l.available_until ?? l.availableUntil ?? null;
+      const d = parseDateTime(u);
+      map.set(l.id, d ? d.getTime() : null);
+    }
+    return map;
+  }, [rawOrphanLayouts]);
 
-  const orphanLectures = useMemo(() => rawOrphanLectures.filter(stillAvailable.lecture), [rawOrphanLectures, stillAvailable.lecture]);
-  const orphanTasks = useMemo(() => rawOrphanTasks.filter(stillAvailable.task), [rawOrphanTasks, stillAvailable.task]);
-  const orphanPuzzles = useMemo(() => rawOrphanPuzzles.filter(stillAvailable.puzzle), [rawOrphanPuzzles, stillAvailable.puzzle]);
-  const orphanQuestions = useMemo(() => rawOrphanQuestions.filter(stillAvailable.question), [rawOrphanQuestions, stillAvailable.question]);
-  const orphanSurveys = useMemo(() => rawOrphanSurveys.filter(stillAvailable.survey), [rawOrphanSurveys, stillAvailable.survey]);
-  const orphanLayouts = useMemo(() => rawOrphanLayouts.filter(stillAvailable.layout), [rawOrphanLayouts, stillAvailable.layout]);
+  const completedStandaloneKeySet = useMemo(() => {
+    const done = new Set<string>();
+    for (const item of completedPlatformItems) {
+      if (item.status === "completed" || item.status === "completed_late") {
+        done.add(`${item.lesson_type}:${item.lesson_id}`);
+      }
+    }
+    return done;
+  }, [completedPlatformItems]);
+  const orphanLectures = useMemo(
+    () =>
+      rawOrphanLectures.filter((i) => {
+        const ts = orphanLectureUntilTsById.get(i.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`lecture:${i.id}`);
+      }),
+    [rawOrphanLectures, orphanLectureUntilTsById, completedStandaloneKeySet, now]
+  );
+  const orphanTasks = useMemo(
+    () =>
+      rawOrphanTasks.filter((i) => {
+        const ts = orphanTaskUntilTsById.get(i.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`task:${i.id}`);
+      }),
+    [rawOrphanTasks, orphanTaskUntilTsById, completedStandaloneKeySet, now]
+  );
+  const orphanPuzzles = useMemo(
+    () =>
+      rawOrphanPuzzles.filter((i) => {
+        const ts = orphanPuzzleUntilTsById.get(i.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`puzzle:${i.id}`);
+      }),
+    [rawOrphanPuzzles, orphanPuzzleUntilTsById, completedStandaloneKeySet, now]
+  );
+  const orphanQuestions = useMemo(
+    () =>
+      rawOrphanQuestions.filter((i) => {
+        const ts = orphanQuestionUntilTsById.get(i.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`question:${i.id}`);
+      }),
+    [rawOrphanQuestions, orphanQuestionUntilTsById, completedStandaloneKeySet, now]
+  );
+  const orphanSurveys = useMemo(
+    () =>
+      rawOrphanSurveys.filter((i) => {
+        const ts = orphanSurveyUntilTsById.get(i.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`survey:${i.id}`);
+      }),
+    [rawOrphanSurveys, orphanSurveyUntilTsById, completedStandaloneKeySet, now]
+  );
+  const orphanLayouts = useMemo(
+    () =>
+      rawOrphanLayouts.filter((i) => {
+        const ts = orphanLayoutUntilTsById.get(i.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`layout:${i.id}`);
+      }),
+    [rawOrphanLayouts, orphanLayoutUntilTsById, completedStandaloneKeySet, now]
+  );
 
   const [orphanSearch, setOrphanSearch] = useState("");
   const [orphanTab, setOrphanTab] = useState<string>("all");
@@ -206,19 +279,20 @@ export default function MainPage() {
     for (const lec of orphanLectures) {
       const until = lec.available_until ?? (lec as { availableUntil?: string | null }).availableUntil;
       const from = lec.available_from ?? (lec as { availableFrom?: string | null }).availableFrom;
-      list.push({
+      const item = {
         id: lec.id,
         title: lec.title,
         type: "lecture",
         hasDeadline: !!(until ?? from),
         availableUntil: until ?? null,
         availableFrom: from ?? null,
-      });
+      };
+      list.push(item);
     }
     for (const t of orphanTasks) {
       const until = (t as { available_until?: string | null }).available_until ?? (t as { availableUntil?: string | null }).availableUntil;
       const from = (t as { available_from?: string | null }).available_from ?? (t as { availableFrom?: string | null }).availableFrom;
-      list.push({
+      const item = {
         id: t.id,
         title: t.title,
         type: "task",
@@ -226,55 +300,60 @@ export default function MainPage() {
         availableUntil: until ?? null,
         availableFrom: from ?? null,
         hard: t.hard,
-      });
+      };
+      list.push(item);
     }
     for (const p of orphanPuzzles) {
       const until = (p as { available_until?: string | null }).available_until ?? (p as { availableUntil?: string | null }).availableUntil;
       const from = (p as { available_from?: string | null }).available_from ?? (p as { availableFrom?: string | null }).availableFrom;
-      list.push({
+      const item = {
         id: p.id,
         title: p.title,
         type: "puzzle",
         hasDeadline: !!(until ?? from),
         availableUntil: until ?? null,
         availableFrom: from ?? null,
-      });
+      };
+      list.push(item);
     }
     for (const q of orphanQuestions) {
       const until = (q as { available_until?: string | null }).available_until ?? (q as { availableUntil?: string | null }).availableUntil;
       const from = (q as { available_from?: string | null }).available_from ?? (q as { availableFrom?: string | null }).availableFrom;
-      list.push({
+      const item = {
         id: q.id,
         title: q.title,
         type: "question",
         hasDeadline: !!(until ?? from),
         availableUntil: until ?? null,
         availableFrom: from ?? null,
-      });
+      };
+      list.push(item);
     }
     for (const s of orphanSurveys) {
       const until = (s as { available_until?: string | null }).available_until ?? (s as { availableUntil?: string | null }).availableUntil;
       const from = (s as { available_from?: string | null }).available_from ?? (s as { availableFrom?: string | null }).availableFrom;
-      list.push({
+      const item = {
         id: s.id,
         title: s.title,
         type: "survey",
         hasDeadline: !!(until ?? from),
         availableUntil: until ?? null,
         availableFrom: from ?? null,
-      });
+      };
+      list.push(item);
     }
     for (const l of orphanLayouts) {
       const until = (l as { available_until?: string | null }).available_until ?? (l as { availableUntil?: string | null }).availableUntil;
       const from = (l as { available_from?: string | null }).available_from ?? (l as { availableFrom?: string | null }).availableFrom;
-      list.push({
+      const item = {
         id: l.id,
         title: l.title,
         type: "layout",
         hasDeadline: !!(until ?? from),
         availableUntil: until ?? null,
         availableFrom: from ?? null,
-      });
+      };
+      list.push(item);
     }
     return list;
   }, [orphanLectures, orphanTasks, orphanPuzzles, orphanQuestions, orphanSurveys, orphanLayouts]);
@@ -325,6 +404,7 @@ export default function MainPage() {
       <PageHeader
         title="Треки"
         description="Выберите трек или отдельное задание"
+        compact
         actions={
           <TemporaryAssignmentsIndicator
             orphanLectures={orphanLectures}
@@ -426,9 +506,9 @@ export default function MainPage() {
 
               <Tabs value={orphanTab} onValueChange={setOrphanTab} className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <TabsList className="w-full sm:w-fit">
+                  <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
                     {TAB_FILTERS.map((t) => (
-                      <TabsTrigger key={t.value} value={t.value} className="text-xs">
+                      <TabsTrigger key={t.value} value={t.value} className="text-xs whitespace-nowrap">
                         {t.label}
                       </TabsTrigger>
                     ))}
@@ -464,6 +544,7 @@ export default function MainPage() {
               </Tabs>
             </section>
           )}
+
         </div>
       )}
     </div>

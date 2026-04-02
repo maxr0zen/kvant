@@ -20,7 +20,7 @@ class LayoutSubtaskEmbed(EmbeddedDocument):
     """Подзадача-чекер для задания верстки."""
     id = StringField(required=True)
     title = StringField(required=True)
-    check_type = StringField(required=True, choices=["selector_exists", "html_contains"])
+    check_type = StringField(required=True, choices=["selector_exists", "html_contains", "css_contains", "js_contains"])
     check_value = StringField(required=True)
 
 
@@ -31,6 +31,7 @@ class LayoutLesson(Document):
     }
     title = StringField(required=True, max_length=500)
     description = StringField(default="")  # теория к заданию
+    attached_lecture_id = StringField(default="")  # optional: lecture linked specifically to this layout
     track_id = StringField(default="")
     # Шаблоны по умолчанию для html, css, js
     template_html = StringField(required=True, default="")
@@ -43,6 +44,8 @@ class LayoutLesson(Document):
     public_id = StringField()
     visible_group_ids = ListField(StringField(), default=list)
     hints = ListField(StringField(), default=list)
+    # Достижения, которые выдаются за успешную проверку верстки.
+    reward_achievement_ids = ListField(StringField(), default=list)
     available_from = DateTimeField(default=None)
     available_until = DateTimeField(default=None)
     max_attempts = IntField(default=None)

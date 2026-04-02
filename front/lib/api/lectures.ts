@@ -4,9 +4,9 @@
 
 import type { Lecture } from "@/lib/types";
 import { getStoredToken } from "@/lib/api/auth";
-import { apiFetch, hasApi } from "@/lib/api/client";
+import { apiFetch, hasApi, clearSessionOn401 } from "@/lib/api/client";
 
-function mapLectureFromApi(data: Record<string, unknown>): Lecture {
+export function mapLectureFromApi(data: Record<string, unknown>): Lecture {
   return {
     id: String(data.id),
     title: String(data.title),
@@ -78,10 +78,40 @@ export async function markLectureViewed(lectureId: string): Promise<void> {
 }
 
 /** token — для SSR (передайте из cookies()), чтобы бэкенд вернул can_edit */
-export async function fetchLectureById(id: string, token?: string | null, options?: { cache?: RequestCache }): Promise<Lecture | null> {
+export async function fetchLectureById(
+  id: string,
+  token?: string | null,
+  options?: { cache?: RequestCache; skipAuth?: boolean }
+): Promise<Lecture | null> {
   if (hasApi()) {
     try {
-      const res = await apiFetch(`/api/lectures/${id}/`, { cache: options?.cache ?? "no-store", token: token ?? undefined });
+      const path = `/api/lectures/${encodeURIComponent(id)}/`;
+      const cache = options?.cache ?? "no-store";
+
+      const fetchOnce = (opts: { skipAuth: boolean; skipLogoutOn401?: boolean }) =>
+        apiFetch(path, {
+          cache,
+          skipAuth: opts.skipAuth,
+          skipLogoutOn401: opts.skipLogoutOn401,
+          ...(opts.skipAuth ? {} : { token: token ?? undefined }),
+        });
+
+      let res: Response;
+      if (options?.skipAuth) {
+        res = await fetchOnce({ skipAuth: true });
+      } else {
+        // Просмотр лекции разрешён без авторизации; просроченный JWT даёт 401 до AllowAny — повторяем без заголовка.
+        const authToken = token ?? (typeof window !== "undefined" ? getStoredToken() : null);
+        const hadToken = Boolean(authToken);
+        res = await fetchOnce({ skipAuth: false, skipLogoutOn401: true });
+        if (res.status === 401 && hadToken) {
+          res = await fetchOnce({ skipAuth: true });
+          if (res.ok && typeof window !== "undefined") {
+            clearSessionOn401();
+          }
+        }
+      }
+
       if (!res.ok) return fetchLectureByIdStub(id);
       const data = await res.json();
       return mapLectureFromApi(data);
@@ -164,7 +194,7 @@ export async function createLecture(data: Omit<Lecture, "id">): Promise<Lecture>
   return createLectureStub(data);
 }
 
-export async function fetchLectureByIdStub(id: string): Promise<Lecture | null> {
+export async function fetchLectureByIdStub(_id: string): Promise<Lecture | null> {
   return null;
 }
 

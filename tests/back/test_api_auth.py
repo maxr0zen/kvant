@@ -55,6 +55,7 @@ def test_profile_unauthenticated(api_client):
 @pytest.mark.django_db
 def test_platform_completed_assignments_returns_only_standalone_completed(auth_client, test_user):
     from apps.submissions.documents import LessonProgress
+    from apps.tracks.documents import Track, LessonRef
 
     LessonProgress(
         user_id=str(test_user.id),
@@ -75,11 +76,25 @@ def test_platform_completed_assignments_returns_only_standalone_completed(auth_c
     ).save()
     LessonProgress(
         user_id=str(test_user.id),
+        lesson_id="standalone-layout-linked-track",
+        lesson_type="layout",
+        lesson_title="Standalone layout with track_id",
+        track_id="legacy-track-link",
+        status="completed",
+    ).save()
+    LessonProgress(
+        user_id=str(test_user.id),
         lesson_id="started-1",
         lesson_type="question",
         lesson_title="Started question",
         track_id="",
         status="started",
+    ).save()
+    Track(
+        title="Track with lesson",
+        description="",
+        lessons=[LessonRef(id="intrack-1", type="task", title="In track task", order=0)],
+        order=0,
     ).save()
 
     response = auth_client.get("/api/auth/profile/platform-completed/")
@@ -88,5 +103,6 @@ def test_platform_completed_assignments_returns_only_standalone_completed(auth_c
     assert "items" in data
     ids = [x["lesson_id"] for x in data["items"]]
     assert "standalone-1" in ids
+    assert "standalone-layout-linked-track" in ids
     assert "intrack-1" not in ids
     assert "started-1" not in ids

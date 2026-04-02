@@ -209,17 +209,21 @@ class PlatformCompletedAssignmentsView(APIView):
         from apps.submissions.documents import LessonProgress
 
         user_id = str(request.user.id)
+        in_track_ids = _get_in_track_lesson_ids()
         qs = (
             LessonProgress.objects(
                 user_id=user_id,
                 status="completed",
-                track_id__in=["", None],
                 lesson_type__in=["lecture", "task", "puzzle", "question", "survey", "layout"],
             )
             .order_by("-updated_at")
         )
         items = []
         for lp in qs:
+            # "Отдельным" считаем урок, который реально не входит ни в один Track.
+            # Это надёжнее, чем проверка только track_id в LessonProgress.
+            if str(lp.lesson_id) in in_track_ids:
+                continue
             status_val = "completed_late" if getattr(lp, "completed_late", False) else "completed"
             items.append({
                 "lesson_id": lp.lesson_id,
@@ -230,6 +234,17 @@ class PlatformCompletedAssignmentsView(APIView):
                 "completed_at": lp.updated_at.isoformat() if getattr(lp, "updated_at", None) else None,
             })
         return Response({"items": items})
+
+
+class AchievementsCatalogView(APIView):
+    """Каталог достижений для UI учителя (назначение наград за задания)."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from apps.achievements.registry import ACHIEVEMENTS, serialize_achievements
+
+        ids = list(ACHIEVEMENTS.keys())
+        return Response({"items": serialize_achievements(ids)})
 
 
 class TeacherGroupsProgressView(APIView):
@@ -642,8 +657,6 @@ class TeacherStandaloneProgressView(APIView):
         teacher_group_ids = [str(g) for g in teacher_group_ids]
         if is_superuser:
             teacher_group_ids = [str(g.id) for g in Group.objects.all()]
-        if not teacher_group_ids:
-            return Response({"assignments": [], "groups": []})
 
         group_object_ids = [ObjectId(g) for g in teacher_group_ids if g and ObjectId.is_valid(g)]
         groups_qs = Group.objects.filter(id__in=group_object_ids).order_by("order", "title")
@@ -657,8 +670,6 @@ class TeacherStandaloneProgressView(APIView):
             lid = str(getattr(lec, "public_id", None) or lec.id)
             oid = str(lec.id)
             if oid in in_track_ids or lid in in_track_ids:
-                continue
-            if not _standalone_visible_to_user(lec, teacher_group_ids):
                 continue
             lesson_ids = [lid, oid] if lid != oid else [lid]
             students = []
@@ -684,8 +695,6 @@ class TeacherStandaloneProgressView(APIView):
             oid = str(task.id)
             if oid in in_track_ids or lid in in_track_ids:
                 continue
-            if not _standalone_visible_to_user(task, teacher_group_ids):
-                continue
             lesson_ids = [lid, oid] if lid != oid else [lid]
             students = []
             for s in students_qs:
@@ -709,8 +718,6 @@ class TeacherStandaloneProgressView(APIView):
             lid = str(getattr(puzzle, "public_id", None) or puzzle.id)
             oid = str(puzzle.id)
             if oid in in_track_ids or lid in in_track_ids:
-                continue
-            if not _standalone_visible_to_user(puzzle, teacher_group_ids):
                 continue
             lesson_ids = [lid, oid] if lid != oid else [lid]
             students = []
@@ -736,8 +743,6 @@ class TeacherStandaloneProgressView(APIView):
             oid = str(question.id)
             if oid in in_track_ids or lid in in_track_ids:
                 continue
-            if not _standalone_visible_to_user(question, teacher_group_ids):
-                continue
             lesson_ids = [lid, oid] if lid != oid else [lid]
             students = []
             for s in students_qs:
@@ -761,8 +766,6 @@ class TeacherStandaloneProgressView(APIView):
             lid = str(getattr(survey, "public_id", None) or survey.id)
             oid = str(survey.id)
             if oid in in_track_ids or lid in in_track_ids:
-                continue
-            if not _standalone_visible_to_user(survey, teacher_group_ids):
                 continue
             lesson_ids = [lid, oid] if lid != oid else [lid]
             responses_by_user = {
@@ -792,8 +795,6 @@ class TeacherStandaloneProgressView(APIView):
             lid = str(getattr(layout, "public_id", None) or layout.id)
             oid = str(layout.id)
             if oid in in_track_ids or lid in in_track_ids:
-                continue
-            if not _standalone_visible_to_user(layout, teacher_group_ids):
                 continue
             lesson_ids = [lid, oid] if lid != oid else [lid]
             students = []

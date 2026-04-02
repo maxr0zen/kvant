@@ -31,6 +31,8 @@ class Question(Document):
     # Список id групп, которым доступен вопрос. Пустой — доступен всем.
     visible_group_ids = ListField(StringField(), default=list)
     hints = ListField(StringField(), default=list)
+    # Достижения, которые выдаются за правильный ответ.
+    reward_achievement_ids = ListField(StringField(), default=list)
     available_from = DateTimeField(default=None)
     available_until = DateTimeField(default=None)
     max_attempts = IntField(default=None)

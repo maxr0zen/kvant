@@ -32,6 +32,8 @@ class Puzzle(Document):
     # Список id групп, которым доступен puzzle. Пустой — доступен всем.
     visible_group_ids = ListField(StringField(), default=list)
     hints = ListField(StringField(), default=list)
+    # Достижения, которые выдаются за успешное прохождение пазла.
+    reward_achievement_ids = ListField(StringField(), default=list)
     available_from = DateTimeField(default=None)
     available_until = DateTimeField(default=None)
     max_attempts = IntField(default=None)

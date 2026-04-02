@@ -17,7 +17,7 @@ interface YTPlayer {
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   destroy: () => void;
 }
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Hls from "hls.js";
 import { Button } from "@/components/ui/button";
@@ -113,11 +113,16 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
   const blockProgressRef = useRef(blockProgress);
   blockProgressRef.current = blockProgress;
 
-  const pausePoints = (block.pause_points ?? []).slice().sort((a, b) => a.timestamp - b.timestamp);
+  const pausePoints = useMemo(
+    () => (block.pause_points ?? []).slice().sort((a, b) => a.timestamp - b.timestamp),
+    // Pause points are expected to be stable across renders of the same block.
+    // Recompute only when the array reference changes.
+    [block.pause_points]
+  );
   const videoBlockId = block.id;
   // При просмотре используем прямую ссылку (direct_url), если бэкенд её подставил; иначе исходную url
-  const playbackUrl = (block.direct_url ?? block.url) || "";
-  const parsed = parseVideoUrl(playbackUrl);
+  const playbackUrl = useMemo(() => (block.direct_url ?? block.url) || "", [block.direct_url, block.url]);
+  const parsed = useMemo(() => parseVideoUrl(playbackUrl), [playbackUrl]);
   const isNativeDirect = parsed === null && playbackUrl.trim().length > 0;
   const isM3u8 = isNativeDirect && isM3u8Url(playbackUrl);
 

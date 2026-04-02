@@ -110,8 +110,8 @@ export function SurveyView({ survey }: SurveyViewProps) {
       <AvailabilityNotice availableFrom={survey.availableFrom} availableUntil={survey.availableUntil} />
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="text-3xl font-semibold tracking-tight">{survey.title}</h1>
-          {survey.prompt && <p className="text-muted-foreground mt-2">{survey.prompt}</p>}
+          <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">{survey.title}</h1>
+          {survey.prompt && <p className="mt-2 break-words text-muted-foreground">{survey.prompt}</p>}
         </div>
       </div>
 
@@ -169,7 +169,7 @@ export function SurveyView({ survey }: SurveyViewProps) {
                 <CardDescription>Детализация по опросу</CardDescription>
               </div>
               {responses.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <Label htmlFor="survey-group-filter" className="text-xs whitespace-nowrap">
                     Показать:
                   </Label>
@@ -177,7 +177,7 @@ export function SurveyView({ survey }: SurveyViewProps) {
                     id="survey-group-filter"
                     value={selectedGroupId}
                     onChange={(e) => setSelectedGroupId(e.target.value)}
-                    className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[180px] font-medium"
+                    className="flex h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium sm:w-auto sm:min-w-[180px]"
                   >
                     <option value="">Все ответы</option>
                     {groups.map((g) => (
@@ -201,7 +201,7 @@ export function SurveyView({ survey }: SurveyViewProps) {
               <ul className="space-y-4">
                 {filteredResponses.map((r) => (
                   <li key={r.user_id} className="border-b pb-3 last:border-0 last:pb-0">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="font-medium text-sm">{r.full_name}</div>
                       {(r.status === "completed" || r.status === "completed_late") ? (
                         <span className="text-xs text-green-600">Принято</span>
@@ -238,7 +238,7 @@ export function SurveyView({ survey }: SurveyViewProps) {
                       <ul className="space-y-4">
                         {items.map((r) => (
                           <li key={r.user_id} className="border-b pb-3 last:border-0 last:pb-0">
-                            <div className="flex items-start justify-between gap-2">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
                               <div className="font-medium text-sm">{r.full_name}</div>
                               {(r.status === "completed" || r.status === "completed_late") ? (
                                 <span className="text-xs text-green-600">Принято</span>

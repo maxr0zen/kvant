@@ -9,6 +9,7 @@ class SurveySerializer(serializers.Serializer):
     prompt = serializers.CharField(required=False, allow_blank=True)
     track_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     visible_group_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    reward_achievement_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     available_from = serializers.DateTimeField(required=False, allow_null=True, default=None)
     available_until = serializers.DateTimeField(required=False, allow_null=True, default=None)
 
@@ -36,6 +37,7 @@ class SurveySerializer(serializers.Serializer):
             "prompt": instance.prompt,
             "track_id": getattr(instance, "track_id", "") or "",
             "visible_group_ids": getattr(instance, "visible_group_ids", []) or [],
+            "reward_achievement_ids": getattr(instance, "reward_achievement_ids", []) or [],
             "available_from": datetime_to_iso_utc(getattr(instance, "available_from", None)),
             "available_until": datetime_to_iso_utc(getattr(instance, "available_until", None)),
             "can_edit": can_edit,
@@ -56,7 +58,7 @@ class SurveySerializer(serializers.Serializer):
         return Survey.objects.create(**validated_data, created_by_id=created_by)
 
     def update(self, instance, validated_data):
-        for attr in ("title", "prompt", "track_id", "visible_group_ids"):
+        for attr in ("title", "prompt", "track_id", "visible_group_ids", "reward_achievement_ids"):
             if attr in validated_data:
                 setattr(instance, attr, validated_data[attr])
         if "track_id" in validated_data and validated_data["track_id"] is None:

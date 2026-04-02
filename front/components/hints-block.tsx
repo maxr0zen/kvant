@@ -28,7 +28,7 @@ export function HintsBlock({ hints, className }: HintsBlockProps) {
       </CardHeader>
       <CardContent className="space-y-2">
         {visible.map((text, i) => (
-          <p key={i} className="text-sm text-muted-foreground border-l-2 border-amber-500 pl-3 py-1">
+          <p key={i} className="break-words text-sm text-muted-foreground border-l-2 border-amber-500 pl-3 py-1">
             {text}
           </p>
         ))}

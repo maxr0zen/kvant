@@ -130,6 +130,76 @@ describe("LayoutView", () => {
     );
   });
 
+  it("shows error message when layout check fails with error", async () => {
+    mocks.checkLayoutMock.mockResolvedValue({
+      passed: false,
+      subtasks: [],
+      error: "Ошибка проверки сервера",
+    });
+
+    render(<LayoutView layout={layoutAllEditable} />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText("Ошибка проверки сервера")).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
+  });
+
+  it("shows warnings when layout check returns minor issues", async () => {
+    mocks.checkLayoutMock.mockResolvedValue({
+      passed: false,
+      subtasks: [],
+      warnings: ["Тег <span> не закрыт."],
+    });
+
+    render(<LayoutView layout={layoutAllEditable} />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText("Тег <span> не закрыт.")).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
+  });
+
+  it("shows blocking syntax errors from checker", async () => {
+    mocks.checkLayoutMock.mockResolvedValue({
+      passed: false,
+      subtasks: [],
+      errors: ["HTML: тег <span> не закрыт."],
+    });
+
+    render(<LayoutView layout={layoutAllEditable} />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText("Зачёт недоступен: исправьте синтаксические ошибки.")).toBeInTheDocument();
+        expect(screen.getByText("HTML: тег <span> не закрыт.")).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
+  });
+
+  it("shows abuse flags when checker reports suspicious payload", async () => {
+    mocks.checkLayoutMock.mockResolvedValue({
+      passed: false,
+      subtasks: [],
+      abuseFlags: ["selector_too_large"],
+    });
+
+    render(<LayoutView layout={layoutAllEditable} />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Обнаружены подозрительные паттерны/)).toBeInTheDocument();
+        expect(screen.getByText(/selector_too_large/)).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
+  });
+
   it("shows theory block when description present", () => {
     render(<LayoutView layout={layoutAllEditable} />);
     expect(screen.getByText("Теория")).toBeInTheDocument();

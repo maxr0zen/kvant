@@ -29,9 +29,16 @@ function handle401(): void {
   }
 }
 
+/** Сброс сессии при 401 (можно вызвать вручную после повторного запроса без токена). */
+export function clearSessionOn401(): void {
+  handle401();
+}
+
 export interface ApiFetchOptions extends Omit<RequestInit, "body"> {
   body?: Record<string, unknown> | string;
   skipAuth?: boolean;
+  /** Не вызывать очистку сессии при 401 (для повторного запроса без токена). */
+  skipLogoutOn401?: boolean;
   /** Токен для SSR (когда localStorage недоступен) */
   token?: string | null;
 }
@@ -41,7 +48,7 @@ export interface ApiFetchOptions extends Omit<RequestInit, "body"> {
  * При 401 вызывает очистку токена/роли и опциональный callback (редирект на /login).
  */
 export async function apiFetch(path: string, options: ApiFetchOptions = {}): Promise<Response> {
-  const { body, skipAuth = false, token: optToken, headers: optHeaders = {}, ...rest } = options;
+  const { body, skipAuth = false, token: optToken, headers: optHeaders = {}, skipLogoutOn401 = false, ...rest } = options;
   const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: HeadersInit = {
     ...(optHeaders as Record<string, string>),
@@ -60,7 +67,7 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
     headers,
     body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
   });
-  if (res.status === 401) {
+  if (res.status === 401 && !skipLogoutOn401) {
     handle401();
   }
   return res;

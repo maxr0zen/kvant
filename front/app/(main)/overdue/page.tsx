@@ -44,27 +44,36 @@ function OrphanCard({ item }: { item: OrphanItem }) {
   return (
     <Card className="flex flex-col border-amber-500/20">
       <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{item.title}</span>
-              {item.type === "task" && item.hard && (
-                <span className="text-amber-500 text-sm">&#9733;</span>
-              )}
-            </CardTitle>
-            <CardDescription className="mt-0.5 flex items-center gap-1.5">
-              {label}
-              <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
-                <Clock className="h-3 w-3" />
-                Просрочено
-              </span>
-            </CardDescription>
-          </div>
-          {item.availableUntil && (
-            <AvailabilityOverdue availableUntil={item.availableUntil} className="shrink-0 text-xs" />
-          )}
+        <div className="min-w-0">
+          <CardTitle className="flex items-start gap-2 text-base">
+            <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="break-words">{item.title}</span>
+            {item.type === "task" && item.hard && (
+              <span className="shrink-0 text-amber-500 text-sm">&#9733;</span>
+            )}
+          </CardTitle>
+          <CardDescription className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            {label}
+            <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+              <Clock className="h-3 w-3" />
+              Просрочено
+            </span>
+          </CardDescription>
         </div>
+        {item.availableUntil && (
+          <div className="mt-2 self-start">
+            <AvailabilityOverdue
+              availableUntil={item.availableUntil}
+              compact
+              iconOnly
+              className="whitespace-nowrap sm:hidden"
+            />
+            <AvailabilityOverdue
+              availableUntil={item.availableUntil}
+              className="hidden whitespace-nowrap text-xs sm:inline-flex"
+            />
+          </div>
+        )}
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-2 pt-1">
         <p className="text-xs text-muted-foreground">

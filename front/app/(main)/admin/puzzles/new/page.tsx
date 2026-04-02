@@ -24,6 +24,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import type { PuzzleBlock } from "@/lib/types";
 import { Plus, Trash2, Settings2 } from "lucide-react";
 import { LanguageSelector } from "@/components/language-selector";
+import { AchievementSelector } from "@/components/achievement-selector";
 
 const defaultBlock: PuzzleBlock = {
   id: "b1",
@@ -88,6 +89,7 @@ export default function NewPuzzlePage() {
   ]);
   const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
   const [hints, setHints] = useState<string[]>([]);
+  const [rewardAchievementIds, setRewardAchievementIds] = useState<string[]>([]);
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
   const [tempMode, setTempMode] = useState<"none" | "until_date" | "duration">("none");
@@ -187,6 +189,7 @@ export default function NewPuzzlePage() {
           ? new Date(Date.now() + (parseInt(durationHours, 10) || 0) * 3600000 + (parseInt(durationMinutes, 10) || 0) * 60000).toISOString()
           : (availableUntil.trim() ? datetimeLocalToISOUTC(availableUntil.trim()) : undefined),
         maxAttempts: maxAttempts.trim() ? parseInt(maxAttempts, 10) : undefined,
+        rewardAchievementIds: rewardAchievementIds.length > 0 ? rewardAchievementIds : undefined,
       });
       toast({ title: "Puzzle создан", description: puzzle.title });
       if (trackId) {
@@ -257,6 +260,7 @@ export default function NewPuzzlePage() {
                         <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить подсказку
                       </Button>
                     </div>
+                    <AchievementSelector value={rewardAchievementIds} onChange={setRewardAchievementIds} />
                     <div className="space-y-2 border-t pt-5">
                       <Label>Временное задание</Label>
                       <div className="flex flex-wrap gap-2">

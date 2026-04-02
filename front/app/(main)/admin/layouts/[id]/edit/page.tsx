@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { CodeEditor } from "@/components/editor/code-editor";
 import { fetchLayoutById, updateLayout } from "@/lib/api/layouts";
+import { fetchTrackById } from "@/lib/api/tracks";
 import { datetimeLocalToISOUTC } from "@/lib/utils/datetime";
 import { useToast } from "@/components/ui/use-toast";
 import { GroupSelector } from "@/components/group-selector";
@@ -26,6 +27,7 @@ import type { LayoutSubtask } from "@/lib/types";
 import { Trash2, Plus, Settings2 } from "lucide-react";
 
 type LayoutFile = "html" | "css" | "js";
+type LayoutCheckType = "selector_exists" | "html_contains" | "css_contains" | "js_contains";
 
 function buildPreviewDoc(html: string, css: string, js: string): string {
   const styleTag = css ? `<style>\n${css}\n</style>` : "";
@@ -68,6 +70,9 @@ export default function EditLayoutPage() {
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [attachedLectureId, setAttachedLectureId] = useState("");
+  const [trackId, setTrackId] = useState("");
+  const [trackLectures, setTrackLectures] = useState<Array<{ id: string; title: string }>>([]);
   const [templateHtml, setTemplateHtml] = useState("");
   const [templateCss, setTemplateCss] = useState("");
   const [templateJs, setTemplateJs] = useState("");
@@ -96,6 +101,8 @@ export default function EditLayoutPage() {
       }
       setTitle(layout.title);
       setDescription(layout.description ?? "");
+      setAttachedLectureId(layout.attachedLectureId ?? "");
+      setTrackId(layout.trackId ?? "");
       setTemplateHtml(layout.templateHtml ?? "");
       setTemplateCss(layout.templateCss ?? "");
       setTemplateJs(layout.templateJs ?? "");
@@ -124,6 +131,24 @@ export default function EditLayoutPage() {
     });
     return () => { cancelled = true; };
   }, [id, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!trackId) {
+      setTrackLectures([]);
+      return;
+    }
+    fetchTrackById(trackId).then((track) => {
+      if (cancelled || !track) return;
+      const lectures = (track.lessons ?? [])
+        .filter((lesson) => lesson.type === "lecture")
+        .map((lesson) => ({ id: lesson.id, title: lesson.title }));
+      setTrackLectures(lectures);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId]);
 
   function addSubtask() {
     setSubtasks((prev) => [
@@ -155,6 +180,7 @@ export default function EditLayoutPage() {
       await updateLayout(id, {
         title: title.trim(),
         description: description.trim(),
+        attachedLectureId: attachedLectureId.trim(),
         templateHtml,
         templateCss,
         templateJs,
@@ -204,6 +230,7 @@ export default function EditLayoutPage() {
         title="Редактирование верстки"
         description={title}
         breadcrumbs={[{ label: "Треки", href: "/main" }, { label: title }]}
+        compact
       />
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -265,7 +292,7 @@ export default function EditLayoutPage() {
                         </div>
                       )}
                       {tempMode === "duration" && (
-                        <div className="flex gap-3 items-end pt-1">
+                        <div className="flex flex-wrap gap-3 items-end pt-1">
                           <div className="space-y-1">
                             <Label className="text-xs">Часы</Label>
                             <Input type="number" min={0} value={durationHours} onChange={(e) => setDurationHours(e.target.value)} className="w-20 h-9" />
@@ -279,7 +306,7 @@ export default function EditLayoutPage() {
                     </div>
                     <div className="space-y-2 border-t pt-5">
                       <Label htmlFor="maxAttempts">Ограничение попыток</Label>
-                      <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="Без ограничения" className="h-9 max-w-[140px]" />
+                      <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="Без ограничения" className="h-9 w-full sm:max-w-[140px]" />
                     </div>
                   </div>
                 </DialogContent>
@@ -294,6 +321,34 @@ export default function EditLayoutPage() {
             <div className="space-y-2">
               <Label htmlFor="description">Теория</Label>
               <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="attachedLecture">Связанная лекция (опционально)</Label>
+              {trackId && trackLectures.length > 0 ? (
+                <select
+                  id="attachedLecture"
+                  value={attachedLectureId}
+                  onChange={(e) => setAttachedLectureId(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Не выбрана</option>
+                  {trackLectures.map((lecture) => (
+                    <option key={lecture.id} value={lecture.id}>
+                      {lecture.title}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="attachedLecture"
+                  value={attachedLectureId}
+                  onChange={(e) => setAttachedLectureId(e.target.value)}
+                  placeholder="ID лекции, например: 67a1c..."
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                В блоке теории студент увидит кнопку перехода в эту лекцию.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -318,9 +373,9 @@ export default function EditLayoutPage() {
                 JS
               </label>
             </div>
-            <div className="grid gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)]">
+            <div className="grid gap-4 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto">
                   {(["html", "css", "js"] as LayoutFile[]).map((file) => (
                     <Button
                       key={file}
@@ -362,14 +417,16 @@ export default function EditLayoutPage() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Тип</Label>
-                    <select value={st.checkType} onChange={(e) => updateSubtask(st.id, { checkType: e.target.value as "selector_exists" | "html_contains" })} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                    <select value={st.checkType} onChange={(e) => updateSubtask(st.id, { checkType: e.target.value as LayoutCheckType })} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
                       <option value="selector_exists">Селектор существует</option>
                       <option value="html_contains">HTML содержит</option>
+                      <option value="css_contains">CSS содержит</option>
+                      <option value="js_contains">JS содержит</option>
                     </select>
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Значение</Label>
+                  <Label className="text-xs">Значение (селектор или подстрока в HTML/CSS/JS)</Label>
                   <Input value={st.checkValue} onChange={(e) => updateSubtask(st.id, { checkValue: e.target.value })} className="h-9" />
                 </div>
                 {subtasks.length > 1 && (
@@ -385,8 +442,8 @@ export default function EditLayoutPage() {
           </CardContent>
         </Card>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={saving} className="min-w-[160px]">
+        <div className="flex flex-wrap gap-3 pt-2">
+          <Button type="submit" disabled={saving} className="sm:min-w-[160px]">
             {saving ? "Сохранение..." : "Сохранить"}
           </Button>
           <Link href={`/layouts/${id}`}>

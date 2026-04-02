@@ -9,7 +9,7 @@ import hashlib
 import os
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Добавляем корень проекта в путь и инициализируем Django
 BACK_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +28,8 @@ from apps.lectures.documents import Lecture
 from apps.tasks.documents import Task, TaskCaseEmbed
 from apps.puzzles.documents import Puzzle, CodeBlockEmbed
 from apps.questions.documents import Question, QuestionChoiceEmbed
+from apps.surveys.documents import Survey
+from apps.layouts.documents import LayoutLesson, LayoutSubtaskEmbed
 from apps.achievements.documents import UserAchievement
 
 GLOBAL_CREATED_GROUPS = []
@@ -175,7 +177,7 @@ def create_test_users():
     return created_users, groups
 
 def _delete_lessons_of_track(track):
-    """Удаляет из БД все уроки (лекции, задачи, пазлы, вопросы), входящие в трек. Чтобы они не попадали в одиночные."""
+    """Удаляет из БД все уроки (лекции, задачи, пазлы, вопросы, верстка), входящие в трек."""
     from bson import ObjectId
     for lesson in getattr(track, "lessons", []) or []:
         lid = getattr(lesson, "id", None)
@@ -202,6 +204,8 @@ def _delete_lessons_of_track(track):
                 Puzzle.objects(id=oid).delete()
             elif t == "question":
                 Question.objects(id=oid).delete()
+            elif t == "layout":
+                LayoutLesson.objects(id=oid).delete()
         elif t and len(str(lid)) == 12:
             # Fallback: удаление по public_id (12 символов), если в ref попал public_id
             if t == "lecture":
@@ -212,13 +216,20 @@ def _delete_lessons_of_track(track):
                 Puzzle.objects(public_id=str(lid)).delete()
             elif t == "question":
                 Question.objects(public_id=str(lid)).delete()
+            elif t == "layout":
+                LayoutLesson.objects(public_id=str(lid)).delete()
 
 
 def create_test_tracks_with_lessons():
-    """Создание тестовых треков: 3 компактных трека, в каждом — лекция (продакшн-уровень), задача, пазл и вопрос."""
+    """Создание тестовых треков: 3 Python-трека (лекция, задача, пазл, вопрос, верстка) + отдельный трек по вёрстке."""
     print("\n[*] Создание тестовых треков с уроками...")
 
-    new_titles = {"Первые шаги в Python", "Условия и циклы", "Функции и данные"}
+    new_titles = {
+        "Первые шаги в Python",
+        "Условия и циклы",
+        "Функции и данные",
+        "Верстка: HTML, CSS и JS",
+    }
     for old_track in Track.objects(title__nin=list(new_titles)):
         _delete_lessons_of_track(old_track)
         old_track.delete()
@@ -239,6 +250,11 @@ def create_test_tracks_with_lessons():
             "title": "Функции и данные",
             "description": "Определение функций, списки и словари. Структуры данных Python.",
             "order": 3,
+        },
+        {
+            "title": "Верстка: HTML, CSS и JS",
+            "description": "Практика: карточки, адаптивная сетка, формы и клиентский JS. Сначала — вводная лекция, затем задания.",
+            "order": 4,
         },
     ]
 
@@ -350,6 +366,40 @@ def create_test_tracks_with_lessons():
             order += 1
             return ref
 
+        def add_layout(
+            title,
+            description,
+            template_html,
+            template_css,
+            template_js,
+            subtasks,
+            hints=None,
+            editable_files=None,
+            attached_lecture_id="",
+        ):
+            nonlocal order
+            seed = f"layout:{track.title}:{title}"
+            pid = _stable_public_id(seed)
+            LayoutLesson.objects(public_id=pid).delete()
+            ef = editable_files if editable_files else ["html", "css", "js"]
+            layout = LayoutLesson(
+                title=title,
+                description=description,
+                track_id=track_id,
+                template_html=template_html,
+                template_css=template_css,
+                template_js=template_js,
+                editable_files=ef,
+                subtasks=[LayoutSubtaskEmbed(**st) for st in subtasks],
+                hints=hints or [],
+                attached_lecture_id=attached_lecture_id or "",
+            )
+            layout.public_id = pid
+            layout.save()
+            ref = LessonRef(id=str(layout.id), type="layout", title=title, order=order)
+            order += 1
+            return ref
+
         if track.title == "Первые шаги в Python":
             # Лекция: текст, изображение, код, видео с вопросами, обычный вопрос
             lessons.append(add_lecture("Введение в Python: синтаксис и первая программа", [
@@ -390,6 +440,50 @@ def create_test_tracks_with_lessons():
                 'print("Привет, Python")', hints=["Достаточно одного вызова print с нужной строкой."]))
             lessons.append(add_question("Тип результата", "Какой тип имеет результат операции 5 / 2 в Python 3?",
                 [QuestionChoiceEmbed(id="c1", text="int", is_correct=False), QuestionChoiceEmbed(id="c2", text="float", is_correct=True), QuestionChoiceEmbed(id="c3", text="str", is_correct=False)], multiple=False, hints=["В Python 3 обычное деление / всегда возвращает float."]))
+            lessons.append(add_layout(
+                "Профиль пользователя: HTML + CSS",
+                "Сверстайте карточку профиля с аватаром, именем и кнопкой действия.",
+                (
+                    "<article class='profile-card'>\n"
+                    "  <img class='avatar' src='https://i.pravatar.cc/120?img=8' alt='avatar'>\n"
+                    "  <h2 class='name'>Анна Смирнова</h2>\n"
+                    "  <p class='role'>Frontend Developer</p>\n"
+                    "  <button class='action-btn'>Написать</button>\n"
+                    "</article>"
+                ),
+                (
+                    ".profile-card {\n"
+                    "  max-width: 320px;\n"
+                    "  margin: 24px auto;\n"
+                    "  padding: 20px;\n"
+                    "  border-radius: 16px;\n"
+                    "  background: #fff;\n"
+                    "  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);\n"
+                    "  text-align: center;\n"
+                    "}\n"
+                    "\n"
+                    ".avatar {\n"
+                    "  width: 88px;\n"
+                    "  height: 88px;\n"
+                    "  border-radius: 50%;\n"
+                    "}\n"
+                    "\n"
+                    ".action-btn {\n"
+                    "  border: 0;\n"
+                    "  border-radius: 10px;\n"
+                    "  padding: 10px 14px;\n"
+                    "  background: #2563eb;\n"
+                    "  color: #fff;\n"
+                    "}"
+                ),
+                "",
+                [
+                    {"id": "l1s1", "title": "Есть контейнер карточки", "check_type": "selector_exists", "check_value": ".profile-card"},
+                    {"id": "l1s2", "title": "Кнопка имеет скругления", "check_type": "css_contains", "check_value": "border-radius"},
+                    {"id": "l1s3", "title": "Есть подпись роли", "check_type": "html_contains", "check_value": "Frontend Developer"},
+                ],
+                hints=["Начните с семантичного контейнера article.", "Сделайте акцент кнопкой через контрастный цвет."],
+            ))
 
         elif track.title == "Условия и циклы":
             lessons.append(add_lecture("Ветвление и циклы в Python", [
@@ -436,8 +530,53 @@ def create_test_tracks_with_lessons():
             lessons.append(add_question("Цикл while", "Когда цикл while прекратит выполнение? Условие: while x > 0: x -= 1",
                 [QuestionChoiceEmbed(id="c1", text="Когда x станет 0", is_correct=True), QuestionChoiceEmbed(id="c2", text="Когда x станет отрицательным", is_correct=False), QuestionChoiceEmbed(id="c3", text="Никогда", is_correct=False)],
                 multiple=False, hints=["Условие x > 0 ложно при x == 0."]))
+            lessons.append(add_layout(
+                "Адаптивная сетка товаров",
+                "Сделайте grid-сетку карточек: 3 колонки на десктопе, 2 на планшете, 1 на телефоне.",
+                (
+                    "<section class='products'>\n"
+                    "  <article class='product-card'>Товар 1</article>\n"
+                    "  <article class='product-card'>Товар 2</article>\n"
+                    "  <article class='product-card'>Товар 3</article>\n"
+                    "  <article class='product-card'>Товар 4</article>\n"
+                    "</section>"
+                ),
+                (
+                    ".products {\n"
+                    "  display: grid;\n"
+                    "  gap: 16px;\n"
+                    "  grid-template-columns: repeat(3, minmax(0, 1fr));\n"
+                    "}\n"
+                    "\n"
+                    ".product-card {\n"
+                    "  border: 1px solid #e2e8f0;\n"
+                    "  border-radius: 12px;\n"
+                    "  padding: 16px;\n"
+                    "  background: #fff;\n"
+                    "}\n"
+                    "\n"
+                    "@media (max-width: 900px) {\n"
+                    "  .products {\n"
+                    "    grid-template-columns: repeat(2, minmax(0, 1fr));\n"
+                    "  }\n"
+                    "}\n"
+                    "\n"
+                    "@media (max-width: 600px) {\n"
+                    "  .products {\n"
+                    "    grid-template-columns: 1fr;\n"
+                    "  }\n"
+                    "}"
+                ),
+                "",
+                [
+                    {"id": "l2s1", "title": "Используется grid", "check_type": "css_contains", "check_value": "display:grid"},
+                    {"id": "l2s2", "title": "Есть media query", "check_type": "css_contains", "check_value": "@media"},
+                    {"id": "l2s3", "title": "Есть карточка товара", "check_type": "selector_exists", "check_value": ".product-card"},
+                ],
+                hints=["Используйте repeat(..., minmax(0,1fr)) для стабильной сетки."],
+            ))
 
-        else:  # Функции и данные
+        elif track.title == "Функции и данные":
             lessons.append(add_lecture("Функции, списки и словари", [
                 {"type": "text", "content": (
                     "<h2>Функции</h2>"
@@ -475,18 +614,319 @@ def create_test_tracks_with_lessons():
             lessons.append(add_question("Пустой словарь", "Как правильно создать пустой словарь? Выберите все верные варианты.",
                 [QuestionChoiceEmbed(id="c1", text="{}", is_correct=True), QuestionChoiceEmbed(id="c2", text="dict()", is_correct=True), QuestionChoiceEmbed(id="c3", text="[]", is_correct=False)],
                 multiple=True, hints=["[] — это пустой список. Для словаря используются фигурные скобки или dict()."]))
+            lessons.append(add_layout(
+                "Форма входа с валидацией",
+                "Оформите форму входа и добавьте JS-проверку, что оба поля заполнены.",
+                (
+                    "<form class='login-form' id='login-form'>\n"
+                    "  <h2>Вход</h2>\n"
+                    "  <label for='email'>Email</label>\n"
+                    "  <input id='email' type='email' placeholder='you@example.com'>\n"
+                    "  <label for='password'>Пароль</label>\n"
+                    "  <input id='password' type='password' placeholder='••••••••'>\n"
+                    "  <button type='submit' class='submit-btn'>Войти</button>\n"
+                    "  <p class='form-message' id='form-message'></p>\n"
+                    "</form>"
+                ),
+                (
+                    ".login-form {\n"
+                    "  width: min(100%, 360px);\n"
+                    "  margin: 24px auto;\n"
+                    "  padding: 20px;\n"
+                    "  border: 1px solid #e2e8f0;\n"
+                    "  border-radius: 14px;\n"
+                    "  display: grid;\n"
+                    "  gap: 10px;\n"
+                    "  background: #fff;\n"
+                    "}\n"
+                    "\n"
+                    ".submit-btn {\n"
+                    "  border: 0;\n"
+                    "  border-radius: 10px;\n"
+                    "  padding: 10px 14px;\n"
+                    "  background: #0f172a;\n"
+                    "  color: #fff;\n"
+                    "}\n"
+                    "\n"
+                    ".form-message {\n"
+                    "  min-height: 20px;\n"
+                    "  color: #dc2626;\n"
+                    "}"
+                ),
+                (
+                    "const form = document.getElementById('login-form');\n"
+                    "const email = document.getElementById('email');\n"
+                    "const password = document.getElementById('password');\n"
+                    "const message = document.getElementById('form-message');\n"
+                    "\n"
+                    "form?.addEventListener('submit', (e) => {\n"
+                    "  e.preventDefault();\n"
+                    "  if (!email?.value || !password?.value) {\n"
+                    "    if (message) message.textContent = 'Заполните все поля.';\n"
+                    "    return;\n"
+                    "  }\n"
+                    "  if (message) message.textContent = 'Отлично! Можно отправлять на сервер.';\n"
+                    "});"
+                ),
+                [
+                    {"id": "l3s1", "title": "Есть форма входа", "check_type": "selector_exists", "check_value": ".login-form"},
+                    {"id": "l3s2", "title": "Есть JS-валидация", "check_type": "js_contains", "check_value": "Заполните все поля"},
+                    {"id": "l3s3", "title": "Оформлена кнопка submit", "check_type": "selector_exists", "check_value": ".submit-btn"},
+                ],
+                hints=["Не удаляйте id у полей, иначе JS не найдет элементы."],
+            ))
+
+        elif track.title == "Верстка: HTML, CSS и JS":
+            from common.db_utils import get_doc_by_pk
+
+            intro_ref = add_lecture("Как проходить задания по верстке", [
+                {"type": "text", "content": (
+                    "<h2>Формат трека</h2>"
+                    "<p>Каждое задание максимально простое и состоит из маленьких шагов. "
+                    "Перед заданием идёт отдельная лекция: сначала теория, потом пошаговый план выполнения.</p>"
+                    "<h3>Как работать</h3>"
+                    "<ol>"
+                    "<li>Откройте связанную лекцию и прочитайте шаги.</li>"
+                    "<li>Сделайте шаг 1, затем шаг 2 и так далее.</li>"
+                    "<li>Проверяйте результат в превью после каждого шага.</li>"
+                    "<li>Если чекер не проходит — смотрите подсказки в задании.</li>"
+                    "</ol>"
+                )},
+            ])
+            lessons.append(intro_ref)
+
+            card_theory_ref = add_lecture("Лекция к заданию 1: карточка профиля (пошагово)", [
+                {"type": "text", "content": (
+                    "<h2>Что нужно сделать</h2>"
+                    "<p>Собрать простую карточку: имя, роль и кнопку.</p>"
+                    "<h3>Шаг 1 — HTML</h3>"
+                    "<p>Создайте контейнер <code>.profile-card</code>. Внутри добавьте:"
+                    " <code>h2.name</code>, <code>p.role</code> и <code>button.action-btn</code>.</p>"
+                    "<h3>Шаг 2 — CSS</h3>"
+                    "<p>Добавьте отступы, скругление и светлый фон для карточки. "
+                    "Для кнопки обязательно добавьте <code>border-radius</code>.</p>"
+                    "<h3>Шаг 3 — Проверка</h3>"
+                    "<p>Убедитесь, что в тексте роли есть слова <b>Frontend Junior</b>. "
+                    "Чекер ищет этот текст и классы элементов.</p>"
+                    "<h3>Типичные ошибки</h3>"
+                    "<ul>"
+                    "<li>Опечатка в названии класса (<code>profile-card</code>).</li>"
+                    "<li>Нет <code>border-radius</code> у кнопки.</li>"
+                    "<li>Неправильный текст роли.</li>"
+                    "</ul>"
+                )},
+            ])
+            card_theory = get_doc_by_pk(Lecture, str(card_theory_ref.id))
+            card_theory_id = str(getattr(card_theory, "public_id", None) or str(card_theory.id))
+            lessons.append(card_theory_ref)
+            lessons.append(add_layout(
+                "Карточка профиля: базовый вариант",
+                "Простая карточка: имя, роль и кнопка. Следуйте шагам из связанной лекции.",
+                (
+                    "<article class='profile-card'>\n"
+                    "  <h2 class='name'>Анна Смирнова</h2>\n"
+                    "  <p class='role'>Frontend Junior</p>\n"
+                    "  <button class='action-btn'>Связаться</button>\n"
+                    "</article>"
+                ),
+                (
+                    ".profile-card {\n"
+                    "  max-width: 320px;\n"
+                    "  margin: 24px auto;\n"
+                    "  padding: 16px;\n"
+                    "  border-radius: 12px;\n"
+                    "  background: #ffffff;\n"
+                    "  border: 1px solid #e2e8f0;\n"
+                    "}\n"
+                    "\n"
+                    ".name {\n"
+                    "  margin: 0 0 8px;\n"
+                    "}\n"
+                    "\n"
+                    ".role {\n"
+                    "  margin: 0 0 12px;\n"
+                    "  color: #475569;\n"
+                    "}\n"
+                    "\n"
+                    ".action-btn {\n"
+                    "  border: 0;\n"
+                    "  border-radius: 8px;\n"
+                    "  padding: 8px 12px;\n"
+                    "  background: #2563eb;\n"
+                    "  color: #fff;\n"
+                    "}"
+                ),
+                "",
+                [
+                    {"id": "w1s1", "title": "Есть контейнер карточки", "check_type": "selector_exists", "check_value": ".profile-card"},
+                    {"id": "w1s2", "title": "Кнопка со скруглением", "check_type": "css_contains", "check_value": "border-radius"},
+                    {"id": "w1s3", "title": "Есть текст роли", "check_type": "html_contains", "check_value": "Frontend Junior"},
+                ],
+                hints=[
+                    "Классы должны совпадать с лекцией: .profile-card, .role, .action-btn.",
+                    "Проверьте, что текст роли написан без опечаток.",
+                ],
+                editable_files=["html", "css"],
+                attached_lecture_id=card_theory_id,
+            ))
+
+            grid_theory_ref = add_lecture("Лекция к заданию 2: простая адаптивная сетка", [
+                {"type": "text", "content": (
+                    "<h2>Цель</h2>"
+                    "<p>Сделать сетку карточек, которая меняет число колонок на разных экранах.</p>"
+                    "<h3>Шаг 1 — включите Grid</h3>"
+                    "<p>У контейнера <code>.products</code> задайте <code>display: grid;</code>.</p>"
+                    "<h3>Шаг 2 — базовая сетка</h3>"
+                    "<p>Добавьте <code>grid-template-columns: repeat(3, 1fr)</code> и <code>gap</code>.</p>"
+                    "<h3>Шаг 3 — адаптив</h3>"
+                    "<p>Через <code>@media</code> сделайте 2 колонки до 900px и 1 колонку до 600px.</p>"
+                    "<h3>Проверка</h3>"
+                    "<p>Чекер проверяет наличие <code>display: grid</code>, <code>@media</code> и класса <code>.product-card</code>.</p>"
+                )},
+            ])
+            grid_theory = get_doc_by_pk(Lecture, str(grid_theory_ref.id))
+            grid_theory_id = str(getattr(grid_theory, "public_id", None) or str(grid_theory.id))
+            lessons.append(grid_theory_ref)
+            lessons.append(add_layout(
+                "Адаптивная сетка: 3-2-1",
+                "Сделайте сетку карточек 3-2-1 (десктоп-планшет-мобайл).",
+                (
+                    "<section class='products'>\n"
+                    "  <article class='product-card'>Карточка 1</article>\n"
+                    "  <article class='product-card'>Карточка 2</article>\n"
+                    "  <article class='product-card'>Карточка 3</article>\n"
+                    "  <article class='product-card'>Карточка 4</article>\n"
+                    "</section>"
+                ),
+                (
+                    ".products {\n"
+                    "  display: grid;\n"
+                    "  gap: 12px;\n"
+                    "  grid-template-columns: repeat(3, 1fr);\n"
+                    "}\n"
+                    "\n"
+                    ".product-card {\n"
+                    "  border: 1px solid #e2e8f0;\n"
+                    "  border-radius: 10px;\n"
+                    "  padding: 12px;\n"
+                    "}\n"
+                    "\n"
+                    "@media (max-width: 900px) {\n"
+                    "  .products {\n"
+                    "    grid-template-columns: repeat(2, 1fr);\n"
+                    "  }\n"
+                    "}\n"
+                    "\n"
+                    "@media (max-width: 600px) {\n"
+                    "  .products {\n"
+                    "    grid-template-columns: 1fr;\n"
+                    "  }\n"
+                    "}"
+                ),
+                "",
+                [
+                    {"id": "w2s1", "title": "Используется CSS Grid", "check_type": "css_contains", "check_value": "display: grid"},
+                    {"id": "w2s2", "title": "Есть media query", "check_type": "css_contains", "check_value": "@media"},
+                    {"id": "w2s3", "title": "Есть карточки", "check_type": "selector_exists", "check_value": ".product-card"},
+                ],
+                hints=["Начните с display: grid, потом добавьте @media шаг за шагом."],
+                editable_files=["css"],
+                attached_lecture_id=grid_theory_id,
+            ))
+
+            form_theory_ref = add_lecture("Лекция к заданию 3: форма и простая JS-валидация", [
+                {"type": "text", "content": (
+                    "<h2>Задача</h2>"
+                    "<p>Собрать форму и показать сообщение, если поле пустое.</p>"
+                    "<h3>Шаг 1 — структура формы</h3>"
+                    "<p>Нужны: форма <code>#login-form</code>, поле <code>#email</code>, кнопка и блок сообщения <code>#form-message</code>.</p>"
+                    "<h3>Шаг 2 — обработчик submit</h3>"
+                    "<p>Через <code>addEventListener('submit')</code> отмените отправку: <code>event.preventDefault()</code>.</p>"
+                    "<h3>Шаг 3 — проверка</h3>"
+                    "<p>Если email пустой, покажите текст <b>Заполните email.</b>. "
+                    "Если заполнен — текст <b>Форма готова к отправке.</b>.</p>"
+                    "<h3>Проверка себя</h3>"
+                    "<ul>"
+                    "<li>Нажмите кнопку с пустым полем — должно появиться сообщение об ошибке.</li>"
+                    "<li>Введите email и нажмите снова — сообщение должно измениться.</li>"
+                    "</ul>"
+                )},
+            ])
+            form_theory = get_doc_by_pk(Lecture, str(form_theory_ref.id))
+            form_theory_id = str(getattr(form_theory, "public_id", None) or str(form_theory.id))
+            lessons.append(form_theory_ref)
+            lessons.append(add_layout(
+                "Форма: валидация одного поля",
+                "Простая форма с проверкой email. Пошаговое решение в связанной лекции.",
+                (
+                    "<form class='login-form' id='login-form'>\n"
+                    "  <h2>Вход</h2>\n"
+                    "  <label for='email'>Email</label>\n"
+                    "  <input id='email' type='email' placeholder='you@example.com'>\n"
+                    "  <button type='submit' class='submit-btn'>Проверить</button>\n"
+                    "  <p class='form-message' id='form-message'></p>\n"
+                    "</form>"
+                ),
+                (
+                    ".login-form {\n"
+                    "  width: min(100%, 360px);\n"
+                    "  margin: 24px auto;\n"
+                    "  padding: 16px;\n"
+                    "  border: 1px solid #e2e8f0;\n"
+                    "  border-radius: 12px;\n"
+                    "  display: grid;\n"
+                    "  gap: 10px;\n"
+                    "  background: #fff;\n"
+                    "}\n"
+                    "\n"
+                    ".submit-btn {\n"
+                    "  border: 0;\n"
+                    "  border-radius: 8px;\n"
+                    "  padding: 8px 12px;\n"
+                    "  background: #0f172a;\n"
+                    "  color: #fff;\n"
+                    "}\n"
+                    "\n"
+                    ".form-message {\n"
+                    "  min-height: 20px;\n"
+                    "  color: #dc2626;\n"
+                    "}"
+                ),
+                (
+                    "const form = document.getElementById('login-form');\n"
+                    "const email = document.getElementById('email');\n"
+                    "const message = document.getElementById('form-message');\n"
+                    "\n"
+                    "form?.addEventListener('submit', (event) => {\n"
+                    "  event.preventDefault();\n"
+                    "  if (!email?.value) {\n"
+                    "    if (message) message.textContent = 'Заполните email.';\n"
+                    "    return;\n"
+                    "  }\n"
+                    "  if (message) message.textContent = 'Форма готова к отправке.';\n"
+                    "});"
+                ),
+                [
+                    {"id": "w3s1", "title": "Есть форма", "check_type": "selector_exists", "check_value": ".login-form"},
+                    {"id": "w3s2", "title": "Есть JS-проверка", "check_type": "js_contains", "check_value": "Заполните email"},
+                    {"id": "w3s3", "title": "Есть кнопка submit", "check_type": "selector_exists", "check_value": ".submit-btn"},
+                ],
+                hints=["Проверьте id элементов: login-form, email, form-message."],
+                editable_files=["html", "css", "js"],
+                attached_lecture_id=form_theory_id,
+            ))
 
         track.lessons = lessons
         track.visible_group_ids = []
         _ensure_public_id(track)
         track.save()
-        print(f"  [OK] Трек '{track.title}': {len(lessons)} уроков (лекция, задача, пазл, вопрос)")
+        print(f"  [OK] Трек '{track.title}': {len(lessons)} уроков")
 
     return created_tracks
 
 
 def create_orphan_assignments():
-    """Одиночные задания (не в треке): ровно по одному заданию каждого вида — задача, пазл, вопрос."""
+    """Одиночные задания (не в треке): ровно по одному каждого вида — задача, пазл, вопрос, верстка."""
     print("\n[*] Создание одиночных заданий (по одному каждого вида)...")
     # Одна одиночная задача: освобождаем public_id и создаём заново
     pid_task = _stable_public_id("orphan:task:Квадрат числа")
@@ -539,7 +979,59 @@ def create_orphan_assignments():
     oq.public_id = pid_question
     oq.save()
     print("  [OK] Создан одиночный вопрос (1 шт.)")
-    print("  [OK] Одиночные задания: 1 задача, 1 пазл, 1 вопрос")
+    # Одно одиночное задание по верстке
+    pid_layout = _stable_public_id("orphan:layout:карточка новости")
+    LayoutLesson.objects(public_id=pid_layout).delete()
+    ol = LayoutLesson(
+        title="Одиночная верстка: карточка новости",
+        description="Сверстайте карточку новости с заголовком, датой и кнопкой «Читать».",
+        track_id="",
+        template_html=(
+            "<article class='news-card'>\n"
+            "  <p class='date'>19 марта 2026</p>\n"
+            "  <h3 class='title'>Запуск нового курса</h3>\n"
+            "  <button class='read-more'>Читать</button>\n"
+            "</article>"
+        ),
+        template_css=(
+            ".news-card {\n"
+            "  max-width: 380px;\n"
+            "  margin: 24px auto;\n"
+            "  padding: 16px;\n"
+            "  border: 1px solid #e2e8f0;\n"
+            "  border-radius: 12px;\n"
+            "  background: #fff;\n"
+            "}\n"
+            "\n"
+            ".date {\n"
+            "  font-size: 12px;\n"
+            "  color: #64748b;\n"
+            "}\n"
+            "\n"
+            ".title {\n"
+            "  margin: 8px 0 12px;\n"
+            "}\n"
+            "\n"
+            ".read-more {\n"
+            "  border: 0;\n"
+            "  border-radius: 8px;\n"
+            "  padding: 8px 12px;\n"
+            "  background: #2563eb;\n"
+            "  color: #fff;\n"
+            "}"
+        ),
+        template_js="",
+        editable_files=["html", "css"],
+        subtasks=[
+            LayoutSubtaskEmbed(id="o1", title="Есть карточка", check_type="selector_exists", check_value=".news-card"),
+            LayoutSubtaskEmbed(id="o2", title="Есть кнопка", check_type="selector_exists", check_value=".read-more"),
+        ],
+        hints=["Добавьте визуальное разделение карточки через границу и скругление."],
+    )
+    ol.public_id = pid_layout
+    ol.save()
+    print("  [OK] Создана одиночная верстка (1 шт.)")
+    print("  [OK] Одиночные задания: 1 задача, 1 пазл, 1 вопрос, 1 верстка")
 
 
 def _cleanup_stale_orphans():
@@ -550,6 +1042,7 @@ def _cleanup_stale_orphans():
         _stable_public_id("orphan:task:Квадрат числа"),
         _stable_public_id("orphan:puzzle:вывод строки"),
         _stable_public_id("orphan:question:тип range"),
+        _stable_public_id("orphan:layout:карточка новости"),
     }
     in_track_ids = set()
     for track in Track.objects.all():
@@ -599,6 +1092,10 @@ def _cleanup_stale_orphans():
         oid, pid = str(question.id), str(getattr(question, "public_id", None) or "")
         if oid not in in_track_ids and pid not in in_track_ids and pid not in allowed_orphan_public_ids:
             question.delete()
+    for layout in list(LayoutLesson.objects.all()):
+        oid, pid = str(layout.id), str(getattr(layout, "public_id", None) or "")
+        if oid not in in_track_ids and pid not in in_track_ids and pid not in allowed_orphan_public_ids:
+            layout.delete()
     print("  [OK] Очистка лишних одиночных заданий выполнена")
 
 
@@ -636,6 +1133,548 @@ def create_test_achievements(users, groups):
     print("  [OK] Тестовые достижения созданы")
 
 
+def clear_mock_learning_content():
+    """Удаляет все треки и все типы учебных заданий/уроков."""
+    print("\n[*] Очистка мок-контента (треки и задания)...")
+    tracks_deleted = Track.objects.delete()
+    lectures_deleted = Lecture.objects.delete()
+    tasks_deleted = Task.objects.delete()
+    puzzles_deleted = Puzzle.objects.delete()
+    questions_deleted = Question.objects.delete()
+    layouts_deleted = LayoutLesson.objects.delete()
+    print(
+        "  [OK] Удалено:"
+        f" треков={tracks_deleted},"
+        f" лекций={lectures_deleted},"
+        f" задач={tasks_deleted},"
+        f" пазлов={puzzles_deleted},"
+        f" вопросов={questions_deleted},"
+        f" верстки={layouts_deleted}"
+    )
+
+
+def create_python_kids_track(users, groups):
+    """Создает один полноценный трек по Python (14+) от существующего учителя."""
+    print("\n[*] Создание одного Python-трека (14+)...")
+
+    teacher = next((u for u in users if getattr(u, "username", "") == "teacher1"), None)
+    if not teacher:
+        print("  [WARN] Учитель teacher1 не найден, трек будет создан без автора.")
+        teacher_id = ""
+        teacher_group_ids = []
+    else:
+        teacher_id = str(teacher.id)
+        teacher_group_ids = [str(g) for g in (getattr(teacher, "group_ids", None) or [])]
+
+    track_title = "Python Start 14+: от переменных до списков"
+    Track.objects(title=track_title).delete()
+    track = Track(
+        title=track_title,
+        description=(
+            "Погружение в Python для подростков 14+: переменные, типы, условия, циклы, "
+            "списки и их методы на практике."
+        ),
+        order=1,
+        lessons=[],
+        visible_group_ids=teacher_group_ids,
+        created_by_id=teacher_id,
+    )
+    track.public_id = _stable_public_id("track:" + track_title)
+    track.save()
+
+    track_id = str(track.id)
+    lessons = []
+    order = 1
+
+    def add_lecture(title, blocks):
+        nonlocal order
+        pid = _stable_public_id(f"lecture:{track_title}:{title}")
+        Lecture.objects(public_id=pid).delete()
+        lec = Lecture(
+            title=title,
+            track_id=track_id,
+            content="",
+            blocks=blocks,
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        lec.public_id = pid
+        lec.save()
+        lessons.append(LessonRef(id=str(lec.id), type="lecture", title=title, order=order))
+        order += 1
+
+    def add_task(title, description, starter, test_cases, hints=None):
+        nonlocal order
+        pid = _stable_public_id(f"task:{track_title}:{title}")
+        Task.objects(public_id=pid).delete()
+        task = Task(
+            title=title,
+            description=description,
+            starter_code=starter,
+            track_id=track_id,
+            test_cases=test_cases,
+            hints=hints or [],
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        task.public_id = pid
+        task.save()
+        lessons.append(LessonRef(id=str(task.id), type="task", title=title, order=order))
+        order += 1
+
+    def add_puzzle(title, description, blocks, solution, hints=None):
+        nonlocal order
+        pid = _stable_public_id(f"puzzle:{track_title}:{title}")
+        Puzzle.objects(public_id=pid).delete()
+        puzzle = Puzzle(
+            title=title,
+            description=description,
+            track_id=track_id,
+            language="python",
+            blocks=blocks,
+            solution=solution,
+            hints=hints or [],
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        puzzle.public_id = pid
+        puzzle.save()
+        lessons.append(LessonRef(id=str(puzzle.id), type="puzzle", title=title, order=order))
+        order += 1
+
+    def add_question(title, prompt, choices, multiple=False, hints=None):
+        nonlocal order
+        pid = _stable_public_id(f"question:{track_title}:{title}")
+        Question.objects(public_id=pid).delete()
+        question = Question(
+            title=title,
+            prompt=prompt,
+            track_id=track_id,
+            choices=choices,
+            multiple=multiple,
+            hints=hints or [],
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        question.public_id = pid
+        question.save()
+        lessons.append(LessonRef(id=str(question.id), type="question", title=title, order=order))
+        order += 1
+
+    add_lecture(
+        "Урок 1: Переменные и типы данных",
+        [
+            {
+                "type": "text",
+                "content": (
+                    "## Что такое переменная\n"
+                    "Переменная — это имя, под которым хранится значение.\n\n"
+                    "## Базовые типы\n"
+                    "- `int` — целые числа\n"
+                    "- `float` — дробные числа\n"
+                    "- `str` — строки\n"
+                    "- `bool` — логические значения\n\n"
+                    "## Пример\n"
+                    "```python\nname = 'Аня'\nage = 14\nis_student = True\n```"
+                ),
+            }
+        ],
+    )
+    add_task(
+        "Практика: знакомство с переменными",
+        "Создайте переменные `name` и `age` и выведите строку в формате: Меня зовут <name>, мне <age>.",
+        "name = 'Маша'\nage = 14\n# ваш код ниже\n",
+        [
+            TaskCaseEmbed(id="c1", input="", expected_output="Меня зовут Маша, мне 14\n", is_public=True),
+        ],
+        hints=["Используйте f-строку: f'Меня зовут {name}, мне {age}'"],
+    )
+
+    add_lecture(
+        "Урок 2: Условия и циклы",
+        [
+            {
+                "type": "text",
+                "content": (
+                    "## Условия\n"
+                    "`if`, `elif`, `else` помогают принимать решения в коде.\n\n"
+                    "## Циклы\n"
+                    "- `for` — когда знаем, сколько повторов\n"
+                    "- `while` — когда повторяем, пока условие истинно\n\n"
+                    "```python\nfor i in range(3):\n    print(i)\n```"
+                ),
+            }
+        ],
+    )
+    add_task(
+        "Практика: сумма чисел от 1 до N",
+        "Прочитайте число N и выведите сумму чисел от 1 до N включительно.",
+        "n = int(input())\n# ваш код\n",
+        [
+            TaskCaseEmbed(id="c1", input="5\n", expected_output="15\n", is_public=True),
+            TaskCaseEmbed(id="c2", input="1\n", expected_output="1\n", is_public=True),
+        ],
+        hints=["Используйте цикл `for` и переменную-накопитель."],
+    )
+
+    add_lecture(
+        "Урок 3: Списки (массивы) и методы",
+        [
+            {
+                "type": "text",
+                "content": (
+                    "## Списки в Python\n"
+                    "Список (`list`) — это упорядоченная коллекция элементов.\n\n"
+                    "```python\nnumbers = [3, 7, 2]\n```\n\n"
+                    "## Полезные методы списка\n"
+                    "- `append(x)` — добавить в конец\n"
+                    "- `insert(i, x)` — вставить по индексу\n"
+                    "- `pop()` — удалить последний элемент\n"
+                    "- `remove(x)` — удалить по значению\n"
+                    "- `sort()` — сортировка\n"
+                    "- `reverse()` — разворот\n"
+                    "- `count(x)` — посчитать количество\n"
+                    "- `index(x)` — найти индекс"
+                ),
+            }
+        ],
+    )
+    add_task(
+        "Практика: методы списка",
+        "Дан список numbers = [1, 2, 3]. Добавьте 4, удалите 2, отсортируйте по убыванию и выведите список.",
+        "numbers = [1, 2, 3]\n# ваш код\nprint(numbers)\n",
+        [
+            TaskCaseEmbed(id="c1", input="", expected_output="[4, 3, 1]\n", is_public=True),
+        ],
+        hints=["Подсказка: `append`, `remove`, затем `sort(reverse=True)`."],
+    )
+    add_puzzle(
+        "Пазл: собери работу со списком",
+        "Расположи строки так, чтобы программа выводила `[10, 20, 30]`.",
+        [
+            CodeBlockEmbed(id="b1", code="nums = [10, 20]", order="1"),
+            CodeBlockEmbed(id="b2", code="nums.append(30)", order="2"),
+            CodeBlockEmbed(id="b3", code="print(nums)", order="3"),
+        ],
+        "nums = [10, 20]\nnums.append(30)\nprint(nums)\n",
+        hints=["Сначала создаем список, потом меняем его методом, затем печатаем."],
+    )
+    add_question(
+        "Проверка: методы списка",
+        "Какой метод добавляет элемент в конец списка?",
+        [
+            QuestionChoiceEmbed(id="a", text="append()", is_correct=True),
+            QuestionChoiceEmbed(id="b", text="pop()", is_correct=False),
+            QuestionChoiceEmbed(id="c", text="remove()", is_correct=False),
+            QuestionChoiceEmbed(id="d", text="clear()", is_correct=False),
+        ],
+        multiple=False,
+        hints=["Вспомните самый базовый способ добавить элемент в list."],
+    )
+
+    track.lessons = lessons
+    track.save()
+    print(f"  [OK] Создан трек: {track.title} (уроков: {len(lessons)})")
+    return [track]
+
+
+def create_showcase_track(users, groups):
+    """Создает демонстрационный трек со всеми типами уроков и ключевыми возможностями."""
+    print("\n[*] Создание демо-трека со всем функционалом...")
+
+    teacher = next((u for u in users if getattr(u, "username", "") == "teacher2"), None)
+    if not teacher:
+        print("  [WARN] Учитель teacher2 не найден, демо-трек будет создан без автора.")
+        teacher_id = ""
+        teacher_group_ids = []
+    else:
+        teacher_id = str(teacher.id)
+        teacher_group_ids = [str(g) for g in (getattr(teacher, "group_ids", None) or [])]
+
+    track_title = "Демо: все возможности уроков и заданий"
+    Track.objects(title=track_title).delete()
+    track = Track(
+        title=track_title,
+        description=(
+            "Демонстрационный трек: показывает лекции с разными блоками, задачи, пазлы, вопросы, "
+            "опросы и задания по верстке с подзадачами."
+        ),
+        order=2,
+        lessons=[],
+        visible_group_ids=teacher_group_ids,
+        created_by_id=teacher_id,
+    )
+    track.public_id = _stable_public_id("track:" + track_title)
+    track.save()
+
+    now = datetime.now(timezone.utc)
+    track_id = str(track.id)
+    lessons = []
+    order = 1
+
+    def add_lecture(title, blocks, hints=None, max_attempts=None):
+        nonlocal order
+        pid = _stable_public_id(f"lecture:{track_title}:{title}")
+        Lecture.objects(public_id=pid).delete()
+        lec = Lecture(
+            title=title,
+            track_id=track_id,
+            content="",
+            blocks=blocks,
+            hints=hints or [],
+            max_attempts=max_attempts,
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        lec.public_id = pid
+        lec.save()
+        lessons.append(LessonRef(id=str(lec.id), type="lecture", title=title, order=order))
+        order += 1
+        return lec
+
+    def add_task(title, description, starter, test_cases, hints=None, hard=False, max_attempts=None):
+        nonlocal order
+        pid = _stable_public_id(f"task:{track_title}:{title}")
+        Task.objects(public_id=pid).delete()
+        task = Task(
+            title=title,
+            description=description,
+            starter_code=starter,
+            track_id=track_id,
+            test_cases=test_cases,
+            hints=hints or [],
+            hard=hard,
+            max_attempts=max_attempts,
+            available_from=now - timedelta(days=1),
+            available_until=now + timedelta(days=14),
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        task.public_id = pid
+        task.save()
+        lessons.append(LessonRef(id=str(task.id), type="task", title=title, order=order))
+        order += 1
+        return task
+
+    def add_puzzle(title, description, blocks, solution, hints=None, max_attempts=None):
+        nonlocal order
+        pid = _stable_public_id(f"puzzle:{track_title}:{title}")
+        Puzzle.objects(public_id=pid).delete()
+        puzzle = Puzzle(
+            title=title,
+            description=description,
+            track_id=track_id,
+            language="python",
+            blocks=blocks,
+            solution=solution,
+            hints=hints or [],
+            max_attempts=max_attempts,
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        puzzle.public_id = pid
+        puzzle.save()
+        lessons.append(LessonRef(id=str(puzzle.id), type="puzzle", title=title, order=order))
+        order += 1
+        return puzzle
+
+    def add_question(title, prompt, choices, multiple=False, hints=None, max_attempts=None):
+        nonlocal order
+        pid = _stable_public_id(f"question:{track_title}:{title}")
+        Question.objects(public_id=pid).delete()
+        question = Question(
+            title=title,
+            prompt=prompt,
+            track_id=track_id,
+            choices=choices,
+            multiple=multiple,
+            hints=hints or [],
+            max_attempts=max_attempts,
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        question.public_id = pid
+        question.save()
+        lessons.append(LessonRef(id=str(question.id), type="question", title=title, order=order))
+        order += 1
+        return question
+
+    def add_survey(title, prompt):
+        nonlocal order
+        pid = _stable_public_id(f"survey:{track_title}:{title}")
+        Survey.objects(public_id=pid).delete()
+        survey = Survey(
+            title=title,
+            prompt=prompt,
+            track_id=track_id,
+            available_from=now - timedelta(days=1),
+            available_until=now + timedelta(days=30),
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        survey.public_id = pid
+        survey.save()
+        lessons.append(LessonRef(id=str(survey.id), type="survey", title=title, order=order))
+        order += 1
+        return survey
+
+    def add_layout(title, description, template_html, template_css, template_js, subtasks, hints=None, editable_files=None, attached_lecture_id=""):
+        nonlocal order
+        pid = _stable_public_id(f"layout:{track_title}:{title}")
+        LayoutLesson.objects(public_id=pid).delete()
+        layout = LayoutLesson(
+            title=title,
+            description=description,
+            track_id=track_id,
+            template_html=template_html,
+            template_css=template_css,
+            template_js=template_js,
+            editable_files=editable_files or ["html", "css", "js"],
+            subtasks=[LayoutSubtaskEmbed(**st) for st in subtasks],
+            hints=hints or [],
+            max_attempts=3,
+            available_from=now - timedelta(days=1),
+            available_until=now + timedelta(days=21),
+            attached_lecture_id=attached_lecture_id or "",
+            visible_group_ids=teacher_group_ids,
+            created_by_id=teacher_id,
+        )
+        layout.public_id = pid
+        layout.save()
+        lessons.append(LessonRef(id=str(layout.id), type="layout", title=title, order=order))
+        order += 1
+        return layout
+
+    lecture_with_all_blocks = add_lecture(
+        "Лекция-демо: все блоки контента",
+        [
+            {
+                "type": "text",
+                "content": (
+                    "## Демо-лекция\n"
+                    "Здесь показаны все основные типы блоков.\n\n"
+                    "- текст и списки\n"
+                    "- изображения\n"
+                    "- код\n"
+                    "- видео с вопросом на паузе\n"
+                ),
+            },
+            {
+                "type": "image",
+                "url": "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?w=1200",
+                "alt": "Рабочее место программиста",
+            },
+            {
+                "type": "code",
+                "language": "python",
+                "explanation": "Короткий пример кода в блоке лекции.",
+                "code": "items = [1, 2, 3]\nprint(sum(items))",
+            },
+            {
+                "type": "video",
+                "id": "showcase-video-1",
+                "url": "https://www.w3schools.com/html/mov_bbb.mp4",
+                "pause_points": [
+                    {
+                        "id": "sp1",
+                        "timestamp": 2,
+                        "question": {
+                            "id": "sq1",
+                            "title": "Вопрос по видео",
+                            "prompt": "Какой метод добавляет элемент в конец списка?",
+                            "choices": [
+                                {"id": "c1", "text": "append()", "is_correct": True},
+                                {"id": "c2", "text": "remove()", "is_correct": False},
+                                {"id": "c3", "text": "pop()", "is_correct": False},
+                            ],
+                            "multiple": False,
+                        },
+                    }
+                ],
+            },
+        ],
+        hints=["Откройте каждый тип блока и проверьте, как он отображается."],
+        max_attempts=3,
+    )
+
+    add_task(
+        "Задача-демо: тесты, подсказки и лимит попыток",
+        "Реализуйте функцию, которая читает два числа и выводит их произведение.",
+        "a = int(input())\nb = int(input())\n# ваш код\n",
+        [
+            TaskCaseEmbed(id="c1", input="2\n5\n", expected_output="10\n", is_public=True),
+            TaskCaseEmbed(id="c2", input="-3\n4\n", expected_output="-12\n", is_public=False),
+        ],
+        hints=["Проверьте порядок чтения input().", "Вывод должен быть только числом."],
+        hard=True,
+        max_attempts=4,
+    )
+
+    add_puzzle(
+        "Puzzle-демо: сборка алгоритма",
+        "Соберите блоки, чтобы программа вычисляла среднее двух чисел.",
+        [
+            CodeBlockEmbed(id="p1", code="a = int(input())", order="1"),
+            CodeBlockEmbed(id="p2", code="b = int(input())", order="2"),
+            CodeBlockEmbed(id="p3", code="print((a + b) / 2)", order="3"),
+        ],
+        "a = int(input())\nb = int(input())\nprint((a + b) / 2)\n",
+        hints=["Сначала читаем значения, потом считаем среднее."],
+        max_attempts=2,
+    )
+
+    add_question(
+        "Вопрос-демо: множественный выбор",
+        "Какие из этих методов изменяют список на месте?",
+        [
+            QuestionChoiceEmbed(id="q1", text="append()", is_correct=True),
+            QuestionChoiceEmbed(id="q2", text="sort()", is_correct=True),
+            QuestionChoiceEmbed(id="q3", text="count()", is_correct=False),
+            QuestionChoiceEmbed(id="q4", text="reverse()", is_correct=True),
+        ],
+        multiple=True,
+        hints=["Подумайте, возвращает ли метод новый объект или меняет текущий list."],
+        max_attempts=3,
+    )
+
+    add_survey(
+        "Опрос-демо: свободный ответ",
+        "Какая тема в Python была самой понятной, а какая вызвала вопросы? Напишите коротко.",
+    )
+
+    add_layout(
+        "Верстка-демо: карточка профиля",
+        "Соберите карточку профиля. Для теории используйте прикрепленную лекцию.",
+        (
+            "<article class='profile-card'>\n"
+            "  <h2 class='name'>Имя Фамилия</h2>\n"
+            "  <p class='role'>Junior Python Developer</p>\n"
+            "  <button class='action-btn'>Написать</button>\n"
+            "</article>\n"
+        ),
+        (
+            ".profile-card { max-width: 320px; margin: 24px auto; padding: 16px; border-radius: 12px; "
+            "border: 1px solid #d4d4d8; }\n"
+            ".name { margin: 0 0 8px; font-size: 22px; }\n"
+            ".action-btn { padding: 8px 12px; border-radius: 8px; }\n"
+        ),
+        "console.log('layout demo ready');",
+        [
+            {"id": "l1", "title": "Есть контейнер .profile-card", "check_type": "selector_exists", "check_value": ".profile-card"},
+            {"id": "l2", "title": "Есть кнопка .action-btn", "check_type": "selector_exists", "check_value": ".action-btn"},
+            {"id": "l3", "title": "В CSS задан border-radius", "check_type": "css_contains", "check_value": "border-radius"},
+        ],
+        hints=["Начните с HTML-структуры, затем подключите стили."],
+        editable_files=["html", "css", "js"],
+        attached_lecture_id=str(getattr(lecture_with_all_blocks, "public_id", "") or lecture_with_all_blocks.id),
+    )
+
+    track.lessons = lessons
+    track.save()
+    print(f"  [OK] Создан трек: {track.title} (уроков: {len(lessons)})")
+    return [track]
+
+
 def main():
     """Главная функция"""
     print("[*] Создание тестовых данных...\n")
@@ -652,21 +1691,18 @@ def main():
         # expose groups to track creation logic
         global GLOBAL_CREATED_GROUPS
         GLOBAL_CREATED_GROUPS = groups
-        tracks = create_test_tracks_with_lessons()
-        create_orphan_assignments()
-        _cleanup_stale_orphans()
+        clear_mock_learning_content()
+        tracks = []
+        tracks.extend(create_python_kids_track(users, groups))
+        tracks.extend(create_showcase_track(users, groups))
         create_test_achievements(users, groups)
-        
-        # Делаем все треки публичными (видимыми без авторизации)
-        updated = Track.objects(visible_group_ids__ne=[]).update(set__visible_group_ids=[])
-        if updated:
-            print(f"\n[OK] Обновлена видимость {updated} треков (теперь публичные)")
         
         # Собираем статистику
         total_lectures = Lecture.objects.count()
         total_tasks = Task.objects.count()
         total_puzzles = Puzzle.objects.count()
         total_questions = Question.objects.count()
+        total_layouts = LayoutLesson.objects.count()
         total_achievements = UserAchievement.objects.count()
 
         print(f"\n[OK] Тестовые данные успешно созданы!")
@@ -678,6 +1714,7 @@ def main():
         print(f"   Задач: {total_tasks}")
         print(f"   Puzzle: {total_puzzles}")
         print(f"   Вопросов: {total_questions}")
+        print(f"   Верстка: {total_layouts}")
         
         print("\n[*] Данные для входа:")
         print("   Администратор: admin / admin123")
@@ -687,11 +1724,11 @@ def main():
         
         print("\n[*] Треки:")
         for track in tracks:
-            lesson_counts = {"lecture": 0, "task": 0, "puzzle": 0, "question": 0}
+            lesson_counts = {"lecture": 0, "task": 0, "puzzle": 0, "question": 0, "layout": 0}
             for lesson in track.lessons:
                 lesson_counts[lesson.type] = lesson_counts.get(lesson.type, 0) + 1
             parts = [f"{lesson_counts['lecture']} лекций", f"{lesson_counts['task']} задач",
-                     f"{lesson_counts['puzzle']} puzzle", f"{lesson_counts['question']} вопросов"]
+                     f"{lesson_counts['puzzle']} puzzle", f"{lesson_counts['question']} вопросов", f"{lesson_counts['layout']} верстка"]
             print(f"   {track.title}: {', '.join(parts)}")
         
     except Exception as e:

@@ -33,6 +33,8 @@ class Task(Document):
     visible_group_ids = ListField(StringField(), default=list)
     # Подсказки по порядку (показываются по одной)
     hints = ListField(StringField(), default=list)
+    # Достижения, которые выдаются за успешное выполнение этой задачи.
+    reward_achievement_ids = ListField(StringField(), default=list)
     # Временное задание: доступно только в указанный период (UTC)
     available_from = DateTimeField(default=None)
     available_until = DateTimeField(default=None)

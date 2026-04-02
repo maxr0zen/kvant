@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import type { Question, QuestionChoice, QuestionCheckResult } from "@/lib/types";
+import type { AchievementUnlocked, Question, QuestionChoice, QuestionCheckResult } from "@/lib/types";
 import { checkQuestionAnswer } from "@/lib/api/questions";
 import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
 import { HintsBlock } from "@/components/hints-block";
 import { AvailabilityNotice } from "@/components/availability-notice";
 import { AvailabilityCountdown } from "@/components/availability-countdown";
+import { AchievementUnlockCelebration } from "@/components/achievement-unlock-celebration";
 
 interface QuestionViewProps {
   question: Question;
@@ -22,7 +23,17 @@ export function QuestionView({ question }: QuestionViewProps) {
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<QuestionCheckResult | null>(null);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<AchievementUnlocked[]>([]);
+  const shownAchievementIds = useRef<Set<string>>(new Set());
   const { toast } = useToast();
+
+  function showUnlocked(items: AchievementUnlocked[] | undefined) {
+    if (!items || items.length === 0) return;
+    const fresh = items.filter((a) => a.id && !shownAchievementIds.current.has(a.id));
+    if (!fresh.length) return;
+    for (const a of fresh) shownAchievementIds.current.add(a.id);
+    setUnlockedAchievements(fresh);
+  }
 
   useEffect(() => {
     // shuffle choices on mount
@@ -76,6 +87,7 @@ export function QuestionView({ question }: QuestionViewProps) {
           });
         }
       } else {
+        showUnlocked(res.unlockedAchievements);
         toast({ title: "Решение верное", description: res.message, variant: "default" });
         router.refresh();
       }
@@ -168,6 +180,10 @@ export function QuestionView({ question }: QuestionViewProps) {
           </Card>
         </div>
       </div>
+      <AchievementUnlockCelebration
+        items={unlockedAchievements}
+        onDone={() => setUnlockedAchievements([])}
+      />
     </div>
   );
 }

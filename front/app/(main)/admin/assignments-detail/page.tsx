@@ -192,15 +192,16 @@ export default function AssignmentsDetailPage() {
         title="Детализация заданий"
         description="Активность учеников и выполнение одиночных заданий"
         breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Детализация" }]}
+        compact
       />
 
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "students" | "assignments")} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 h-11 p-1 bg-muted/50">
-          <TabsTrigger value="students" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+        <TabsList className="h-11 w-full max-w-full justify-start overflow-x-auto p-1 bg-muted/50 sm:max-w-md">
+          <TabsTrigger value="students" className="flex items-center gap-2 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Users className="h-4 w-4" />
             По ученикам
           </TabsTrigger>
-          <TabsTrigger value="assignments" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+          <TabsTrigger value="assignments" className="flex items-center gap-2 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <FileText className="h-4 w-4" />
             По заданиям
           </TabsTrigger>
@@ -210,14 +211,14 @@ export default function AssignmentsDetailPage() {
         <TabsContent value="students" className="mt-6 space-y-4">
           <Card className="border-0 bg-muted/30">
             <CardContent className="pt-5 pb-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                   <Label htmlFor="group-filter" className="text-sm font-medium shrink-0">Фильтр по группе</Label>
                   <select
                     id="group-filter"
                     value={groupFilter}
                     onChange={(e) => setGroupFilter(e.target.value)}
-                    className="flex h-9 rounded-lg border border-input bg-background px-3 py-2 text-sm w-full sm:w-[220px] focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    className="flex h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-[220px] focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   >
                     <option value="">Все группы</option>
                     {groups.map((g) => (
@@ -343,14 +344,14 @@ export default function AssignmentsDetailPage() {
         {/* ========== РЕЖИМ: ПО ЗАДАНИЯМ ========== */}
         <TabsContent value="assignments" className="mt-6">
           <Tabs defaultValue={permanent.length > 0 ? "permanent" : temporary.length > 0 ? "temporary" : "overdue"} className="w-full">
-            <TabsList className="grid w-full max-w-lg grid-cols-3 h-11 p-1 bg-muted/50 mb-6">
-              <TabsTrigger value="permanent" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <TabsList className="mb-6 h-11 w-full max-w-full justify-start overflow-x-auto p-1 bg-muted/50 sm:max-w-lg">
+              <TabsTrigger value="permanent" className="whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 Постоянные ({permanent.length})
               </TabsTrigger>
-              <TabsTrigger value="temporary" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <TabsTrigger value="temporary" className="whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 Временные ({temporary.length})
               </TabsTrigger>
-              <TabsTrigger value="overdue" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <TabsTrigger value="overdue" className="whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 Просроченные ({overdue.length})
               </TabsTrigger>
             </TabsList>
@@ -411,7 +412,7 @@ export default function AssignmentsDetailPage() {
                                         [assignmentKey]: e.target.value,
                                       }))
                                     }
-                                    className="flex h-9 rounded-lg border border-input bg-background px-3 py-2 text-sm min-w-[140px] focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-auto sm:min-w-[180px] focus:ring-2 focus:ring-ring focus:ring-offset-2"
                                   >
                                     <option value="">Выберите группу</option>
                                     {groupsInAssignment.map((g) => (

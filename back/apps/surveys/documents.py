@@ -13,6 +13,8 @@ class Survey(Document):
     track_id = StringField(required=True)
     public_id = StringField()
     visible_group_ids = ListField(StringField(), default=list)
+    # Достижения, которые выдаются после принятия ответа преподавателем.
+    reward_achievement_ids = ListField(StringField(), default=list)
     available_from = DateTimeField(default=None)
     available_until = DateTimeField(default=None)
     created_by_id = StringField(default="")

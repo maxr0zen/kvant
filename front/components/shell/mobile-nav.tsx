@@ -22,6 +22,7 @@ import {
   X,
   CheckCircle2,
   Code2,
+  Library,
 } from "lucide-react";
 import { cn } from "@/components/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ function MobileNavItem({ href, label, icon: Icon, active, onClose }: { href: str
       aria-current={active ? "page" : undefined}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      <span>{label}</span>
+      <span className="min-w-0 flex-1 break-words">{label}</span>
     </Link>
   );
 }
@@ -163,16 +164,16 @@ export function MobileNav() {
                   )}
                   aria-current={pathname === `/main/${track.id}` ? "page" : undefined}
                 >
-                  {track.title}
+                  <span className="min-w-0 flex-1 break-words">{track.title}</span>
                 </Link>
               ))}
 
               {isLoggedIn && (
                 <MobileNavItem
-                  href="/platform"
+                  href="/completed"
                   label="Выполненные"
                   icon={CheckCircle2}
-                  active={pathname === "/platform" || pathname.startsWith("/platform/")}
+                  active={pathname === "/completed" || pathname.startsWith("/completed/")}
                   onClose={() => setOpen(false)}
                 />
               )}
@@ -198,6 +199,13 @@ export function MobileNav() {
                 <>
                   <MobileNavSection label="Управление" />
                   <MobileNavItem href="/profile" label="Кабинет" icon={UserCircle} active={pathname === "/profile"} onClose={() => setOpen(false)} />
+                  <MobileNavItem
+                    href="/admin/teachers-materials"
+                    label="Материалы учителей"
+                    icon={Library}
+                    active={pathname.startsWith("/admin/teachers-materials")}
+                    onClose={() => setOpen(false)}
+                  />
                   <MobileNavSection label="Создать" />
                   {teacherCreateItems.map((item) => (
                     <MobileNavItem

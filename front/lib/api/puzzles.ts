@@ -33,6 +33,7 @@ function mapPuzzleFromApi(data: Record<string, unknown>): Puzzle {
     maxAttempts: data.max_attempts != null ? Number(data.max_attempts) : undefined,
     attemptsUsed: data.attempts_used != null ? Number(data.attempts_used) : undefined,
     canEdit: Boolean(data.can_edit),
+    rewardAchievementIds: Array.isArray(data.reward_achievement_ids) ? (data.reward_achievement_ids as string[]) : undefined,
   };
 }
 
@@ -87,6 +88,7 @@ export async function createPuzzle(data: Omit<Puzzle, "id">): Promise<Puzzle> {
           available_from: data.availableFrom ?? null,
           available_until: data.availableUntil ?? null,
           max_attempts: data.maxAttempts ?? null,
+          reward_achievement_ids: data.rewardAchievementIds ?? [],
         },
       });
       if (!res.ok) {
@@ -102,7 +104,7 @@ export async function createPuzzle(data: Omit<Puzzle, "id">): Promise<Puzzle> {
   return createPuzzleStub(data);
 }
 
-export type PuzzleUpdatePayload = Partial<Pick<Puzzle, "title" | "description" | "language" | "trackId" | "blocks" | "solution" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts">>;
+export type PuzzleUpdatePayload = Partial<Pick<Puzzle, "title" | "description" | "language" | "trackId" | "blocks" | "solution" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts" | "rewardAchievementIds">>;
 
 export async function updatePuzzle(id: string, data: PuzzleUpdatePayload): Promise<Puzzle> {
   if (!hasApi()) throw new Error("API not configured");
@@ -118,6 +120,7 @@ export async function updatePuzzle(id: string, data: PuzzleUpdatePayload): Promi
   if (data.availableFrom !== undefined) body.available_from = data.availableFrom;
   if (data.availableUntil !== undefined) body.available_until = data.availableUntil;
   if (data.maxAttempts !== undefined) body.max_attempts = data.maxAttempts;
+  if (data.rewardAchievementIds !== undefined) body.reward_achievement_ids = data.rewardAchievementIds;
   const res = await apiFetch(`/api/puzzles/${id}/`, {
     method: "PATCH",
     body,
@@ -157,6 +160,14 @@ export async function checkPuzzleSolution(
       return {
         passed: Boolean(data.passed),
         message: String(data.message ?? ""),
+        unlockedAchievements: Array.isArray(data.unlocked_achievements)
+          ? data.unlocked_achievements.map((a: Record<string, unknown>) => ({
+              id: String(a.id ?? ""),
+              title: String(a.title ?? ""),
+              description: String(a.description ?? ""),
+              icon: String(a.icon ?? "🏆"),
+            }))
+          : [],
       };
     } catch (e) {
       throw e;

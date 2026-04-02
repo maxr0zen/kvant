@@ -26,13 +26,14 @@ export function LectureHeader({ lectureId, title, canEdit: canEditProp }: Lectur
   }, [lectureId, canEditProp]);
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <h1 className="text-3xl font-semibold tracking-tight">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <h1 className="min-w-0 flex-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl">
         {title}
       </h1>
       {canEdit && (
         <OwnerActions
           canEdit
+          compact
           editHref={`/lectures/${lectureId}/edit`}
           onDelete={() => deleteLecture(lectureId)}
           afterDeleteRedirect="/main"

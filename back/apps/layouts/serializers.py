@@ -3,10 +3,42 @@ from common.db_utils import datetime_to_iso_utc, to_utc_datetime, get_doc_by_pk
 from .documents import LayoutLesson, LayoutSubtaskEmbed, VALID_EDITABLE
 
 
+def _attached_lecture_id_for_api(raw: str) -> str:
+    """Сырый id из БД (ObjectId или public_id) → id для API (предпочтительно public_id лекции)."""
+    v = (raw or "").strip()
+    if not v:
+        return ""
+    try:
+        from apps.lectures.documents import Lecture
+
+        lec = get_doc_by_pk(Lecture, v)
+        return str(getattr(lec, "public_id", None) or str(lec.id))
+    except Exception:
+        return v
+
+
+def _embedded_attached_lecture(raw_attached: str, request):
+    """
+    Полное тело лекции для встроенного просмотра на странице верстки.
+    Убирает второй HTTP-запрос на клиенте (важно при CORS / NEXT_PUBLIC_API_URL / JWT).
+    """
+    v = (raw_attached or "").strip()
+    if not v:
+        return None
+    try:
+        from apps.lectures.documents import Lecture
+        from apps.lectures.serializers import LectureSerializer
+
+        lec = get_doc_by_pk(Lecture, v)
+        return LectureSerializer(lec, context={"request": request}).data
+    except Exception:
+        return None
+
+
 class LayoutSubtaskSerializer(serializers.Serializer):
     id = serializers.CharField()
     title = serializers.CharField()
-    check_type = serializers.ChoiceField(choices=["selector_exists", "html_contains"])
+    check_type = serializers.ChoiceField(choices=["selector_exists", "html_contains", "css_contains", "js_contains"])
     check_value = serializers.CharField()
 
 
@@ -14,6 +46,7 @@ class LayoutSerializer(serializers.Serializer):
     id = serializers.SerializerMethodField()
     title = serializers.CharField(max_length=500)
     description = serializers.CharField(required=False, allow_blank=True, default="")
+    attached_lecture_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
     track_id = serializers.CharField(required=False, allow_blank=True, default="")
     template_html = serializers.CharField(required=False, allow_blank=True, default="")
     template_css = serializers.CharField(required=False, allow_blank=True, default="")
@@ -26,6 +59,7 @@ class LayoutSerializer(serializers.Serializer):
     subtasks = LayoutSubtaskSerializer(many=True, required=False, default=list)
     visible_group_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     hints = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    reward_achievement_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     available_from = serializers.DateTimeField(required=False, allow_null=True, default=None)
     available_until = serializers.DateTimeField(required=False, allow_null=True, default=None)
     max_attempts = serializers.IntegerField(required=False, allow_null=True, default=None)
@@ -48,11 +82,29 @@ class LayoutSerializer(serializers.Serializer):
         # Layout uses realtime check; attempts не ограничиваются как у task
         return None
 
+    def validate_attached_lecture_id(self, value):
+        if value is None:
+            return ""
+        v = str(value).strip()
+        if not v:
+            return ""
+        from apps.lectures.documents import Lecture
+
+        try:
+            lec = get_doc_by_pk(Lecture, v)
+        except Lecture.DoesNotExist:
+            raise serializers.ValidationError("Лекция не найдена.")
+        return str(getattr(lec, "public_id", None) or str(lec.id))
+
     def to_representation(self, instance):
+        raw_attached = getattr(instance, "attached_lecture_id", "") or ""
+        request = self.context.get("request")
         return {
             "id": self.get_id(instance),
             "title": instance.title,
             "description": getattr(instance, "description", "") or "",
+            "attached_lecture_id": _attached_lecture_id_for_api(raw_attached),
+            "attached_lecture": _embedded_attached_lecture(raw_attached, request),
             "track_id": getattr(instance, "track_id", "") or "",
             "template_html": getattr(instance, "template_html", "") or "",
             "template_css": getattr(instance, "template_css", "") or "",
@@ -64,6 +116,7 @@ class LayoutSerializer(serializers.Serializer):
             ],
             "visible_group_ids": getattr(instance, "visible_group_ids", []) or [],
             "hints": getattr(instance, "hints", []) or [],
+            "reward_achievement_ids": getattr(instance, "reward_achievement_ids", []) or [],
             "available_from": datetime_to_iso_utc(getattr(instance, "available_from", None)),
             "available_until": datetime_to_iso_utc(getattr(instance, "available_until", None)),
             "max_attempts": getattr(instance, "max_attempts", None),
@@ -82,6 +135,7 @@ class LayoutSerializer(serializers.Serializer):
         editable = self._validate_editable_files(validated_data.pop("editable_files", []))
         visible_group_ids = validated_data.pop("visible_group_ids", [])
         hints = validated_data.pop("hints", [])
+        reward_achievement_ids = validated_data.pop("reward_achievement_ids", [])
         available_from = to_utc_datetime(validated_data.pop("available_from", None))
         available_until = to_utc_datetime(validated_data.pop("available_until", None))
         max_attempts = validated_data.pop("max_attempts", None)
@@ -91,6 +145,7 @@ class LayoutSerializer(serializers.Serializer):
         layout = LayoutLesson(
             title=validated_data["title"],
             description=validated_data.get("description", ""),
+            attached_lecture_id=validated_data.get("attached_lecture_id", "") or "",
             track_id=validated_data.get("track_id") or "",
             template_html=validated_data.get("template_html", ""),
             template_css=validated_data.get("template_css", ""),
@@ -98,6 +153,7 @@ class LayoutSerializer(serializers.Serializer):
             editable_files=editable,
             visible_group_ids=visible_group_ids,
             hints=hints,
+            reward_achievement_ids=reward_achievement_ids,
             available_from=available_from,
             available_until=available_until,
             max_attempts=max_attempts,
@@ -128,8 +184,8 @@ class LayoutSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         subtasks = validated_data.pop("subtasks", None)
         editable = validated_data.pop("editable_files", None)
-        for attr in ("title", "description", "track_id", "template_html", "template_css", "template_js",
-                     "visible_group_ids", "hints", "max_attempts"):
+        for attr in ("title", "description", "attached_lecture_id", "track_id", "template_html", "template_css", "template_js",
+                     "visible_group_ids", "hints", "reward_achievement_ids", "max_attempts"):
             if attr in validated_data:
                 setattr(instance, attr, validated_data[attr])
         if "available_from" in validated_data:

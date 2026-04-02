@@ -25,7 +25,7 @@ describe("layouts API", () => {
       template_js: "",
       editable_files: ["html", "css"],
       subtasks: [
-        { id: "s1", title: "Box exists", check_type: "selector_exists", check_value: ".box" },
+        { id: "s1", title: "Box style", check_type: "css_contains", check_value: ".box" },
       ],
     };
 
@@ -39,7 +39,7 @@ describe("layouts API", () => {
     expect(result!.title).toBe("Box Layout");
     expect(result!.editableFiles).toEqual(["html", "css"]);
     expect(result!.subtasks).toHaveLength(1);
-    expect(result!.subtasks![0]!.checkType).toBe("selector_exists");
+    expect(result!.subtasks![0]!.checkType).toBe("css_contains");
   });
 
   it("checkLayout returns passed and subtasks", async () => {
@@ -49,6 +49,9 @@ describe("layouts API", () => {
         Promise.resolve({
           passed: true,
           subtasks: [{ id: "s1", title: "Box", passed: true, message: "" }],
+          errors: [],
+          warnings: ["Тег <span> не закрыт."],
+          abuse_flags: ["selector_too_large"],
         }),
     });
 
@@ -56,16 +59,32 @@ describe("layouts API", () => {
     expect(result.passed).toBe(true);
     expect(result.subtasks).toHaveLength(1);
     expect(result.subtasks![0]!.passed).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual(["Тег <span> не закрыт."]);
+    expect(result.abuseFlags).toEqual(["selector_too_large"]);
   });
 
   it("checkLayout returns passed:false when API fails", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
+      json: () => Promise.resolve({ detail: "Validation error" }),
     });
 
     const result = await checkLayout("lay1", "", "", "");
     expect(result.passed).toBe(false);
     expect(result.subtasks).toEqual([]);
+    expect(result.error).toBe("Validation error");
+  });
+
+  it("checkLayout returns network error message on fetch failure", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("network down")
+    );
+
+    const result = await checkLayout("lay1", "", "", "");
+    expect(result.passed).toBe(false);
+    expect(result.subtasks).toEqual([]);
+    expect(result.error).toBe("Ошибка сети при проверке задания");
   });
 
   it("fetchLayoutDraft returns null without token", async () => {
@@ -127,6 +146,39 @@ describe("layouts API", () => {
     expect(body.template_html).toBe("<html></html>");
     expect(body.editable_files).toEqual(["html"]);
     expect(body.subtasks[0].check_type).toBe("html_contains");
+  });
+
+  it("createLayout accepts css/js check types", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          id: "lay3",
+          title: "Strict",
+          template_html: "<html></html>",
+          template_css: "",
+          template_js: "",
+          editable_files: ["html", "css", "js"],
+          subtasks: [],
+        }),
+    });
+
+    await createLayout({
+      title: "Strict",
+      templateHtml: "<html></html>",
+      templateCss: "",
+      templateJs: "",
+      editableFiles: ["html", "css", "js"],
+      subtasks: [
+        { id: "s1", title: "Has css", checkType: "css_contains", checkValue: ".box" },
+        { id: "s2", title: "Has js", checkType: "js_contains", checkValue: "let x" },
+      ],
+    });
+
+    const [, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    const body = JSON.parse(options.body as string);
+    expect(body.subtasks[0].check_type).toBe("css_contains");
+    expect(body.subtasks[1].check_type).toBe("js_contains");
   });
 
   it("updateLayout sends PATCH with partial data", async () => {

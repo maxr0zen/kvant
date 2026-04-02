@@ -89,6 +89,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Панель мониторинга"
+        compact
         description={
           lastUpdate
             ? `Обновлено: ${lastUpdate.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · автообновление каждые 15 с`
@@ -106,7 +107,7 @@ export default function AdminDashboardPage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         {/* ── Left: Server ── */}
         <div className="space-y-6">
           <h2 className="text-lg font-semibold">Сервер</h2>
@@ -142,6 +143,7 @@ export default function AdminDashboardPage() {
                 <CardTitle className="text-base">Коллекции</CardTitle>
               </CardHeader>
               <CardContent>
+                <div className="w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -158,6 +160,7 @@ export default function AdminDashboardPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -194,6 +197,7 @@ export default function AdminDashboardPage() {
                     <CardTitle className="text-base">Последняя активность</CardTitle>
                   </CardHeader>
                   <CardContent>
+                    <div className="w-full overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -214,6 +218,7 @@ export default function AdminDashboardPage() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                   </CardContent>
                 </Card>
               )}

@@ -1,6 +1,7 @@
 """API tests: tracks (list, retrieve, create, update, orphan_*, lesson id normalization)."""
 import pytest
 from rest_framework import status
+from uuid import uuid4
 
 
 @pytest.mark.django_db
@@ -67,6 +68,10 @@ def test_tracks_create_student_forbidden(auth_client):
 @pytest.mark.django_db
 def test_tracks_update_teacher(teacher_client, test_track):
     """Teacher can update track."""
+    from apps.users.documents import User
+    teacher = User.objects.get(username="testteacher")
+    test_track.created_by_id = str(teacher.id)
+    test_track.save()
     response = teacher_client.patch(
         f"/api/tracks/{test_track.id}/",
         {"title": "Updated Title"},
@@ -107,6 +112,101 @@ def test_tracks_destroy_superuser(superuser_client, test_track):
     response = superuser_client.delete(f"/api/tracks/{test_track.id}/")
     assert response.status_code == status.HTTP_204_NO_CONTENT
     assert Track.objects(id=test_track.id).count() == 0
+
+
+@pytest.mark.django_db
+def test_teacher_sees_foreign_tracks_and_student_does_not(api_client, teacher_client, test_teacher):
+    from apps.groups.documents import Group
+    from apps.users.documents import User, UserRole
+    from apps.tracks.documents import Track
+    from rest_framework_simplejwt.tokens import AccessToken
+    from rest_framework.test import APIClient
+
+    g1 = Group(title="G1", order=1).save()
+    g2 = Group(title="G2", order=2).save()
+    test_teacher.group_ids = [str(g1.id)]
+    test_teacher.save()
+
+    teacher_b = User(
+        username=f"teacher_b_{uuid4().hex[:8]}",
+        first_name="B",
+        last_name="Teach",
+        role=UserRole.TEACHER.value,
+        group_ids=[str(g2.id)],
+    )
+    teacher_b.set_password("x")
+    teacher_b.save()
+
+    foreign_track = Track(
+        title="Foreign track",
+        description="",
+        order=10,
+        lessons=[],
+        visible_group_ids=[str(g2.id)],
+        created_by_id=str(teacher_b.id),
+    ).save()
+
+    student = User(
+        username=f"student_g1_{uuid4().hex[:8]}",
+        first_name="S",
+        last_name="One",
+        role=UserRole.STUDENT.value,
+        group_id=str(g1.id),
+    )
+    student.set_password("x")
+    student.save()
+    st_client = APIClient()
+    st_token = AccessToken.for_user(type("W", (), {"id": str(student.id)})())
+    st_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(st_token)}")
+
+    r_teacher = teacher_client.get("/api/tracks/")
+    assert r_teacher.status_code == status.HTTP_200_OK
+    teacher_retrieve = teacher_client.get(f"/api/tracks/{str(getattr(foreign_track, 'public_id', None) or foreign_track.id)}/")
+    assert teacher_retrieve.status_code == status.HTTP_200_OK
+
+    r_student = st_client.get("/api/tracks/")
+    assert r_student.status_code == status.HTTP_200_OK
+
+    r_student_retrieve = st_client.get(f"/api/tracks/{str(getattr(foreign_track, 'public_id', None) or foreign_track.id)}/")
+    assert r_student_retrieve.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_teacher_can_patch_foreign_track_only_visible_groups(teacher_client, test_teacher):
+    from apps.groups.documents import Group
+    from apps.users.documents import User, UserRole
+    from apps.tracks.documents import Track
+
+    g1 = Group(title="TG1", order=1).save()
+    g2 = Group(title="TG2", order=2).save()
+    test_teacher.group_ids = [str(g1.id)]
+    test_teacher.save()
+
+    teacher_b = User(
+        username=f"teacher_patch_b_{uuid4().hex[:8]}",
+        first_name="B",
+        last_name="Teach",
+        role=UserRole.TEACHER.value,
+        group_ids=[str(g2.id)],
+    )
+    teacher_b.set_password("x")
+    teacher_b.save()
+    foreign_track = Track(
+        title="Foreign patch track",
+        description="desc",
+        order=3,
+        lessons=[],
+        visible_group_ids=[str(g2.id)],
+        created_by_id=str(teacher_b.id),
+    ).save()
+    tid = str(getattr(foreign_track, "public_id", None) or foreign_track.id)
+
+    r_forbidden = teacher_client.patch(f"/api/tracks/{tid}/", {"title": "Hacked"}, format="json")
+    assert r_forbidden.status_code == status.HTTP_403_FORBIDDEN
+
+    r_allowed = teacher_client.patch(f"/api/tracks/{tid}/", {"visible_group_ids": [str(g1.id)]}, format="json")
+    assert r_allowed.status_code == status.HTTP_200_OK
+    assert r_allowed.json()["visible_group_ids"] == [str(g1.id)]
 
 
 @pytest.mark.django_db

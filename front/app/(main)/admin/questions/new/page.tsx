@@ -16,6 +16,7 @@ import { GroupSelector } from "@/components/group-selector";
 import { PageHeader } from "@/components/ui/page-header";
 import type { QuestionChoice } from "@/lib/types";
 import { Plus, Trash2, Settings2 } from "lucide-react";
+import { AchievementSelector } from "@/components/achievement-selector";
 
 export default function NewQuestionPage() {
   const router = useRouter();
@@ -31,6 +32,7 @@ export default function NewQuestionPage() {
   const [multiple, setMultiple] = useState(false);
   const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
   const [hints, setHints] = useState<string[]>([]);
+  const [rewardAchievementIds, setRewardAchievementIds] = useState<string[]>([]);
   const [tempMode, setTempMode] = useState<"none" | "until_date">("none");
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
@@ -78,6 +80,7 @@ export default function NewQuestionPage() {
         availableFrom: tempMode === "until_date" && availableFrom.trim() ? datetimeLocalToISOUTC(availableFrom.trim()) : undefined,
         availableUntil: tempMode === "until_date" && availableUntil.trim() ? datetimeLocalToISOUTC(availableUntil.trim()) : undefined,
         maxAttempts: maxAttempts.trim() ? parseInt(maxAttempts, 10) : undefined,
+        rewardAchievementIds: rewardAchievementIds.length > 0 ? rewardAchievementIds : undefined,
       });
       toast({ title: "Вопрос создан", description: question.title });
       if (trackId) {
@@ -175,6 +178,7 @@ export default function NewQuestionPage() {
                         <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить подсказку
                       </Button>
                     </div>
+                    <AchievementSelector value={rewardAchievementIds} onChange={setRewardAchievementIds} />
                     <div className="space-y-1 border-t pt-5">
                       <Label htmlFor="maxAttempts">Ограничение попыток</Label>
                       <Input id="maxAttempts" type="number" min={1} value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} placeholder="Без ограничения" className="h-9 max-w-[140px]" />

@@ -1,6 +1,7 @@
 """API tests: tasks (retrieve, run, submit, max_attempts)."""
 import pytest
 from rest_framework import status
+from uuid import uuid4
 
 from apps.submissions.documents import Submission
 
@@ -160,3 +161,35 @@ def test_tasks_draft_get_falls_back_to_last_submission(auth_client, test_task):
     r = auth_client.get(f"/api/tasks/{test_task.id}/draft/")
     assert r.status_code == status.HTTP_200_OK
     assert r.json() == {"code": "submission-code"}
+
+
+@pytest.mark.django_db
+def test_teacher_can_patch_foreign_task_only_visible_groups(teacher_client, test_teacher, test_task):
+    from apps.groups.documents import Group
+    from apps.users.documents import User, UserRole
+
+    g1 = Group(title="TaskG1", order=1).save()
+    g2 = Group(title="TaskG2", order=2).save()
+    test_teacher.group_ids = [str(g1.id)]
+    test_teacher.save()
+
+    teacher_b = User(
+        username=f"task_teacher_b_{uuid4().hex[:8]}",
+        first_name="B",
+        last_name="Teach",
+        role=UserRole.TEACHER.value,
+        group_ids=[str(g2.id)],
+    )
+    teacher_b.set_password("x")
+    teacher_b.save()
+    test_task.created_by_id = str(teacher_b.id)
+    test_task.visible_group_ids = [str(g2.id)]
+    test_task.save()
+    tid = str(getattr(test_task, "public_id", None) or test_task.id)
+
+    r_forbidden = teacher_client.patch(f"/api/tasks/{tid}/", {"title": "new title"}, format="json")
+    assert r_forbidden.status_code == status.HTTP_403_FORBIDDEN
+
+    r_allowed = teacher_client.patch(f"/api/tasks/{tid}/", {"visible_group_ids": [str(g1.id)]}, format="json")
+    assert r_allowed.status_code == status.HTTP_200_OK
+    assert r_allowed.json()["visible_group_ids"] == [str(g1.id)]

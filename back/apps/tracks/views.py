@@ -13,6 +13,11 @@ from apps.users.permissions import IsTeacher, IsTeacherOrSuperuser
 from apps.users.teacher_utils import validate_visible_group_ids_for_teacher
 
 
+def _is_teacher_like(user):
+    role = getattr(user, "role", None)
+    return role in ("teacher", "superuser")
+
+
 def _get_user_group_ids(user):
     """Группы пользователя для фильтрации видимости."""
     if not user or not getattr(user, "id", None):
@@ -25,8 +30,10 @@ def _get_user_group_ids(user):
     return ids
 
 
-def _visible_to_user(doc, user_group_ids, is_anonymous):
+def _visible_to_user(doc, user_group_ids, is_anonymous, is_teacher=False):
     """Проверяет, виден ли контент пользователю (visible_group_ids)."""
+    if is_teacher:
+        return True
     vg = getattr(doc, "visible_group_ids", None) or []
     if not vg:
         return True  # пустой = доступно всем
@@ -89,7 +96,7 @@ def _dt_utc_for_compare(dt):
     return dt.astimezone(timezone.utc)
 
 
-def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
+def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, is_teacher=False):
     """Лекции, задания, пазлы и вопросы, не входящие ни в один трек. С учётом видимости.
     Истёкшие (available_until < now UTC) не включаются."""
     from apps.lectures.documents import Lecture
@@ -114,7 +121,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         oid = str(lec.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(lec, user_group_ids, is_anonymous):
+        if not _visible_to_user(lec, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         af = getattr(lec, "available_from", None)
         au = getattr(lec, "available_until", None)
@@ -133,7 +140,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         oid = str(task.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(task, user_group_ids, is_anonymous):
+        if not _visible_to_user(task, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         af = getattr(task, "available_from", None)
         au = getattr(task, "available_until", None)
@@ -153,7 +160,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         oid = str(puzzle.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(puzzle, user_group_ids, is_anonymous):
+        if not _visible_to_user(puzzle, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         af = getattr(puzzle, "available_from", None)
         au = getattr(puzzle, "available_until", None)
@@ -172,7 +179,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         oid = str(question.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(question, user_group_ids, is_anonymous):
+        if not _visible_to_user(question, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         af = getattr(question, "available_from", None)
         au = getattr(question, "available_until", None)
@@ -191,7 +198,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         oid = str(survey.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(survey, user_group_ids, is_anonymous):
+        if not _visible_to_user(survey, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         af = getattr(survey, "available_from", None)
         au = getattr(survey, "available_until", None)
@@ -210,7 +217,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
         oid = str(layout.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(layout, user_group_ids, is_anonymous):
+        if not _visible_to_user(layout, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         af = getattr(layout, "available_from", None)
         au = getattr(layout, "available_until", None)
@@ -227,7 +234,7 @@ def _get_orphan_lessons(tracks_qs, user_group_ids, is_anonymous):
     return orphan_lectures, orphan_tasks, orphan_puzzles, orphan_questions, orphan_surveys, orphan_layouts
 
 
-def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id=None):
+def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id=None, is_teacher=False):
     """Орфаны с истёкшим сроком (available_until < now UTC). Только для авторизованных."""
     if is_anonymous:
         return [], [], [], [], [], []
@@ -254,7 +261,7 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id
         oid = str(lec.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(lec, user_group_ids, is_anonymous):
+        if not _visible_to_user(lec, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         au = getattr(lec, "available_until", None)
         au_utc = _dt_utc_for_compare(au)
@@ -276,7 +283,7 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id
         oid = str(task.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(task, user_group_ids, is_anonymous):
+        if not _visible_to_user(task, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         au = getattr(task, "available_until", None)
         au_utc = _dt_utc_for_compare(au)
@@ -299,7 +306,7 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id
         oid = str(puzzle.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(puzzle, user_group_ids, is_anonymous):
+        if not _visible_to_user(puzzle, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         au = getattr(puzzle, "available_until", None)
         au_utc = _dt_utc_for_compare(au)
@@ -321,7 +328,7 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id
         oid = str(question.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(question, user_group_ids, is_anonymous):
+        if not _visible_to_user(question, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         au = getattr(question, "available_until", None)
         au_utc = _dt_utc_for_compare(au)
@@ -343,7 +350,7 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id
         oid = str(survey.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(survey, user_group_ids, is_anonymous):
+        if not _visible_to_user(survey, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         au = getattr(survey, "available_until", None)
         au_utc = _dt_utc_for_compare(au)
@@ -365,7 +372,7 @@ def _get_overdue_orphan_lessons(tracks_qs, user_group_ids, is_anonymous, user_id
         oid = str(layout.id)
         if oid in in_track_ids or lid in in_track_ids:
             continue
-        if not _visible_to_user(layout, user_group_ids, is_anonymous):
+        if not _visible_to_user(layout, user_group_ids, is_anonymous, is_teacher=is_teacher):
             continue
         au = getattr(layout, "available_until", None)
         au_utc = _dt_utc_for_compare(au)
@@ -401,7 +408,11 @@ class TrackViewSet(ModelViewSet):
         if not request or not getattr(request, "user", None) or not getattr(request.user, "id", None):
             return base_qs.filter(__raw__={"$or": [{"visible_group_ids": {"$exists": False}}, {"visible_group_ids": []}]})
 
-        # Authenticated user: collect their group ids and include tracks visible to any of them or public tracks
+        # Teachers/superusers see all tracks, including materials of other teachers.
+        if _is_teacher_like(request.user):
+            return base_qs
+
+        # Students: include tracks visible to any of their groups or public tracks.
         user = request.user
         user_group_ids = []
         if getattr(user, "group_id", None):
@@ -437,9 +448,10 @@ class TrackViewSet(ModelViewSet):
         ser = self.get_serializer(qs, many=True, context={"request": request})
         user = getattr(request, "user", None)
         is_anonymous = not user or not getattr(user, "id", None)
+        is_teacher = _is_teacher_like(user) if user else False
         user_group_ids = _get_user_group_ids(user)
         orphan_lectures, orphan_tasks, orphan_puzzles, orphan_questions, orphan_surveys, orphan_layouts = _get_orphan_lessons(
-            qs, user_group_ids, is_anonymous
+            qs, user_group_ids, is_anonymous, is_teacher=is_teacher
         )
         data = {
             "tracks": ser.data,
@@ -452,7 +464,7 @@ class TrackViewSet(ModelViewSet):
         }
         if not is_anonymous:
             od_lec, od_task, od_puz, od_q, od_s, od_layout = _get_overdue_orphan_lessons(
-                qs, user_group_ids, is_anonymous, user_id=str(user.id)
+                qs, user_group_ids, is_anonymous, user_id=str(user.id), is_teacher=is_teacher
             )
             data["orphan_overdue_lectures"] = od_lec
             data["orphan_overdue_tasks"] = od_task
@@ -466,6 +478,11 @@ class TrackViewSet(ModelViewSet):
         try:
             instance = self.get_object()
         except Track.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        user = getattr(request, "user", None)
+        is_anonymous = not user or not getattr(user, "id", None)
+        is_teacher = _is_teacher_like(user) if user else False
+        if not _visible_to_user(instance, _get_user_group_ids(user), is_anonymous, is_teacher=is_teacher):
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         ser = self.get_serializer(instance, context={"request": request})
         return Response(ser.data)
@@ -481,11 +498,25 @@ class TrackViewSet(ModelViewSet):
         return Response(self.get_serializer(track).data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        creator = getattr(instance, "created_by_id", None) or ""
+        is_superuser = getattr(request.user, "role", None) == "superuser"
+        is_owner = creator and str(creator) == str(request.user.id)
+
+        if not is_superuser and not is_owner:
+            incoming = set(request.data.keys())
+            if incoming - {"visible_group_ids"}:
+                return Response(
+                    {"detail": "Можно менять только видимость (visible_group_ids) для чужого трека."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         visible_group_ids = request.data.get("visible_group_ids")
         if visible_group_ids is not None:
             ok, err = validate_visible_group_ids_for_teacher(request.user, visible_group_ids)
             if not ok:
                 return Response({"detail": err}, status=status.HTTP_403_FORBIDDEN)
+        if not is_superuser and not is_owner:
+            kwargs["partial"] = True
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):

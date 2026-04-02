@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 
 from apps.submissions.documents import LessonProgress
+from common.db_utils import get_doc_by_pk
 
 
 def save_lesson_progress(
@@ -14,7 +15,7 @@ def save_lesson_progress(
     track_id: str = "",
     track_title: str = "",
     available_until=None,
-) -> None:
+) -> list:
     """
     Сохраняет или обновляет прогресс пользователя по уроку.
     lesson_id — display id (public_id или ObjectId), как в API.
@@ -71,9 +72,43 @@ def save_lesson_progress(
         ).save()
 
     # Начисление достижений при завершении урока (только для основных типов)
-    if passed and lesson_type in ("lecture", "task", "puzzle", "survey", "layout"):
+    unlocked_ids = []
+    if passed and lesson_type in ("lecture", "task", "puzzle", "question", "survey", "layout"):
         try:
-            from apps.achievements.registry import check_and_award_achievements
-            check_and_award_achievements(user_id, lesson_type, passed)
+            from apps.achievements.registry import (
+                check_and_award_achievements,
+                award_specific_achievements,
+                serialize_achievements,
+            )
+
+            unlocked_ids.extend(check_and_award_achievements(user_id, lesson_type, passed))
+
+            # Кастомные достижения с конкретного задания
+            model_by_type = {
+                "lecture": ("apps.lectures.documents", "Lecture"),
+                "task": ("apps.tasks.documents", "Task"),
+                "puzzle": ("apps.puzzles.documents", "Puzzle"),
+                "question": ("apps.questions.documents", "Question"),
+                "survey": ("apps.surveys.documents", "Survey"),
+                "layout": ("apps.layouts.documents", "LayoutLesson"),
+            }
+            mod_name, cls_name = model_by_type.get(lesson_type, (None, None))
+            if mod_name and cls_name:
+                module = __import__(mod_name, fromlist=[cls_name])
+                model_cls = getattr(module, cls_name)
+                doc = get_doc_by_pk(model_cls, str(lesson_id))
+                reward_ids = getattr(doc, "reward_achievement_ids", None) or []
+                unlocked_ids.extend(award_specific_achievements(user_id, reward_ids))
+
+            # Убираем дубликаты с сохранением порядка.
+            unique_ids = []
+            seen = set()
+            for aid in unlocked_ids:
+                if aid in seen:
+                    continue
+                seen.add(aid)
+                unique_ids.append(aid)
+            return serialize_achievements(unique_ids)
         except Exception:
-            pass  # не прерываем основной поток при ошибке достижений
+            return []  # не прерываем основной поток при ошибке достижений
+    return []

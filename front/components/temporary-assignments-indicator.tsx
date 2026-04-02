@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import { Clock } from "lucide-react";
 import { parseDateTime } from "@/lib/utils/datetime";
+import { useNow } from "@/lib/hooks/use-now";
 interface TemporaryAssignmentsIndicatorProps {
   orphanLectures?: { available_until?: string | null; availableUntil?: string | null }[];
   orphanTasks: { available_until?: string | null; availableUntil?: string | null }[];
@@ -39,47 +40,50 @@ export function TemporaryAssignmentsIndicator({
   orphanLayouts = [],
   className = "",
 }: TemporaryAssignmentsIndicatorProps) {
-  const [now, setNow] = useState(() => Date.now());
+  const now = useNow(60_000);
 
-  const items = useMemo(() => {
+  // Parse "until" timestamps only when input arrays change.
+  const untilItems = useMemo(() => {
     const list: { until: number }[] = [];
     for (const lec of orphanLectures) {
       const u = parseUntil(lec.available_until ?? lec.availableUntil);
-      if (u != null && u > now) list.push({ until: u });
+      if (u != null) list.push({ until: u });
     }
     for (const t of orphanTasks) {
       const u = parseUntil(t.available_until ?? t.availableUntil);
-      if (u != null && u > now) list.push({ until: u });
+      if (u != null) list.push({ until: u });
     }
     for (const p of orphanPuzzles) {
       const u = parseUntil(p.available_until ?? p.availableUntil);
-      if (u != null && u > now) list.push({ until: u });
+      if (u != null) list.push({ until: u });
     }
     for (const q of orphanQuestions) {
       const u = parseUntil(q.available_until ?? q.availableUntil);
-      if (u != null && u > now) list.push({ until: u });
+      if (u != null) list.push({ until: u });
     }
     for (const l of orphanLayouts) {
       const u = parseUntil(l.available_until ?? l.availableUntil);
-      if (u != null && u > now) list.push({ until: u });
+      if (u != null) list.push({ until: u });
     }
     return list;
-  }, [orphanLectures, orphanTasks, orphanPuzzles, orphanQuestions, orphanLayouts, now]);
+  }, [orphanLectures, orphanTasks, orphanPuzzles, orphanQuestions, orphanLayouts]);
 
-  const nearest = useMemo(() => {
-    if (items.length === 0) return null;
-    return items.reduce((a, b) => (a.until < b.until ? a : b));
-  }, [items]);
+  const { activeCount, nearestUntil } = useMemo(() => {
+    let activeCount = 0;
+    let nearestUntil: number | null = null;
 
-  useEffect(() => {
-    if (items.length === 0) return;
-    const t = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(t);
-  }, [items.length]);
+    for (const item of untilItems) {
+      if (item.until <= now) continue;
+      activeCount += 1;
+      if (nearestUntil === null || item.until < nearestUntil) nearestUntil = item.until;
+    }
 
-  if (items.length === 0) return null;
+    return { activeCount, nearestUntil };
+  }, [untilItems, now]);
 
-  const timeLeft = nearest ? formatTimeLeft(nearest.until - now) : "";
+  if (activeCount === 0 || nearestUntil === null) return null;
+
+  const timeLeft = formatTimeLeft(nearestUntil - now);
 
   return (
     <div
@@ -91,7 +95,7 @@ export function TemporaryAssignmentsIndicator({
       <div className="flex flex-col leading-tight">
         <span className="font-medium text-amber-800 dark:text-amber-200">Временные задания</span>
         <span className="text-xs text-amber-700 dark:text-amber-300">
-          {items.length === 1 ? "Истекает через " : `Активно ${items.length}, ближайшее истекает через `}
+          {activeCount === 1 ? "Истекает через " : `Активно ${activeCount}, ближайшее истекает через `}
           {timeLeft}
         </span>
       </div>

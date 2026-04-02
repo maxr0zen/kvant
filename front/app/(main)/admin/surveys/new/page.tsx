@@ -22,6 +22,7 @@ import { datetimeLocalToISOUTC } from "@/lib/utils/datetime";
 import { useToast } from "@/components/ui/use-toast";
 import { GroupSelector } from "@/components/group-selector";
 import { PageHeader } from "@/components/ui/page-header";
+import { AchievementSelector } from "@/components/achievement-selector";
 
 export default function NewSurveyPage() {
   const router = useRouter();
@@ -36,6 +37,7 @@ export default function NewSurveyPage() {
   const [availableUntil, setAvailableUntil] = useState("");
   const [durationHours, setDurationHours] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
+  const [rewardAchievementIds, setRewardAchievementIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export default function NewSurveyPage() {
         visibleGroupIds: visibleGroupIds.length > 0 ? visibleGroupIds : undefined,
         availableFrom: from,
         availableUntil: until,
+        rewardAchievementIds: rewardAchievementIds.length > 0 ? rewardAchievementIds : undefined,
       });
       toast({ title: "Опрос создан" });
       if (trackId) {
@@ -125,6 +128,7 @@ export default function NewSurveyPage() {
                   </DialogHeader>
                   <div className="space-y-5 pt-2">
                     <GroupSelector value={visibleGroupIds} onChange={setVisibleGroupIds} />
+                    <AchievementSelector value={rewardAchievementIds} onChange={setRewardAchievementIds} />
                     <div className="space-y-2 border-t pt-5">
                       <Label>Временное задание</Label>
                       <div className="flex flex-wrap gap-2">

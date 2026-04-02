@@ -64,7 +64,7 @@ export interface ProfileData {
 export interface PlatformCompletedItem {
   lesson_id: string;
   lesson_title: string;
-  lesson_type: "task" | "puzzle" | "question" | "lecture" | "survey";
+  lesson_type: "task" | "puzzle" | "question" | "lecture" | "survey" | "layout";
   status: "completed" | "completed_late";
   late_by_seconds?: number;
   completed_at: string | null;

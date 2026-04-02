@@ -267,6 +267,7 @@ export default function AdminGroupsPage() {
         title="Группы"
         description="Создавайте группы, назначайте учителей и добавляйте учеников."
         breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Группы" }]}
+        compact
       />
 
       <Card className="border-primary/20 bg-gradient-to-br from-card to-card/80">
@@ -278,8 +279,8 @@ export default function AdminGroupsPage() {
           <CardDescription>Создайте учебную группу, затем добавьте учеников и назначьте учителей</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-wrap gap-4 items-end">
-            <div className="space-y-2 flex-1 min-w-[200px]">
+          <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-4">
+            <div className="min-w-0 flex-1 space-y-2 sm:min-w-[200px]">
               <Label htmlFor="group-title">Название группы</Label>
               <Input
                 id="group-title"
@@ -323,7 +324,7 @@ export default function AdminGroupsPage() {
                   )}
                 >
                   <div
-                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                    className="flex flex-wrap items-center gap-3 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
                     onClick={() => setExpandedGroupId((id) => (id === g.id ? null : g.id))}
                   >
                     {expanded ? (
@@ -346,7 +347,7 @@ export default function AdminGroupsPage() {
                         {students.length} учеников · {teachers.length} учителей
                       </p>
                     </div>
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       {editingId === g.id ? (
                         <>
                           <Button size="sm" onClick={saveEdit} disabled={submitting}>
@@ -552,7 +553,7 @@ export default function AdminGroupsPage() {
               allTeachers.map((t) => (
                 <label
                   key={t.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors"
+                  className="flex flex-wrap items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors"
                 >
                   <input
                     type="checkbox"
@@ -562,8 +563,8 @@ export default function AdminGroupsPage() {
                     }
                     className="rounded border-primary"
                   />
-                  <span className="font-medium flex-1">{t.name || t.username}</span>
-                  <span className="text-sm text-muted-foreground font-mono">{t.username}</span>
+                  <span className="font-medium min-w-0 flex-1 break-words">{t.name || t.username}</span>
+                  <span className="text-sm text-muted-foreground font-mono break-all">{t.username}</span>
                 </label>
               ))
             )}

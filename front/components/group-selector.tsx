@@ -50,6 +50,9 @@ export function GroupSelector({ value: valueProp, onChange, disabled }: GroupSel
       <p className="text-xs text-muted-foreground">
         Пустой список — доступно всем. Выберите группы, которым будет доступен контент.
       </p>
+      <p className="text-xs text-amber-700 dark:text-amber-300">
+        Изменение видимости применяется к оригинальному материалу и влияет на всех преподавателей.
+      </p>
       {groups.length === 0 ? (
         <p className="text-sm text-muted-foreground py-2">Нет групп. Создайте группы в разделе «Группы».</p>
       ) : (

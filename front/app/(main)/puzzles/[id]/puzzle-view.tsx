@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import type { Puzzle, PuzzleBlock, PuzzleCheckResult } from "@/lib/types";
+import type { AchievementUnlocked, Puzzle, PuzzleBlock, PuzzleCheckResult } from "@/lib/types";
 import { checkPuzzleSolution } from "@/lib/api/puzzles";
 import { GripVertical, Play, RotateCcw } from "lucide-react";
 import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
@@ -15,6 +15,7 @@ import { HintsBlock } from "@/components/hints-block";
 import { AvailabilityNotice } from "@/components/availability-notice";
 import { AvailabilityCountdown } from "@/components/availability-countdown";
 import { CodeHighlight } from "@/components/code-highlight";
+import { AchievementUnlockCelebration } from "@/components/achievement-unlock-celebration";
 
 interface PuzzleViewProps {
   puzzle: Puzzle;
@@ -29,7 +30,17 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
   const [draggedBlock, setDraggedBlock] = useState<PuzzleBlock | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<AchievementUnlocked[]>([]);
+  const shownAchievementIds = useRef<Set<string>>(new Set());
   const { toast } = useToast();
+
+  function showUnlocked(items: AchievementUnlocked[] | undefined) {
+    if (!items || items.length === 0) return;
+    const fresh = items.filter((a) => a.id && !shownAchievementIds.current.has(a.id));
+    if (!fresh.length) return;
+    for (const a of fresh) shownAchievementIds.current.add(a.id);
+    setUnlockedAchievements(fresh);
+  }
 
   // Инициализируем и перемешиваем блоки только на клиенте
   useEffect(() => {
@@ -118,6 +129,7 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
       const res = await checkPuzzleSolution(puzzle.id, blocks);
       setResult(res);
       if (res.passed) {
+        showUnlocked(res.unlockedAchievements);
         router.refresh();
       } else {
         recordFailedAttempt(puzzle.id);
@@ -279,6 +291,10 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
           {/* Result UI intentionally hidden for puzzles; per-block highlighting remains */}
         </div>
       </div>
+      <AchievementUnlockCelebration
+        items={unlockedAchievements}
+        onDone={() => setUnlockedAchievements([])}
+      />
     </div>
   );
 }

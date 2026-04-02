@@ -36,6 +36,11 @@ def _lecture_has_question_blocks(lecture):
     return len(ids) > 0
 
 
+def _is_visible_group_only_patch(data):
+    keys = set(data.keys())
+    return bool(keys) and not (keys - {"visible_group_ids"})
+
+
 class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin):
     serializer_class = LectureSerializer
     permission_classes = [IsAuthenticated]
@@ -109,16 +114,20 @@ class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Updat
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
-        if not self._can_edit_lecture(request, instance):
-            return Response(
-                {"detail": "Нет прав на редактирование этой лекции."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        can_edit = self._can_edit_lecture(request, instance)
+        if not can_edit:
+            if getattr(request.user, "role", None) != "teacher" or not _is_visible_group_only_patch(request.data):
+                return Response(
+                    {"detail": "Нет прав на редактирование этой лекции."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         visible_group_ids = request.data.get("visible_group_ids")
         if visible_group_ids is not None:
             ok, err = validate_visible_group_ids_for_teacher(request.user, visible_group_ids)
             if not ok:
                 return Response({"detail": err}, status=status.HTTP_403_FORBIDDEN)
+        if not can_edit:
+            partial = True
         ser = self.get_serializer(instance, data=request.data, partial=partial)
         ser.is_valid(raise_exception=True)
         lecture = ser.save()

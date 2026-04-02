@@ -20,6 +20,7 @@ class PuzzleSerializer(serializers.Serializer):
     solution = serializers.CharField(required=False, allow_blank=True)
     visible_group_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     hints = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    reward_achievement_ids = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     available_from = serializers.DateTimeField(required=False, allow_null=True, default=None)
     available_until = serializers.DateTimeField(required=False, allow_null=True, default=None)
     max_attempts = serializers.IntegerField(required=False, allow_null=True, default=None)
@@ -28,6 +29,7 @@ class PuzzleSerializer(serializers.Serializer):
         blocks_data = validated_data.pop('blocks', [])
         visible_group_ids = validated_data.pop('visible_group_ids', [])
         hints = validated_data.pop('hints', [])
+        reward_achievement_ids = validated_data.pop('reward_achievement_ids', [])
         available_from = to_utc_datetime(validated_data.pop('available_from', None))
         available_until = to_utc_datetime(validated_data.pop('available_until', None))
         max_attempts = validated_data.pop('max_attempts', None)
@@ -41,6 +43,7 @@ class PuzzleSerializer(serializers.Serializer):
             blocks=blocks,
             visible_group_ids=visible_group_ids,
             hints=hints,
+            reward_achievement_ids=reward_achievement_ids,
             available_from=available_from,
             available_until=available_until,
             max_attempts=max_attempts,
@@ -96,6 +99,7 @@ class PuzzleSerializer(serializers.Serializer):
             'solution': instance.solution,
             'visible_group_ids': getattr(instance, 'visible_group_ids', []) or [],
             'hints': getattr(instance, 'hints', []) or [],
+            'reward_achievement_ids': getattr(instance, 'reward_achievement_ids', []) or [],
             'available_from': datetime_to_iso_utc(getattr(instance, 'available_from', None)),
             'available_until': datetime_to_iso_utc(getattr(instance, 'available_until', None)),
             'max_attempts': getattr(instance, 'max_attempts', None),
@@ -112,7 +116,7 @@ class PuzzleSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         blocks_data = validated_data.pop("blocks", None)
         for attr in ("title", "description", "track_id", "language", "solution", "visible_group_ids",
-                     "hints", "max_attempts"):
+                     "hints", "reward_achievement_ids", "max_attempts"):
             if attr in validated_data:
                 setattr(instance, attr, validated_data[attr])
         if "available_from" in validated_data:

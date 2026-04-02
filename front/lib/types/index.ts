@@ -134,6 +134,8 @@ export interface Task {
   attemptsUsed?: number | null;
   /** Может ли текущий пользователь редактировать/удалять (создатель или superuser) */
   canEdit?: boolean;
+  /** Награды за успешное выполнение */
+  rewardAchievementIds?: string[];
 }
 
 export interface TestCase {
@@ -154,6 +156,7 @@ export interface SubmitResult {
   passed: boolean;
   results: TestRunResult[];
   message?: string;
+  unlockedAchievements?: AchievementUnlocked[];
 }
 
 // Puzzle-задачи (сборка кода из блоков)
@@ -180,11 +183,13 @@ export interface Puzzle {
   maxAttempts?: number | null;
   attemptsUsed?: number | null;
   canEdit?: boolean;
+  rewardAchievementIds?: string[];
 }
 
 export interface PuzzleCheckResult {
   passed: boolean;
   message: string;
+  unlockedAchievements?: AchievementUnlocked[];
 }
 
 // Вопросы (отдельные сущности в треке — множественный/одиночный выбор)
@@ -208,11 +213,13 @@ export interface Question {
   maxAttempts?: number | null;
   attemptsUsed?: number | null;
   canEdit?: boolean;
+  rewardAchievementIds?: string[];
 }
 
 export interface QuestionCheckResult {
   passed: boolean;
   message?: string;
+  unlockedAchievements?: AchievementUnlocked[];
 }
 
 /** Опрос — свободная форма ответа. Ответ виден преподавателю/админу. */
@@ -229,13 +236,14 @@ export interface Survey {
   myResponse?: string | null;
   /** Преподаватель или админ — может видеть все ответы на странице опроса */
   isTeacherOrAdmin?: boolean;
+  rewardAchievementIds?: string[];
 }
 
 /** Задание верстки: HTML/CSS/JS с подзадачами-чекерами */
 export interface LayoutSubtask {
   id: string;
   title: string;
-  checkType: "selector_exists" | "html_contains";
+  checkType: "selector_exists" | "html_contains" | "css_contains" | "js_contains";
   checkValue: string;
 }
 
@@ -243,6 +251,9 @@ export interface Layout {
   id: string;
   title: string;
   description: string;
+  attachedLectureId?: string;
+  /** Лекция целиком из GET /api/layouts/:id/ (без отдельного запроса к /lectures/) */
+  attachedLecture?: Lecture | null;
   trackId?: string;
   templateHtml: string;
   templateCss: string;
@@ -256,9 +267,22 @@ export interface Layout {
   availableUntil?: string | null;
   maxAttempts?: number | null;
   canEdit?: boolean;
+  rewardAchievementIds?: string[];
 }
 
 export interface LayoutCheckResult {
   passed: boolean;
   subtasks: { id: string; title: string; passed: boolean; message: string }[];
+  error?: string;
+  errors?: string[];
+  warnings?: string[];
+  abuseFlags?: string[];
+  unlockedAchievements?: AchievementUnlocked[];
+}
+
+export interface AchievementUnlocked {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
 }

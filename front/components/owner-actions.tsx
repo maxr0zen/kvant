@@ -21,6 +21,7 @@ interface OwnerActionsProps {
   editLabel?: string;
   deleteLabel?: string;
   deleteDescription?: string;
+  compact?: boolean;
   onDelete: () => Promise<void>;
   afterDeleteRedirect: string;
 }
@@ -31,6 +32,7 @@ export function OwnerActions({
   editLabel = "Редактировать",
   deleteLabel = "Удалить",
   deleteDescription = "Это действие нельзя отменить. Задание будет удалено безвозвратно.",
+  compact = false,
   onDelete,
   afterDeleteRedirect,
 }: OwnerActionsProps) {
@@ -52,20 +54,20 @@ export function OwnerActions({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {editHref && (
         <Link href={editHref}>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2" aria-label={editLabel} title={editLabel}>
             <Pencil className="h-4 w-4" />
-            {editLabel}
+            {!compact && editLabel}
           </Button>
         </Link>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive">
+          <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" aria-label={deleteLabel} title={deleteLabel}>
             <Trash2 className="h-4 w-4" />
-            {deleteLabel}
+            {!compact && deleteLabel}
           </Button>
         </DialogTrigger>
         <DialogContent>

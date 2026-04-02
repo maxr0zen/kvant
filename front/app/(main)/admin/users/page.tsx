@@ -177,6 +177,7 @@ export default function AdminUsersPage() {
         title="Пользователи"
         description="Учителя и ученики. Суперпользователь может добавлять новых."
         breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Пользователи" }]}
+        compact
       />
 
       <Card>
@@ -185,8 +186,8 @@ export default function AdminUsersPage() {
           <CardDescription>Укажите логин, имя, пароль, роль и группу (ученик — одна, учитель — несколько)</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 items-end">
-            <div className="space-y-2">
+          <form onSubmit={handleSubmit} className="grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="username">Логин</Label>
               <Input
                 id="username"
@@ -198,7 +199,7 @@ export default function AdminUsersPage() {
                 autoComplete="username"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="name">Имя</Label>
               <Input
                 id="name"
@@ -208,7 +209,7 @@ export default function AdminUsersPage() {
                 disabled={submitting}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="password">Пароль</Label>
               <Input
                 id="password"
@@ -219,7 +220,7 @@ export default function AdminUsersPage() {
                 disabled={submitting}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="role">Роль</Label>
               <select
                 id="role"
@@ -241,7 +242,7 @@ export default function AdminUsersPage() {
               </select>
             </div>
             {form.role === "student" ? (
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label htmlFor="group_id">Группа</Label>
                 <select
                   id="group_id"
@@ -261,7 +262,7 @@ export default function AdminUsersPage() {
                 </select>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Группы (преподаёт)</Label>
                 <div className="flex flex-wrap gap-2 min-h-10 items-center rounded-md border border-input bg-background px-3 py-2">
                   {groups.length === 0 ? (
@@ -375,6 +376,7 @@ export default function AdminUsersPage() {
           ) : users.length === 0 ? (
             <EmptyState icon={Users} title="Нет пользователей" description="Добавьте первого пользователя выше." className="py-8" />
           ) : (
+            <div className="w-full overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -414,6 +416,7 @@ export default function AdminUsersPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

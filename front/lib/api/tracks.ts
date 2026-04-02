@@ -274,24 +274,8 @@ export async function updateTrack(
   throw new Error("API not configured");
 }
 
-const MOCK_LAYOUT_TRACK: Track = {
-  id: "mock-layout-track",
-  title: "Верстка",
-  description: "Трек по HTML/CSS/JS с задачами на реальную верстку и интерактив.",
-  order: 1,
-  lessons: [
-    { id: "mock-layout-1", type: "layout", title: "Карточка профиля: HTML + CSS", order: 0 },
-    { id: "mock-layout-2", type: "layout", title: "Кнопки и состояния hover/focus", order: 1 },
-    { id: "mock-layout-3", type: "layout", title: "Табы и интерактив на JS", order: 2 },
-  ],
-  progress: {
-    "mock-layout-1": "not_started",
-    "mock-layout-2": "not_started",
-    "mock-layout-3": "not_started",
-  },
-};
-
-const MOCK_TRACKS: Track[] = [MOCK_LAYOUT_TRACK];
+/** Заглушки без API: по запросу пользователя моки очищены. */
+const MOCK_TRACKS: Track[] = [];
 
 export async function fetchTracksStub(): Promise<TracksWithOrphans> {
   await new Promise((r) => setTimeout(r, 300));

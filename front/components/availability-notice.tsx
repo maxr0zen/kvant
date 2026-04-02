@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Clock } from "lucide-react";
 import { parseDateTime } from "@/lib/utils/datetime";
 
@@ -49,10 +49,10 @@ export function AvailabilityNotice({
 
   return (
     <Card className={className}>
-      <CardContent className="py-3 flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="px-4 py-3 sm:px-5 sm:py-3 flex items-center gap-2 text-sm text-muted-foreground">
         <Clock className="h-4 w-4 shrink-0" />
-        {text}
-      </CardContent>
+        <span className="min-w-0 break-words">{text}</span>
+      </div>
     </Card>
   );
 }

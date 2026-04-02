@@ -25,6 +25,11 @@ def _can_edit_layout(request, layout):
     return creator and str(creator) == str(request.user.id)
 
 
+def _is_visible_group_only_patch(data):
+    keys = set(data.keys())
+    return bool(keys) and not (keys - {"visible_group_ids"})
+
+
 class LayoutViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin):
     serializer_class = LayoutSerializer
     permission_classes = [IsAuthenticated]
@@ -66,17 +71,21 @@ class LayoutViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Update
             instance = self.get_object()
         except LayoutLesson.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        if not _can_edit_layout(request, instance):
-            return Response(
-                {"detail": "Нет прав на редактирование этого задания."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        can_edit = _can_edit_layout(request, instance)
+        if not can_edit:
+            if getattr(request.user, "role", None) != "teacher" or not _is_visible_group_only_patch(request.data):
+                return Response(
+                    {"detail": "Нет прав на редактирование этого задания."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         visible_group_ids = request.data.get("visible_group_ids")
         if visible_group_ids is not None:
             ok, err = validate_visible_group_ids_for_teacher(request.user, visible_group_ids)
             if not ok:
                 return Response({"detail": err}, status=status.HTTP_403_FORBIDDEN)
         partial = kwargs.get("partial", False)
+        if not can_edit:
+            partial = True
         ser = self.get_serializer(instance, data=request.data, partial=partial)
         ser.is_valid(raise_exception=True)
         layout = ser.save()
@@ -112,6 +121,13 @@ class LayoutViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Update
         css = ser.validated_data.get("css", "") or ""
         js = ser.validated_data.get("js", "") or ""
         result = check_layout(layout, html, css, js)
+        subtasks = result.get("subtasks") if isinstance(result, dict) else []
+        has_subtasks = isinstance(subtasks, list) and len(subtasks) > 0
+        all_subtasks_passed = has_subtasks and all(bool((st or {}).get("passed")) for st in subtasks)
+        has_blocking_errors = bool((result.get("errors") if isinstance(result, dict) else []) or [])
+        final_passed = bool(all_subtasks_passed) and not has_blocking_errors
+        if isinstance(result, dict):
+            result["passed"] = final_passed
         user_id = str(request.user.id) if request.user and getattr(request.user, "id", None) else None
         if user_id:
             lesson_id = str(getattr(layout, "public_id", None) or layout.id)
@@ -125,11 +141,13 @@ class LayoutViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Update
                         track_title = t.title
                 except Exception:
                     pass
-            save_lesson_progress(
-                user_id, lesson_id, "layout", result["passed"],
+            unlocked_achievements = save_lesson_progress(
+                user_id, lesson_id, "layout", final_passed,
                 lesson_title=layout.title, track_id=layout.track_id or "", track_title=track_title,
                 available_until=getattr(layout, "available_until", None),
             )
+            if isinstance(result, dict):
+                result["unlocked_achievements"] = unlocked_achievements
         return Response(result)
 
     @action(detail=True, methods=["get", "put", "patch"], url_path="draft")

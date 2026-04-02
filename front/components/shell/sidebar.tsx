@@ -23,6 +23,7 @@ import {
   Activity,
   CheckCircle2,
   Code2,
+  Library,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils";
@@ -221,10 +222,10 @@ export function Sidebar() {
 
         {isLoggedIn && (
           <NavItem
-            href="/platform"
+            href="/completed"
             label="Выполненные"
             icon={CheckCircle2}
-            active={pathname === "/platform" || pathname.startsWith("/platform/")}
+            active={pathname === "/completed" || pathname.startsWith("/completed/")}
             collapsed={collapsed}
           />
         )}
@@ -256,6 +257,13 @@ export function Sidebar() {
           <>
             <SectionLabel label="Управление" collapsed={collapsed} />
             <NavItem href="/profile" label="Кабинет" icon={UserCircle} active={pathname === "/profile"} collapsed={collapsed} />
+            <NavItem
+              href="/admin/teachers-materials"
+              label="Материалы учителей"
+              icon={Library}
+              active={pathname.startsWith("/admin/teachers-materials")}
+              collapsed={collapsed}
+            />
 
             {/* Создать — dropdown или inline */}
             {collapsed ? (

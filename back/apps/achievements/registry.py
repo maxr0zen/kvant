@@ -54,6 +54,22 @@ ACHIEVEMENTS = {
 }
 
 
+def serialize_achievements(achievement_ids: list) -> list:
+    """Преобразует список id достижений в payload для API."""
+    out = []
+    for aid in achievement_ids or []:
+        ach = ACHIEVEMENTS.get(aid)
+        if not ach:
+            continue
+        out.append({
+            "id": ach["id"],
+            "title": ach["title"],
+            "description": ach["description"],
+            "icon": ach["icon"],
+        })
+    return out
+
+
 def _count_completed_by_type(user_id: str) -> dict:
     """Подсчёт завершённых уроков по типам."""
     from apps.submissions.documents import LessonProgress
@@ -141,4 +157,23 @@ def check_and_award_achievements(user_id: str, lesson_type: str, passed: bool) -
     if lectures_with_q >= 3:
         award("lectures_with_questions_3")
 
+    return unlocked
+
+
+def award_specific_achievements(user_id: str, achievement_ids: list) -> list:
+    """
+    Начисляет только указанные достижения из каталога.
+    Возвращает список id новых достижений.
+    """
+    from .documents import UserAchievement
+
+    unlocked = []
+    for aid in achievement_ids or []:
+        if aid not in ACHIEVEMENTS:
+            continue
+        exists = UserAchievement.objects(user_id=user_id, achievement_id=aid).first()
+        if exists:
+            continue
+        UserAchievement(user_id=user_id, achievement_id=aid).save()
+        unlocked.append(aid)
     return unlocked

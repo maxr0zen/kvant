@@ -56,6 +56,7 @@ function mapQuestionFromApi(data: Record<string, unknown>): Question {
     maxAttempts: data.max_attempts != null ? Number(data.max_attempts) : undefined,
     attemptsUsed: data.attempts_used != null ? Number(data.attempts_used) : undefined,
     canEdit: Boolean(data.can_edit),
+    rewardAchievementIds: Array.isArray(data.reward_achievement_ids) ? (data.reward_achievement_ids as string[]) : undefined,
   };
 }
 
@@ -77,6 +78,14 @@ export async function checkQuestionAnswer(
       return {
         passed: Boolean(data.passed),
         message: String(data.message ?? ""),
+        unlockedAchievements: Array.isArray(data.unlocked_achievements)
+          ? data.unlocked_achievements.map((a: Record<string, unknown>) => ({
+              id: String(a.id ?? ""),
+              title: String(a.title ?? ""),
+              description: String(a.description ?? ""),
+              icon: String(a.icon ?? "🏆"),
+            }))
+          : [],
       };
     } catch (e) {
       throw e;
@@ -85,7 +94,7 @@ export async function checkQuestionAnswer(
   return { passed: false, message: "Backend API required" };
 }
 
-export type QuestionCreatePayload = Pick<Question, "title" | "prompt" | "choices" | "multiple"> & Partial<Pick<Question, "trackId" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts">>;
+export type QuestionCreatePayload = Pick<Question, "title" | "prompt" | "choices" | "multiple"> & Partial<Pick<Question, "trackId" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts" | "rewardAchievementIds">>;
 
 export async function createQuestion(data: QuestionCreatePayload): Promise<Question> {
   if (!hasApi()) throw new Error("API not configured");
@@ -105,6 +114,7 @@ export async function createQuestion(data: QuestionCreatePayload): Promise<Quest
   if (data.availableFrom !== undefined) body.available_from = data.availableFrom;
   if (data.availableUntil !== undefined) body.available_until = data.availableUntil;
   if (data.maxAttempts !== undefined) body.max_attempts = data.maxAttempts;
+  if (data.rewardAchievementIds !== undefined) body.reward_achievement_ids = data.rewardAchievementIds;
   const res = await apiFetch("/api/questions/", { method: "POST", body });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -114,7 +124,7 @@ export async function createQuestion(data: QuestionCreatePayload): Promise<Quest
   return mapQuestionFromApi(created);
 }
 
-export type QuestionUpdatePayload = Partial<Pick<Question, "title" | "prompt" | "trackId" | "choices" | "multiple" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts">>;
+export type QuestionUpdatePayload = Partial<Pick<Question, "title" | "prompt" | "trackId" | "choices" | "multiple" | "visibleGroupIds" | "hints" | "availableFrom" | "availableUntil" | "maxAttempts" | "rewardAchievementIds">>;
 
 export async function updateQuestion(id: string, data: QuestionUpdatePayload): Promise<Question> {
   if (!hasApi()) throw new Error("API not configured");
@@ -133,6 +143,7 @@ export async function updateQuestion(id: string, data: QuestionUpdatePayload): P
   if (data.availableFrom !== undefined) body.available_from = data.availableFrom;
   if (data.availableUntil !== undefined) body.available_until = data.availableUntil;
   if (data.maxAttempts !== undefined) body.max_attempts = data.maxAttempts;
+  if (data.rewardAchievementIds !== undefined) body.reward_achievement_ids = data.rewardAchievementIds;
   const res = await apiFetch(`/api/questions/${id}/`, {
     method: "PATCH",
     body,

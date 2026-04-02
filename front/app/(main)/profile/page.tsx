@@ -169,6 +169,7 @@ export default function ProfilePage() {
       <PageHeader
         title="Личный кабинет"
         description={`${displayName} · ${role === "superuser" ? "Администратор" : role === "teacher" ? "Преподаватель" : "Студент"}`}
+        compact
         actions={
           <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
             <LogOut className="h-4 w-4" />
@@ -180,14 +181,40 @@ export default function ProfilePage() {
       {/* ── Student view ── */}
       {isStudent && (
         <Tabs defaultValue="info" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="info">Профиль</TabsTrigger>
-            <TabsTrigger value="progress">Успеваемость</TabsTrigger>
-            <TabsTrigger value="activity">Активность</TabsTrigger>
+          <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="info" className="whitespace-nowrap">Профиль</TabsTrigger>
+            <TabsTrigger value="progress" className="whitespace-nowrap">Успеваемость</TabsTrigger>
+            <TabsTrigger value="activity" className="whitespace-nowrap">Активность</TabsTrigger>
           </TabsList>
 
           {/* Tab: Профиль */}
           <TabsContent value="info" className="space-y-6">
+            {/* QR-коды */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <QrCode className="h-4 w-4" />
+                  Ссылки и чаты
+                </CardTitle>
+                <CardDescription>Отсканируйте QR-код для перехода</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {profile?.group_links?.child_chat_url || profile?.group_links?.parent_chat_url || (profile?.group_links?.links?.length ?? 0) > 0 ? (
+                  <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
+                    <QrCodeCard title="Детский чат" url={profile?.group_links?.child_chat_url ?? ""} />
+                    <QrCodeCard title="Родительский чат" url={profile?.group_links?.parent_chat_url ?? ""} />
+                    {profile?.group_links?.links?.map((l, i) => (
+                      <QrCodeCard key={i} title={l.label || `Ссылка ${i + 1}`} url={l.url ?? ""} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    QR-коды появятся, когда учитель добавит ссылки для вашей группы.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
             <div className="grid gap-6 md:grid-cols-2">
               <Card>
                 <CardHeader className="pb-3">
@@ -249,32 +276,6 @@ export default function ProfilePage() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* QR-коды */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <QrCode className="h-4 w-4" />
-                  Ссылки и чаты
-                </CardTitle>
-                <CardDescription>Отсканируйте QR-код для перехода</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {profile?.group_links?.child_chat_url || profile?.group_links?.parent_chat_url || (profile?.group_links?.links?.length ?? 0) > 0 ? (
-                  <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
-                    <QrCodeCard title="Детский чат" url={profile?.group_links?.child_chat_url ?? ""} />
-                    <QrCodeCard title="Родительский чат" url={profile?.group_links?.parent_chat_url ?? ""} />
-                    {profile?.group_links?.links?.map((l, i) => (
-                      <QrCodeCard key={i} title={l.label || `Ссылка ${i + 1}`} url={l.url ?? ""} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    QR-коды появятся, когда учитель добавит ссылки для вашей группы.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Tab: Успеваемость */}
@@ -307,13 +308,13 @@ export default function ProfilePage() {
                   <div className="space-y-4">
                     {profile.progress.map((p) => (
                       <div key={p.track_id} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                           <Link
                             href={`/main/${p.track_id}`}
-                            className="font-medium hover:underline flex items-center gap-2"
+                            className="min-w-0 font-medium hover:underline flex items-center gap-2"
                           >
                             <BookOpen className="h-4 w-4 shrink-0 text-primary" />
-                            {p.track_title}
+                            <span className="break-words">{p.track_title}</span>
                           </Link>
                           <span className="text-muted-foreground tabular-nums">
                             {p.completed}/{p.total} ({p.percent}%)
@@ -408,7 +409,7 @@ export default function ProfilePage() {
                 ) : profile?.activity && profile.activity.length > 0 ? (
                   <ul className="space-y-3">
                     {profile.activity.map((a, i) => (
-                      <li key={`${a.lesson_id}-${i}`} className="flex items-start gap-3 text-sm">
+                      <li key={`${a.lesson_id}-${i}`} className="flex flex-wrap items-start gap-3 text-sm">
                         {a.status === "completed" || a.status === "completed_late" ? (
                           <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
                         ) : (
@@ -424,7 +425,7 @@ export default function ProfilePage() {
                             {" · "}{formatDate(a.updated_at)}
                           </p>
                         </div>
-                        <Link href={a.track_id ? `/main/${a.track_id}/lesson/${a.lesson_id}` : (a.lesson_type === "survey" ? `/surveys/${a.lesson_id}` : a.lesson_type === "lecture" ? `/lectures/${a.lesson_id}` : a.lesson_type === "task" ? `/tasks/${a.lesson_id}` : a.lesson_type === "puzzle" ? `/puzzles/${a.lesson_id}` : `/questions/${a.lesson_id}`)}>
+                        <Link className="ml-auto sm:ml-0" href={a.track_id ? `/main/${a.track_id}/lesson/${a.lesson_id}` : (a.lesson_type === "survey" ? `/surveys/${a.lesson_id}` : a.lesson_type === "lecture" ? `/lectures/${a.lesson_id}` : a.lesson_type === "task" ? `/tasks/${a.lesson_id}` : a.lesson_type === "puzzle" ? `/puzzles/${a.lesson_id}` : `/questions/${a.lesson_id}`)}>
                           <Button variant="ghost" size="sm">Открыть</Button>
                         </Link>
                       </li>
@@ -449,7 +450,7 @@ export default function ProfilePage() {
         <div className="space-y-6">
           {!loadingProfile && teacherAnalytics && (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
                   title="Всего учеников"
                   value={teacherAnalytics.groups_summary.reduce((s, g) => s + g.total_students, 0)}
@@ -789,7 +790,7 @@ function AddStudentToGroupBlock({
       });
       toast({
         title: "Ученик добавлен",
-        description: `Логин: ${created.username} · Пароль: указанный при создании. Сообщите их ученику.`,
+        description: `Логин: ${form.username.trim()} · Пароль: указанный при создании. Сообщите их ученику.`,
       });
       setForm({ username: "", first_name: "", last_name: "", password: "" });
       onAdded();

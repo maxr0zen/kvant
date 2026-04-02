@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CodeEditor } from "@/components/editor/code-editor";
 import { TestCasesPanel } from "@/components/testcases/testcases-panel";
 import { runPythonInBrowser, normalizeOutput } from "@/lib/runner/browser-python";
-import type { Task } from "@/lib/types";
+import type { AchievementUnlocked, Task } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import type { TestRunResult } from "@/lib/types";
 import { submitTask, fetchTaskDraft, saveTaskDraft } from "@/lib/api/tasks";
@@ -16,6 +16,7 @@ import { getStoredToken } from "@/lib/api/auth";
 import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
 import { HintsBlock } from "@/components/hints-block";
 import { AvailabilityNotice } from "@/components/availability-notice";
+import { AchievementUnlockCelebration } from "@/components/achievement-unlock-celebration";
 
 const DRAFT_SAVE_DELAY_MS = 1500;
 
@@ -75,9 +76,19 @@ export function TaskView({ task }: { task: Task }) {
     };
   }, [task.id, task.starterCode, code, draftLoaded]);
   const [runResults, setRunResults] = useState<TestRunResult[] | null>(null);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<AchievementUnlocked[]>([]);
+  const shownAchievementIds = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState<"run" | "submit" | null>(null);
   const [pyodideLoading, setPyodideLoading] = useState(false);
   const { toast } = useToast();
+
+  function showUnlocked(items: AchievementUnlocked[] | undefined) {
+    if (!items || items.length === 0) return;
+    const fresh = items.filter((a) => a.id && !shownAchievementIds.current.has(a.id));
+    if (!fresh.length) return;
+    for (const a of fresh) shownAchievementIds.current.add(a.id);
+    setUnlockedAchievements(fresh);
+  }
 
   async function runTests(
     testCases: { id: string; input: string; expectedOutput: string }[]
@@ -173,6 +184,7 @@ export function TaskView({ task }: { task: Task }) {
             });
           }
         } else {
+          showUnlocked(result.unlockedAchievements);
           toast({
             title: "Решение верное",
             description: result.message ?? "Все тесты пройдены.",
@@ -264,10 +276,10 @@ export function TaskView({ task }: { task: Task }) {
             : `Попыток осталось: ${maxAttempts - attemptsUsed} из ${maxAttempts}`}
         </p>
       )}
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+      <div className="grid gap-6 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
         <div className="space-y-4 min-w-0">
           <CodeEditor value={code} onChange={setCode} language={task.language ?? "python"} />
-          <div className="flex flex-wrap gap-3 pt-1">
+          <div className="flex flex-wrap gap-2 pt-1 sm:gap-3">
             <Button
               onClick={handleRun}
               disabled={loading !== null}
@@ -285,7 +297,7 @@ export function TaskView({ task }: { task: Task }) {
             )}
           </div>
         </div>
-        <div className="lg:border-l lg:pl-6 space-y-4 min-w-0">
+        <div className="space-y-4 min-w-0 xl:border-l xl:pl-6">
           <TestCasesPanel
             testCases={task.testCases.map((c) => ({
               id: c.id,
@@ -298,6 +310,10 @@ export function TaskView({ task }: { task: Task }) {
           <HintsBlock hints={task.hints ?? []} />
         </div>
       </div>
+      <AchievementUnlockCelebration
+        items={unlockedAchievements}
+        onDone={() => setUnlockedAchievements([])}
+      />
     </div>
   );
 }

@@ -72,6 +72,7 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
     orphan_questions: OrphanQuestion[];
     orphan_surveys: OrphanSurvey[];
     orphan_layouts: OrphanLayout[];
+    library_lessons: LessonRef[];
   } | null>(null);
   const [lessons, setLessons] = useState<LessonRef[]>([]);
   const [saving, setSaving] = useState(false);
@@ -106,6 +107,12 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
       setLoadingOrphans(true);
       fetchTracks()
         .then((data) => {
+          const libraryLessons: LessonRef[] = [];
+          for (const t of data.tracks ?? []) {
+            for (const lesson of t.lessons ?? []) {
+              libraryLessons.push(lesson);
+            }
+          }
           setOrphans({
             orphan_lectures: data.orphan_lectures,
             orphan_tasks: data.orphan_tasks,
@@ -113,6 +120,7 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
             orphan_questions: data.orphan_questions,
             orphan_surveys: data.orphan_surveys,
             orphan_layouts: data.orphan_layouts,
+            library_lessons: libraryLessons,
           });
           const trackFromApi = data.tracks?.find((t) => t.id === trackId) as Track | undefined;
           let base = [...(trackFromApi?.lessons ?? track.lessons)].sort((a, b) => a.order - b.order);
@@ -360,9 +368,36 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
           <section className="rounded-xl border border-border/80 bg-muted/5 p-4">
             <h3 className="text-sm font-medium mb-3">Добавить существующий урок</h3>
             <p className="text-xs text-muted-foreground mb-4">
-              Уже созданные лекции, задачи и т.д., которые ещё не входят ни в один трек.
+              Можно добавить как одиночные уроки, так и уроки из треков других преподавателей.
             </p>
             <div className="grid gap-6 sm:grid-cols-2">
+              {LESSON_TYPES.map((lessonType) => {
+                const items = orphans.library_lessons.filter((l) => l.type === lessonType);
+                if (items.length === 0) return null;
+                return (
+                  <div key={`library-${lessonType}`}>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2">Из треков: {TYPE_LABELS[lessonType]}</h4>
+                    <ul className="space-y-1">
+                      {items
+                        .filter((x) => !inTrackIds.has(x.id))
+                        .map((item) => (
+                          <li key={`${lessonType}-${item.id}`} className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 rounded-lg justify-start max-w-full min-w-0"
+                              onClick={() => addLesson(lessonType, item.id, item.title)}
+                            >
+                              <Plus className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{item.title}</span>
+                            </Button>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                );
+              })}
               {orphans.orphan_lectures.length > 0 && (
                 <div>
                   <h4 className="text-xs font-medium text-muted-foreground mb-2">Лекции</h4>
@@ -548,6 +583,8 @@ function getEditUrl(type: LessonRef["type"], id: string): string {
       return `/questions/${id}/edit`;
     case "survey":
       return `/surveys/${id}`;
+    case "layout":
+      return `/layouts/${id}`;
     default:
       return "/main";
   }

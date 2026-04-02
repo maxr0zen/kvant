@@ -15,8 +15,10 @@ export interface StatCardProps {
 export function StatCard({ title, value, icon: Icon, description, className }: StatCardProps) {
   return (
     <Card className={cn("overflow-hidden", className)}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
+      {/* CardContent defaults to `pt-0 sm:pt-0` (intended for cards with CardHeader).
+          StatCard has no CardHeader, so we force top padding to avoid text sticking. */}
+      <CardContent className="p-4 !pt-4 sm:!pt-4">
+        <div className="flex items-center justify-between gap-2">
           <div className="space-y-1">
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
             <p className="text-2xl font-semibold tabular-nums">{value}</p>

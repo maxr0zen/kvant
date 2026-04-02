@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -17,14 +17,17 @@ import {
 } from "@/components/ui/dialog";
 import { CodeEditor } from "@/components/editor/code-editor";
 import { createLayout } from "@/lib/api/layouts";
+import { fetchTrackById } from "@/lib/api/tracks";
 import { datetimeLocalToISOUTC } from "@/lib/utils/datetime";
 import { useToast } from "@/components/ui/use-toast";
 import { GroupSelector } from "@/components/group-selector";
 import { PageHeader } from "@/components/ui/page-header";
 import type { LayoutSubtask } from "@/lib/types";
 import { Trash2, Plus, Settings2 } from "lucide-react";
+import { AchievementSelector } from "@/components/achievement-selector";
 
 type LayoutFile = "html" | "css" | "js";
+type LayoutCheckType = "selector_exists" | "html_contains" | "css_contains" | "js_contains";
 
 function buildPreviewDoc(html: string, css: string, js: string): string {
   const styleTag = css ? `<style>\n${css}\n</style>` : "";
@@ -61,6 +64,8 @@ export default function NewLayoutPage() {
   const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [attachedLectureId, setAttachedLectureId] = useState("");
+  const [trackLectures, setTrackLectures] = useState<Array<{ id: string; title: string }>>([]);
   const [templateHtml, setTemplateHtml] = useState("<div class=\"box\">Привет</div>");
   const [templateCss, setTemplateCss] = useState(".box { color: blue; }");
   const [templateJs, setTemplateJs] = useState("");
@@ -71,6 +76,7 @@ export default function NewLayoutPage() {
   const [subtasks, setSubtasks] = useState<LayoutSubtask[]>([{ ...defaultSubtask, id: "1" }]);
   const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
   const [hints, setHints] = useState<string[]>([]);
+  const [rewardAchievementIds, setRewardAchievementIds] = useState<string[]>([]);
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
   const [tempMode, setTempMode] = useState<"none" | "until_date" | "duration">("none");
@@ -78,6 +84,24 @@ export default function NewLayoutPage() {
   const [durationMinutes, setDurationMinutes] = useState("");
   const [maxAttempts, setMaxAttempts] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!trackId) {
+      setTrackLectures([]);
+      return;
+    }
+    fetchTrackById(trackId).then((track) => {
+      if (cancelled || !track) return;
+      const lectures = (track.lessons ?? [])
+        .filter((lesson) => lesson.type === "lecture")
+        .map((lesson) => ({ id: lesson.id, title: lesson.title }));
+      setTrackLectures(lectures);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId]);
 
   function addSubtask() {
     setSubtasks((prev) => [
@@ -111,6 +135,7 @@ export default function NewLayoutPage() {
       const layout = await createLayout({
         title: title.trim(),
         description: description.trim(),
+        attachedLectureId: attachedLectureId.trim() || undefined,
         trackId: trackId ?? undefined,
         templateHtml,
         templateCss,
@@ -130,6 +155,7 @@ export default function NewLayoutPage() {
           return availableUntil.trim() ? datetimeLocalToISOUTC(availableUntil.trim()) : undefined;
         })(),
         maxAttempts: maxAttempts.trim() ? parseInt(maxAttempts, 10) : undefined,
+        rewardAchievementIds: rewardAchievementIds.length > 0 ? rewardAchievementIds : undefined,
       });
       toast({ title: "Задание создано", description: layout.title });
       if (trackId) {
@@ -213,6 +239,7 @@ export default function NewLayoutPage() {
                         <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить подсказку
                       </Button>
                     </div>
+                    <AchievementSelector value={rewardAchievementIds} onChange={setRewardAchievementIds} />
                     <div className="space-y-2 border-t pt-5">
                       <Label>Временное задание</Label>
                       <div className="flex flex-wrap gap-2">
@@ -269,6 +296,34 @@ export default function NewLayoutPage() {
             <div className="space-y-2">
               <Label htmlFor="description">Теория (описание)</Label>
               <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Теоретический блок к заданию" rows={4} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="attachedLecture">Связанная лекция (опционально)</Label>
+              {trackId && trackLectures.length > 0 ? (
+                <select
+                  id="attachedLecture"
+                  value={attachedLectureId}
+                  onChange={(e) => setAttachedLectureId(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Не выбрана</option>
+                  {trackLectures.map((lecture) => (
+                    <option key={lecture.id} value={lecture.id}>
+                      {lecture.title}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="attachedLecture"
+                  value={attachedLectureId}
+                  onChange={(e) => setAttachedLectureId(e.target.value)}
+                  placeholder="ID лекции, например: 67a1c..."
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                В блоке теории студент увидит кнопку перехода в эту лекцию.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -340,16 +395,18 @@ export default function NewLayoutPage() {
                     <Label className="text-xs">Тип проверки</Label>
                     <select
                       value={st.checkType}
-                      onChange={(e) => updateSubtask(st.id, { checkType: e.target.value as "selector_exists" | "html_contains" })}
+                      onChange={(e) => updateSubtask(st.id, { checkType: e.target.value as LayoutCheckType })}
                       className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                     >
                       <option value="selector_exists">Селектор существует</option>
                       <option value="html_contains">HTML содержит</option>
+                      <option value="css_contains">CSS содержит</option>
+                      <option value="js_contains">JS содержит</option>
                     </select>
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Значение (селектор или подстрока)</Label>
+                  <Label className="text-xs">Значение (селектор или подстрока в HTML/CSS/JS)</Label>
                   <Input value={st.checkValue} onChange={(e) => updateSubtask(st.id, { checkValue: e.target.value })} placeholder=".box или текст" className="h-9" />
                 </div>
                 {subtasks.length > 1 && (

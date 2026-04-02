@@ -30,6 +30,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import type { TestCase } from "@/lib/types";
 import { Trash2, Plus, Settings2 } from "lucide-react";
 import { LanguageSelector } from "@/components/language-selector";
+import { AchievementSelector } from "@/components/achievement-selector";
 
 const defaultTestCase: TestCase = {
   id: "1",
@@ -52,6 +53,7 @@ export default function NewTaskPage() {
   ]);
   const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
   const [hints, setHints] = useState<string[]>([]);
+  const [rewardAchievementIds, setRewardAchievementIds] = useState<string[]>([]);
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
   const [tempMode, setTempMode] = useState<"none" | "until_date" | "duration">("none");
@@ -107,6 +109,7 @@ export default function NewTaskPage() {
           return availableUntil.trim() ? datetimeLocalToISOUTC(availableUntil.trim()) : undefined;
         })(),
         maxAttempts: maxAttempts.trim() ? parseInt(maxAttempts, 10) : undefined,
+        rewardAchievementIds: rewardAchievementIds.length > 0 ? rewardAchievementIds : undefined,
       });
       toast({ title: "Задача создана", description: task.title });
       if (trackId) {
@@ -185,6 +188,7 @@ export default function NewTaskPage() {
                         <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить подсказку
                       </Button>
                     </div>
+                    <AchievementSelector value={rewardAchievementIds} onChange={setRewardAchievementIds} />
                     <div className="space-y-2 border-t pt-5">
                       <Label>Временное задание</Label>
                       <div className="flex flex-wrap gap-2">

@@ -19,6 +19,11 @@ def _can_edit_survey(request, survey):
     return creator and str(creator) == str(request.user.id)
 
 
+def _is_visible_group_only_patch(data):
+    keys = set(data.keys())
+    return bool(keys) and not (keys - {"visible_group_ids"})
+
+
 def _authorize_teacher_or_admin_for_survey(user, survey):
     """Проверка доступа преподавателя/админа к опросу; возвращает (ok, teacher_group_ids)."""
     from apps.users.documents import UserRole
@@ -85,12 +90,19 @@ def survey_detail(request, survey_id):
     if request.method in ("PUT", "PATCH"):
         if not request.user or not getattr(request.user, "id", None):
             return Response({"detail": "Unauthorized."}, status=status.HTTP_401_UNAUTHORIZED)
-        if not _can_edit_survey(request, survey):
-            return Response(
-                {"detail": "Нет прав на редактирование этого задания."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        partial = request.method == "PATCH"
+        can_edit = _can_edit_survey(request, survey)
+        if not can_edit:
+            if getattr(request.user, "role", None) != "teacher" or not _is_visible_group_only_patch(request.data):
+                return Response(
+                    {"detail": "Нет прав на редактирование этого задания."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        visible_group_ids = request.data.get("visible_group_ids")
+        if visible_group_ids is not None:
+            ok, err = validate_visible_group_ids_for_teacher(request.user, visible_group_ids)
+            if not ok:
+                return Response({"detail": err}, status=status.HTTP_403_FORBIDDEN)
+        partial = request.method == "PATCH" or not can_edit
         serializer = SurveySerializer(survey, data=request.data, partial=partial, context={"request": request})
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -261,7 +273,7 @@ def accept_survey_response(request, survey_id, user_id):
         except Exception:
             pass
 
-    save_lesson_progress(
+    unlocked_achievements = save_lesson_progress(
         str(student.id),
         lesson_id,
         "survey",
@@ -271,4 +283,4 @@ def accept_survey_response(request, survey_id, user_id):
         track_title=track_title,
         available_until=getattr(survey, "available_until", None),
     )
-    return Response({"ok": True, "message": "Задание принято."})
+    return Response({"ok": True, "message": "Задание принято.", "unlocked_achievements": unlocked_achievements})

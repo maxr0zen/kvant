@@ -25,6 +25,11 @@ def _can_edit_task(request, task):
     return creator and str(creator) == str(request.user.id)
 
 
+def _is_visible_group_only_patch(data):
+    keys = set(data.keys())
+    return bool(keys) and not (keys - {"visible_group_ids"})
+
+
 class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
@@ -66,17 +71,21 @@ class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateMo
             instance = self.get_object()
         except Task.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        if not _can_edit_task(request, instance):
-            return Response(
-                {"detail": "Нет прав на редактирование этого задания."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        can_edit = _can_edit_task(request, instance)
+        if not can_edit:
+            if getattr(request.user, "role", None) != "teacher" or not _is_visible_group_only_patch(request.data):
+                return Response(
+                    {"detail": "Нет прав на редактирование этого задания."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         visible_group_ids = request.data.get("visible_group_ids")
         if visible_group_ids is not None:
             ok, err = validate_visible_group_ids_for_teacher(request.user, visible_group_ids)
             if not ok:
                 return Response({"detail": err}, status=status.HTTP_403_FORBIDDEN)
         partial = kwargs.get("partial", False)
+        if not can_edit:
+            partial = True
         ser = self.get_serializer(instance, data=request.data, partial=partial)
         ser.is_valid(raise_exception=True)
         task = ser.save()
@@ -151,7 +160,7 @@ class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateMo
                     track_title = t.title
             except Exception:
                 pass
-        save_lesson_progress(
+        unlocked_achievements = save_lesson_progress(
             user_id, lesson_id, "task", passed,
             lesson_title=task.title, track_id=task.track_id or "", track_title=track_title,
             available_until=getattr(task, "available_until", None),
@@ -161,6 +170,7 @@ class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateMo
             "passed": passed,
             "results": results,
             "message": message,
+            "unlocked_achievements": unlocked_achievements,
         })
 
     @action(detail=True, methods=["get", "put", "patch"], url_path="draft")
