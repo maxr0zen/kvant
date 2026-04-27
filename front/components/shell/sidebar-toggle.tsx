@@ -42,16 +42,17 @@ export function SidebarToggle() {
   }, [toggle]);
 
   const touchZoneWidth = 32;
+  const shellHorizontalOffset = "20px";
   const left = collapsed
-    ? "calc(var(--sidebar-width-collapsed) - 12px)"
-    : "calc(var(--sidebar-width) - 12px)";
+    ? `calc(${shellHorizontalOffset} + var(--sidebar-width-collapsed) - 12px)`
+    : `calc(${shellHorizontalOffset} + var(--sidebar-width) - 12px)`;
 
   return (
     <div
       ref={zoneRef}
       role="presentation"
       className={
-        "fixed top-16 bottom-0 z-40 flex items-center justify-center transition-[left] duration-200 ease-in-out hidden lg:flex"
+        "fixed top-0 bottom-0 z-40 flex items-center justify-center transition-[left] duration-200 ease-in-out hidden lg:flex"
       }
       style={{ left, width: `${touchZoneWidth}px` }}
       onPointerDown={handlePointerDown}

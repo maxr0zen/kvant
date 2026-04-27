@@ -20,11 +20,10 @@ export default async function SurveyPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={survey.title || "РћРїСЂРѕСЃ"}
-        breadcrumbs={[{ label: "РўСЂРµРєРё", href: "/main" }, { label: "РћРїСЂРѕСЃ" }]}
-        actions={
-          <AvailabilityCountdown availableUntil={survey.availableUntil} className="shrink-0" />
-        }
+        title={survey.title || "Опрос"}
+        description="Спокойный reflective flow для ответа студента и review-panel для преподавателя."
+        breadcrumbs={[{ label: "Главная", href: "/main" }, { label: "Опрос" }]}
+        actions={<AvailabilityCountdown availableUntil={survey.availableUntil} className="shrink-0" />}
       />
       <SurveyView survey={survey} />
     </div>

@@ -14,15 +14,15 @@ export async function fetchAchievementsCatalog(): Promise<AchievementCatalogItem
     if (!res.ok) return [];
     const data = await res.json();
     if (!Array.isArray(data?.items)) return [];
-    return data.items
-      .filter((x: unknown): x is Record<string, unknown> => !!x && typeof x === "object")
-      .map((x) => ({
-        id: String(x.id ?? ""),
-        title: String(x.title ?? ""),
-        description: String(x.description ?? ""),
-        icon: String(x.icon ?? "🏆"),
+    return (data.items as unknown[])
+      .filter((value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object")
+      .map((value): AchievementCatalogItem => ({
+        id: String(value.id ?? ""),
+        title: String(value.title ?? ""),
+        description: String(value.description ?? ""),
+        icon: String(value.icon ?? "trophy"),
       }))
-      .filter((x) => x.id !== "");
+      .filter((value: AchievementCatalogItem) => value.id !== "");
   } catch {
     return [];
   }

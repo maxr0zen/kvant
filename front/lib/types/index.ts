@@ -207,6 +207,7 @@ export interface Question {
   choices: QuestionChoice[];
   multiple: boolean; // true — можно выбрать несколько ответов
   trackId?: string;
+  visibleGroupIds?: string[];
   hints?: string[];
   availableFrom?: string | null;
   availableUntil?: string | null;
@@ -251,6 +252,7 @@ export interface Layout {
   id: string;
   title: string;
   description: string;
+  checkMode?: "subtasks" | "full_match";
   attachedLectureId?: string;
   /** Лекция целиком из GET /api/layouts/:id/ (без отдельного запроса к /lectures/) */
   attachedLecture?: Lecture | null;
@@ -258,6 +260,9 @@ export interface Layout {
   templateHtml: string;
   templateCss: string;
   templateJs: string;
+  referenceHtml?: string;
+  referenceCss?: string;
+  referenceJs?: string;
   /** Какие файлы пользователь может редактировать */
   editableFiles: ("html" | "css" | "js")[];
   subtasks: LayoutSubtask[];
@@ -286,3 +291,5 @@ export interface AchievementUnlocked {
   description: string;
   icon: string;
 }
+
+

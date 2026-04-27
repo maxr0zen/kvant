@@ -121,11 +121,9 @@ class LayoutViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Update
         css = ser.validated_data.get("css", "") or ""
         js = ser.validated_data.get("js", "") or ""
         result = check_layout(layout, html, css, js)
-        subtasks = result.get("subtasks") if isinstance(result, dict) else []
-        has_subtasks = isinstance(subtasks, list) and len(subtasks) > 0
-        all_subtasks_passed = has_subtasks and all(bool((st or {}).get("passed")) for st in subtasks)
+        checker_passed = bool((result or {}).get("passed")) if isinstance(result, dict) else False
         has_blocking_errors = bool((result.get("errors") if isinstance(result, dict) else []) or [])
-        final_passed = bool(all_subtasks_passed) and not has_blocking_errors
+        final_passed = checker_passed and not has_blocking_errors
         if isinstance(result, dict):
             result["passed"] = final_passed
         user_id = str(request.user.id) if request.user and getattr(request.user, "id", None) else None

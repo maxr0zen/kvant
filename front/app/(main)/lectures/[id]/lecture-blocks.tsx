@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { LectureBlock } from "@/lib/types";
 import { BlockViewText } from "@/components/lecture-blocks/block-view-text";
 import { BlockViewImage } from "@/components/lecture-blocks/block-view-image";
@@ -16,6 +16,20 @@ interface LectureBlocksProps {
 
 export function LectureBlocks({ blocks, lectureId }: LectureBlocksProps) {
   const [blockProgress, setBlockProgress] = useState<Record<string, BlockProgressItem>>({});
+
+  const normalizedProgress = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(blockProgress).map(([id, item]) => [
+          id,
+          {
+            status: item.status ?? undefined,
+            correct_ids: item.correct_ids ?? null,
+          },
+        ])
+      ) as Record<string, { status?: string; correct_ids?: string[] | null }>,
+    [blockProgress]
+  );
 
   useEffect(() => {
     if (!lectureId) return;
@@ -36,7 +50,7 @@ export function LectureBlocks({ blocks, lectureId }: LectureBlocksProps) {
             key={`${block.id}-${block.url ?? ""}`}
             block={block}
             lectureId={lectureId}
-            blockProgress={blockProgress}
+            blockProgress={normalizedProgress}
             onCorrectAnswer={(blockId) => {
               if (blockId) {
                 setBlockProgress((prev) => ({
@@ -52,8 +66,8 @@ export function LectureBlocks({ blocks, lectureId }: LectureBlocksProps) {
             key={block.id}
             block={block}
             lectureId={lectureId}
-            wasEverCorrect={blockProgress[block.id]?.status === "completed"}
-            correctIds={blockProgress[block.id]?.correct_ids ?? null}
+            wasEverCorrect={normalizedProgress[block.id]?.status === "completed"}
+            correctIds={normalizedProgress[block.id]?.correct_ids ?? null}
             onCorrectAnswer={() => {
               fetchLectureQuestionBlocksProgress(lectureId!).then(setBlockProgress);
             }}

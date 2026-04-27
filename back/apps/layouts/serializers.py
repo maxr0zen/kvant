@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from common.db_utils import datetime_to_iso_utc, to_utc_datetime, get_doc_by_pk
-from .documents import LayoutLesson, LayoutSubtaskEmbed, VALID_EDITABLE
+from .documents import LayoutLesson, LayoutSubtaskEmbed, VALID_EDITABLE, VALID_CHECK_MODES
 
 
 def _attached_lecture_id_for_api(raw: str) -> str:
@@ -51,6 +51,10 @@ class LayoutSerializer(serializers.Serializer):
     template_html = serializers.CharField(required=False, allow_blank=True, default="")
     template_css = serializers.CharField(required=False, allow_blank=True, default="")
     template_js = serializers.CharField(required=False, allow_blank=True, default="")
+    reference_html = serializers.CharField(required=False, allow_blank=True, default="")
+    reference_css = serializers.CharField(required=False, allow_blank=True, default="")
+    reference_js = serializers.CharField(required=False, allow_blank=True, default="")
+    check_mode = serializers.ChoiceField(choices=list(VALID_CHECK_MODES), required=False, default="subtasks")
     editable_files = serializers.ListField(
         child=serializers.ChoiceField(choices=list(VALID_EDITABLE)),
         required=False,
@@ -109,6 +113,11 @@ class LayoutSerializer(serializers.Serializer):
             "template_html": getattr(instance, "template_html", "") or "",
             "template_css": getattr(instance, "template_css", "") or "",
             "template_js": getattr(instance, "template_js", "") or "",
+            "check_mode": getattr(instance, "check_mode", "subtasks") or "subtasks",
+            # Эталон отдаем только редактору задания.
+            "reference_html": (getattr(instance, "reference_html", "") or "") if self.get_can_edit(instance) else "",
+            "reference_css": (getattr(instance, "reference_css", "") or "") if self.get_can_edit(instance) else "",
+            "reference_js": (getattr(instance, "reference_js", "") or "") if self.get_can_edit(instance) else "",
             "editable_files": getattr(instance, "editable_files", None) or ["html", "css", "js"],
             "subtasks": [
                 {"id": st.id, "title": st.title, "check_type": st.check_type, "check_value": st.check_value}
@@ -150,6 +159,10 @@ class LayoutSerializer(serializers.Serializer):
             template_html=validated_data.get("template_html", ""),
             template_css=validated_data.get("template_css", ""),
             template_js=validated_data.get("template_js", ""),
+            reference_html=validated_data.get("reference_html", "") or validated_data.get("template_html", ""),
+            reference_css=validated_data.get("reference_css", "") or validated_data.get("template_css", ""),
+            reference_js=validated_data.get("reference_js", "") or validated_data.get("template_js", ""),
+            check_mode=validated_data.get("check_mode", "subtasks"),
             editable_files=editable,
             visible_group_ids=visible_group_ids,
             hints=hints,
@@ -185,6 +198,7 @@ class LayoutSerializer(serializers.Serializer):
         subtasks = validated_data.pop("subtasks", None)
         editable = validated_data.pop("editable_files", None)
         for attr in ("title", "description", "attached_lecture_id", "track_id", "template_html", "template_css", "template_js",
+                     "reference_html", "reference_css", "reference_js", "check_mode",
                      "visible_group_ids", "hints", "reward_achievement_ids", "max_attempts"):
             if attr in validated_data:
                 setattr(instance, attr, validated_data[attr])

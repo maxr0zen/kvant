@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { fetchTracks, type OrphanLecture, type OrphanTask, type OrphanPuzzle, type OrphanQuestion, type OrphanSurvey, type OrphanLayout } from "@/lib/api/tracks";
+import {
+  fetchTracks,
+  type OrphanLayout,
+  type OrphanLecture,
+  type OrphanPuzzle,
+  type OrphanQuestion,
+  type OrphanSurvey,
+  type OrphanTask,
+} from "@/lib/api/tracks";
 import { fetchNotifications, type Notification } from "@/lib/api/notifications";
 import { fetchPlatformCompleted, type PlatformCompletedItem } from "@/lib/api/profile";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,7 +22,23 @@ import { AvailabilityCountdown } from "@/components/availability-countdown";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { BookOpen, ListChecks, CheckCircle2, Star, Puzzle, HelpCircle, Clock, Search, MessageCircle, Inbox, Code2 } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  CalendarClock,
+  CheckCircle2,
+  Clock,
+  Code2,
+  HelpCircle,
+  Inbox,
+  ListChecks,
+  MessageCircle,
+  Puzzle,
+  Search,
+  Sparkles,
+  Star,
+  Trophy,
+} from "lucide-react";
 import type { Track } from "@/lib/types";
 import { parseDateTime } from "@/lib/utils/datetime";
 import { Input } from "@/components/ui/input";
@@ -39,67 +57,29 @@ interface OrphanItem {
 }
 
 function trackProgress(track: Track): { completed: number; total: number; percent: number } {
-  const lessons = (track.lessons || []).filter(
-    (l) => l.type === "lecture" || l.type === "task" || l.type === "puzzle" || l.type === "question" || l.type === "survey" || l.type === "layout"
+  const lessons = (track.lessons || []).filter((lesson) =>
+    ["lecture", "task", "puzzle", "question", "survey", "layout"].includes(lesson.type)
   );
   const total = lessons.length;
-  const completed = lessons.filter((l) => {
-    const st = track.progress?.[l.id];
-    return st === "completed" || st === "completed_late";
+  const completed = lessons.filter((lesson) => {
+    const state = track.progress?.[lesson.id];
+    return state === "completed" || state === "completed_late";
   }).length;
+
   return { completed, total, percent: total ? Math.round((100 * completed) / total) : 0 };
 }
 
 const ORPHAN_TYPE_CONFIG: Record<
   OrphanItemType,
-  { href: (id: string) => string; label: string; buttonText: string; Icon: typeof BookOpen }
+  { href: (id: string) => string; label: string; action: string; Icon: typeof BookOpen }
 > = {
-  lecture: { href: (id) => `/lectures/${id}`, label: "Лекция", buttonText: "Открыть", Icon: BookOpen },
-  task: { href: (id) => `/tasks/${id}`, label: "Задание", buttonText: "Открыть", Icon: ListChecks },
-  puzzle: { href: (id) => `/puzzles/${id}`, label: "Puzzle", buttonText: "Открыть", Icon: Puzzle },
-  question: { href: (id) => `/questions/${id}`, label: "Вопрос", buttonText: "Открыть", Icon: HelpCircle },
-  survey: { href: (id) => `/surveys/${id}`, label: "Опрос", buttonText: "Открыть", Icon: MessageCircle },
-  layout: { href: (id) => `/layouts/${id}`, label: "Верстка", buttonText: "Открыть", Icon: Code2 },
+  lecture: { href: (id) => `/lectures/${id}`, label: "Лекция", action: "Открыть лекцию", Icon: BookOpen },
+  task: { href: (id) => `/tasks/${id}`, label: "Задание", action: "Открыть задание", Icon: ListChecks },
+  puzzle: { href: (id) => `/puzzles/${id}`, label: "Puzzle", action: "Открыть puzzle", Icon: Puzzle },
+  question: { href: (id) => `/questions/${id}`, label: "Вопрос", action: "Открыть вопрос", Icon: HelpCircle },
+  survey: { href: (id) => `/surveys/${id}`, label: "Опрос", action: "Открыть опрос", Icon: MessageCircle },
+  layout: { href: (id) => `/layouts/${id}`, label: "Верстка", action: "Открыть верстку", Icon: Code2 },
 };
-
-function OrphanCard({ item }: { item: OrphanItem }) {
-  const { href, label, buttonText, Icon } = ORPHAN_TYPE_CONFIG[item.type];
-  const isTemp = item.hasDeadline;
-  return (
-    <Card className="flex flex-col">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{item.title}</span>
-              {item.type === "task" && item.hard && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" />}
-            </CardTitle>
-            <CardDescription className="mt-0.5 flex items-center gap-1.5">
-              {label}
-              {isTemp && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  Временное
-                </span>
-              )}
-            </CardDescription>
-          </div>
-          {item.availableUntil && (
-            <AvailabilityCountdown availableUntil={item.availableUntil} className="shrink-0 text-xs" />
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 flex items-end pt-2">
-        <Link href={href(item.id)} className="w-full">
-          <Button variant="outline" size="sm" className="w-full">
-            {buttonText}
-          </Button>
-        </Link>
-      </CardContent>
-    </Card>
-  );
-}
 
 const TAB_FILTERS: { value: OrphanItemType | "all"; label: string }[] = [
   { value: "all", label: "Все" },
@@ -110,6 +90,111 @@ const TAB_FILTERS: { value: OrphanItemType | "all"; label: string }[] = [
   { value: "survey", label: "Опросы" },
   { value: "layout", label: "Верстка" },
 ];
+
+const EMPTY_LECTURES: OrphanLecture[] = [];
+const EMPTY_TASKS: OrphanTask[] = [];
+const EMPTY_PUZZLES: OrphanPuzzle[] = [];
+const EMPTY_QUESTIONS: OrphanQuestion[] = [];
+const EMPTY_SURVEYS: OrphanSurvey[] = [];
+const EMPTY_LAYOUTS: OrphanLayout[] = [];
+const EMPTY_TRACKS: Track[] = [];
+
+function MetricTile({
+  label,
+  value,
+  hint,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  icon: typeof Sparkles;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-white/50 bg-background/80 p-4 shadow-[var(--shadow-soft)] dark:border-white/10">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em]">{value}</p>
+        </div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-primary/10 text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+function NotificationBanner({ notification }: { notification: Notification }) {
+  const styles: Record<string, string> = {
+    info: "border-[hsl(var(--info)/0.18)] bg-[hsl(var(--info)/0.08)] text-foreground",
+    success: "border-[hsl(var(--success)/0.18)] bg-[hsl(var(--success)/0.08)] text-foreground",
+    warning: "border-[hsl(var(--warning)/0.22)] bg-[hsl(var(--warning)/0.12)] text-foreground",
+    error: "border-[hsl(var(--destructive)/0.2)] bg-[hsl(var(--destructive)/0.08)] text-foreground",
+  };
+
+  return (
+    <div className={`rounded-[1.25rem] border px-4 py-3 text-sm shadow-sm ${styles[notification.level] ?? styles.info}`}>
+      {notification.message}
+    </div>
+  );
+}
+
+function OrphanCard({ item }: { item: OrphanItem }) {
+  const { href, label, action, Icon } = ORPHAN_TYPE_CONFIG[item.type];
+
+  return (
+    <Card className="group flex h-full flex-col">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-secondary/80 text-foreground">
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {label}
+                </span>
+                {item.type === "task" && item.hard && <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />}
+              </div>
+            </div>
+            <CardTitle className="text-base">{item.title}</CardTitle>
+            <CardDescription className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.18em]">
+              {item.hasDeadline ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarClock className="h-3 w-3" />
+                  Временный доступ
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3" />
+                  Доступно сейчас
+                </span>
+              )}
+            </CardDescription>
+          </div>
+
+          {item.availableUntil && (
+            <AvailabilityCountdown availableUntil={item.availableUntil} className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs" />
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="mt-auto flex flex-col gap-4">
+        <div className="rounded-[1.1rem] bg-secondary/55 px-4 py-3 text-sm leading-6 text-muted-foreground">
+          Следующее действие уже определено: откройте материал и продолжайте обучение без лишнего поиска.
+        </div>
+        <Link href={href(item.id)} className="mt-auto">
+          <Button variant="outline" className="w-full justify-between">
+            <span>{action}</span>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function MainPage() {
   const [data, setData] = useState<{
@@ -124,23 +209,30 @@ export default function MainPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [completedPlatformItems, setCompletedPlatformItems] = useState<PlatformCompletedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [orphanSearch, setOrphanSearch] = useState("");
+  const [orphanTab, setOrphanTab] = useState<string>("all");
 
   useEffect(() => {
     let mounted = true;
+
     async function load() {
       try {
-        const [t, notif, completed] = await Promise.all([fetchTracks(), fetchNotifications(), fetchPlatformCompleted()]);
+        const [tracksData, notificationsData, completedData] = await Promise.all([
+          fetchTracks(),
+          fetchNotifications(),
+          fetchPlatformCompleted(),
+        ]);
+
         if (mounted) {
-          setData(t);
-          setNotifications(notif);
-          setCompletedPlatformItems(completed);
+          setData(tracksData);
+          setNotifications(notificationsData);
+          setCompletedPlatformItems(completedData);
         }
-      } catch (e) {
-        // silent
       } finally {
         if (mounted) setLoading(false);
       }
     }
+
     load();
     return () => {
       mounted = false;
@@ -148,347 +240,395 @@ export default function MainPage() {
   }, []);
 
   const now = useNow(60_000);
+  const tracks = data?.tracks ?? EMPTY_TRACKS;
+  const rawOrphanLectures = data?.orphan_lectures ?? EMPTY_LECTURES;
+  const rawOrphanTasks = data?.orphan_tasks ?? EMPTY_TASKS;
+  const rawOrphanPuzzles = data?.orphan_puzzles ?? EMPTY_PUZZLES;
+  const rawOrphanQuestions = data?.orphan_questions ?? EMPTY_QUESTIONS;
+  const rawOrphanSurveys = data?.orphan_surveys ?? EMPTY_SURVEYS;
+  const rawOrphanLayouts = data?.orphan_layouts ?? EMPTY_LAYOUTS;
 
-  const tracks = data?.tracks ?? [];
-  const rawOrphanLectures = data?.orphan_lectures ?? [];
-  const rawOrphanTasks = data?.orphan_tasks ?? [];
-  const rawOrphanPuzzles = data?.orphan_puzzles ?? [];
-  const rawOrphanQuestions = data?.orphan_questions ?? [];
-  const rawOrphanSurveys = data?.orphan_surveys ?? [];
-  const rawOrphanLayouts = data?.orphan_layouts ?? [];
-
-  // Parse `available_until` once per data refresh.
   const orphanLectureUntilTsById = useMemo(() => {
     const map = new Map<string, number | null>();
-    for (const lec of rawOrphanLectures) {
-      const u = lec.available_until ?? lec.availableUntil ?? null;
-      const d = parseDateTime(u);
-      map.set(lec.id, d ? d.getTime() : null);
+    for (const item of rawOrphanLectures) {
+      const date = parseDateTime(item.available_until ?? null);
+      map.set(item.id, date ? date.getTime() : null);
     }
     return map;
   }, [rawOrphanLectures]);
+
   const orphanTaskUntilTsById = useMemo(() => {
     const map = new Map<string, number | null>();
-    for (const t of rawOrphanTasks) {
-      const u = t.available_until ?? t.availableUntil ?? null;
-      const d = parseDateTime(u);
-      map.set(t.id, d ? d.getTime() : null);
+    for (const item of rawOrphanTasks) {
+      const date = parseDateTime(item.available_until ?? null);
+      map.set(item.id, date ? date.getTime() : null);
     }
     return map;
   }, [rawOrphanTasks]);
+
   const orphanPuzzleUntilTsById = useMemo(() => {
     const map = new Map<string, number | null>();
-    for (const p of rawOrphanPuzzles) {
-      const u = p.available_until ?? p.availableUntil ?? null;
-      const d = parseDateTime(u);
-      map.set(p.id, d ? d.getTime() : null);
+    for (const item of rawOrphanPuzzles) {
+      const date = parseDateTime(item.available_until ?? null);
+      map.set(item.id, date ? date.getTime() : null);
     }
     return map;
   }, [rawOrphanPuzzles]);
+
   const orphanQuestionUntilTsById = useMemo(() => {
     const map = new Map<string, number | null>();
-    for (const q of rawOrphanQuestions) {
-      const u = q.available_until ?? q.availableUntil ?? null;
-      const d = parseDateTime(u);
-      map.set(q.id, d ? d.getTime() : null);
+    for (const item of rawOrphanQuestions) {
+      const date = parseDateTime(item.available_until ?? null);
+      map.set(item.id, date ? date.getTime() : null);
     }
     return map;
   }, [rawOrphanQuestions]);
+
   const orphanSurveyUntilTsById = useMemo(() => {
     const map = new Map<string, number | null>();
-    for (const s of rawOrphanSurveys) {
-      const u = s.available_until ?? s.availableUntil ?? null;
-      const d = parseDateTime(u);
-      map.set(s.id, d ? d.getTime() : null);
+    for (const item of rawOrphanSurveys) {
+      const date = parseDateTime(item.available_until ?? null);
+      map.set(item.id, date ? date.getTime() : null);
     }
     return map;
   }, [rawOrphanSurveys]);
+
   const orphanLayoutUntilTsById = useMemo(() => {
     const map = new Map<string, number | null>();
-    for (const l of rawOrphanLayouts) {
-      const u = l.available_until ?? l.availableUntil ?? null;
-      const d = parseDateTime(u);
-      map.set(l.id, d ? d.getTime() : null);
+    for (const item of rawOrphanLayouts) {
+      const date = parseDateTime(item.available_until ?? null);
+      map.set(item.id, date ? date.getTime() : null);
     }
     return map;
   }, [rawOrphanLayouts]);
 
   const completedStandaloneKeySet = useMemo(() => {
-    const done = new Set<string>();
+    const set = new Set<string>();
     for (const item of completedPlatformItems) {
       if (item.status === "completed" || item.status === "completed_late") {
-        done.add(`${item.lesson_type}:${item.lesson_id}`);
+        set.add(`${item.lesson_type}:${item.lesson_id}`);
       }
     }
-    return done;
+    return set;
   }, [completedPlatformItems]);
+
   const orphanLectures = useMemo(
     () =>
-      rawOrphanLectures.filter((i) => {
-        const ts = orphanLectureUntilTsById.get(i.id) ?? null;
-        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`lecture:${i.id}`);
+      rawOrphanLectures.filter((item) => {
+        const ts = orphanLectureUntilTsById.get(item.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`lecture:${item.id}`);
       }),
-    [rawOrphanLectures, orphanLectureUntilTsById, completedStandaloneKeySet, now]
+    [completedStandaloneKeySet, now, orphanLectureUntilTsById, rawOrphanLectures]
   );
+
   const orphanTasks = useMemo(
     () =>
-      rawOrphanTasks.filter((i) => {
-        const ts = orphanTaskUntilTsById.get(i.id) ?? null;
-        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`task:${i.id}`);
+      rawOrphanTasks.filter((item) => {
+        const ts = orphanTaskUntilTsById.get(item.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`task:${item.id}`);
       }),
-    [rawOrphanTasks, orphanTaskUntilTsById, completedStandaloneKeySet, now]
+    [completedStandaloneKeySet, now, orphanTaskUntilTsById, rawOrphanTasks]
   );
+
   const orphanPuzzles = useMemo(
     () =>
-      rawOrphanPuzzles.filter((i) => {
-        const ts = orphanPuzzleUntilTsById.get(i.id) ?? null;
-        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`puzzle:${i.id}`);
+      rawOrphanPuzzles.filter((item) => {
+        const ts = orphanPuzzleUntilTsById.get(item.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`puzzle:${item.id}`);
       }),
-    [rawOrphanPuzzles, orphanPuzzleUntilTsById, completedStandaloneKeySet, now]
+    [completedStandaloneKeySet, now, orphanPuzzleUntilTsById, rawOrphanPuzzles]
   );
+
   const orphanQuestions = useMemo(
     () =>
-      rawOrphanQuestions.filter((i) => {
-        const ts = orphanQuestionUntilTsById.get(i.id) ?? null;
-        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`question:${i.id}`);
+      rawOrphanQuestions.filter((item) => {
+        const ts = orphanQuestionUntilTsById.get(item.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`question:${item.id}`);
       }),
-    [rawOrphanQuestions, orphanQuestionUntilTsById, completedStandaloneKeySet, now]
+    [completedStandaloneKeySet, now, orphanQuestionUntilTsById, rawOrphanQuestions]
   );
+
   const orphanSurveys = useMemo(
     () =>
-      rawOrphanSurveys.filter((i) => {
-        const ts = orphanSurveyUntilTsById.get(i.id) ?? null;
-        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`survey:${i.id}`);
+      rawOrphanSurveys.filter((item) => {
+        const ts = orphanSurveyUntilTsById.get(item.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`survey:${item.id}`);
       }),
-    [rawOrphanSurveys, orphanSurveyUntilTsById, completedStandaloneKeySet, now]
+    [completedStandaloneKeySet, now, orphanSurveyUntilTsById, rawOrphanSurveys]
   );
+
   const orphanLayouts = useMemo(
     () =>
-      rawOrphanLayouts.filter((i) => {
-        const ts = orphanLayoutUntilTsById.get(i.id) ?? null;
-        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`layout:${i.id}`);
+      rawOrphanLayouts.filter((item) => {
+        const ts = orphanLayoutUntilTsById.get(item.id) ?? null;
+        return (ts == null || ts > now) && !completedStandaloneKeySet.has(`layout:${item.id}`);
       }),
-    [rawOrphanLayouts, orphanLayoutUntilTsById, completedStandaloneKeySet, now]
+    [completedStandaloneKeySet, now, orphanLayoutUntilTsById, rawOrphanLayouts]
   );
 
-  const [orphanSearch, setOrphanSearch] = useState("");
-  const [orphanTab, setOrphanTab] = useState<string>("all");
-
   const orphanItems = useMemo((): OrphanItem[] => {
-    const list: OrphanItem[] = [];
-    for (const lec of orphanLectures) {
-      const until = lec.available_until ?? (lec as { availableUntil?: string | null }).availableUntil;
-      const from = lec.available_from ?? (lec as { availableFrom?: string | null }).availableFrom;
-      const item = {
-        id: lec.id,
-        title: lec.title,
-        type: "lecture",
-        hasDeadline: !!(until ?? from),
-        availableUntil: until ?? null,
-        availableFrom: from ?? null,
-      };
-      list.push(item);
-    }
-    for (const t of orphanTasks) {
-      const until = (t as { available_until?: string | null }).available_until ?? (t as { availableUntil?: string | null }).availableUntil;
-      const from = (t as { available_from?: string | null }).available_from ?? (t as { availableFrom?: string | null }).availableFrom;
-      const item = {
-        id: t.id,
-        title: t.title,
-        type: "task",
-        hasDeadline: !!(until ?? from),
-        availableUntil: until ?? null,
-        availableFrom: from ?? null,
-        hard: t.hard,
-      };
-      list.push(item);
-    }
-    for (const p of orphanPuzzles) {
-      const until = (p as { available_until?: string | null }).available_until ?? (p as { availableUntil?: string | null }).availableUntil;
-      const from = (p as { available_from?: string | null }).available_from ?? (p as { availableFrom?: string | null }).availableFrom;
-      const item = {
-        id: p.id,
-        title: p.title,
-        type: "puzzle",
-        hasDeadline: !!(until ?? from),
-        availableUntil: until ?? null,
-        availableFrom: from ?? null,
-      };
-      list.push(item);
-    }
-    for (const q of orphanQuestions) {
-      const until = (q as { available_until?: string | null }).available_until ?? (q as { availableUntil?: string | null }).availableUntil;
-      const from = (q as { available_from?: string | null }).available_from ?? (q as { availableFrom?: string | null }).availableFrom;
-      const item = {
-        id: q.id,
-        title: q.title,
-        type: "question",
-        hasDeadline: !!(until ?? from),
-        availableUntil: until ?? null,
-        availableFrom: from ?? null,
-      };
-      list.push(item);
-    }
-    for (const s of orphanSurveys) {
-      const until = (s as { available_until?: string | null }).available_until ?? (s as { availableUntil?: string | null }).availableUntil;
-      const from = (s as { available_from?: string | null }).available_from ?? (s as { availableFrom?: string | null }).availableFrom;
-      const item = {
-        id: s.id,
-        title: s.title,
-        type: "survey",
-        hasDeadline: !!(until ?? from),
-        availableUntil: until ?? null,
-        availableFrom: from ?? null,
-      };
-      list.push(item);
-    }
-    for (const l of orphanLayouts) {
-      const until = (l as { available_until?: string | null }).available_until ?? (l as { availableUntil?: string | null }).availableUntil;
-      const from = (l as { available_from?: string | null }).available_from ?? (l as { availableFrom?: string | null }).availableFrom;
-      const item = {
-        id: l.id,
-        title: l.title,
-        type: "layout",
-        hasDeadline: !!(until ?? from),
-        availableUntil: until ?? null,
-        availableFrom: from ?? null,
-      };
-      list.push(item);
-    }
-    return list;
-  }, [orphanLectures, orphanTasks, orphanPuzzles, orphanQuestions, orphanSurveys, orphanLayouts]);
+    return [
+      ...orphanLectures.map((item) => ({
+        id: item.id,
+        title: item.title,
+        type: "lecture" as const,
+        hasDeadline: Boolean(item.available_until || item.available_from),
+        availableUntil: item.available_until ?? null,
+        availableFrom: item.available_from ?? null,
+      })),
+      ...orphanTasks.map((item) => ({
+        id: item.id,
+        title: item.title,
+        type: "task" as const,
+        hard: item.hard,
+        hasDeadline: Boolean(item.available_until || item.available_from),
+        availableUntil: item.available_until ?? null,
+        availableFrom: item.available_from ?? null,
+      })),
+      ...orphanPuzzles.map((item) => ({
+        id: item.id,
+        title: item.title,
+        type: "puzzle" as const,
+        hasDeadline: Boolean(item.available_until || item.available_from),
+        availableUntil: item.available_until ?? null,
+        availableFrom: item.available_from ?? null,
+      })),
+      ...orphanQuestions.map((item) => ({
+        id: item.id,
+        title: item.title,
+        type: "question" as const,
+        hasDeadline: Boolean(item.available_until || item.available_from),
+        availableUntil: item.available_until ?? null,
+        availableFrom: item.available_from ?? null,
+      })),
+      ...orphanSurveys.map((item) => ({
+        id: item.id,
+        title: item.title,
+        type: "survey" as const,
+        hasDeadline: Boolean(item.available_until || item.available_from),
+        availableUntil: item.available_until ?? null,
+        availableFrom: item.available_from ?? null,
+      })),
+      ...orphanLayouts.map((item) => ({
+        id: item.id,
+        title: item.title,
+        type: "layout" as const,
+        hasDeadline: Boolean(item.available_until || item.available_from),
+        availableUntil: item.available_until ?? null,
+        availableFrom: item.available_from ?? null,
+      })),
+    ];
+  }, [orphanLectures, orphanLayouts, orphanPuzzles, orphanQuestions, orphanSurveys, orphanTasks]);
 
-  const orphanItemsSortedAndFiltered = useMemo(() => {
-    let items = [...orphanItems];
-    items.sort((a, b) => {
-      if (a.hasDeadline !== b.hasDeadline) return a.hasDeadline ? -1 : 1;
-      return 0;
-    });
-    if (orphanTab && orphanTab !== "all") {
-      items = items.filter((i) => i.type === orphanTab);
-    }
+  const filteredOrphanItems = useMemo(() => {
+    let items = [...orphanItems].sort((a, b) => Number(b.hasDeadline) - Number(a.hasDeadline));
+    if (orphanTab !== "all") items = items.filter((item) => item.type === orphanTab);
     if (orphanSearch.trim()) {
-      const q = orphanSearch.trim().toLowerCase();
-      items = items.filter((i) => i.title.toLowerCase().includes(q));
+      const query = orphanSearch.trim().toLowerCase();
+      items = items.filter((item) => item.title.toLowerCase().includes(query));
     }
     return items;
-  }, [orphanItems, orphanTab, orphanSearch]);
+  }, [orphanItems, orphanSearch, orphanTab]);
 
+  const totalLessons = tracks.reduce((sum, track) => sum + trackProgress(track).total, 0);
+  const totalCompleted = tracks.reduce((sum, track) => sum + trackProgress(track).completed, 0);
+  const overdueCount = orphanItems.filter((item) => item.hasDeadline).length;
+  const activeTracks = tracks.filter((track) => trackProgress(track).total > 0).length;
+  const featuredTrack = [...tracks].sort((a, b) => trackProgress(b).percent - trackProgress(a).percent)[0] ?? null;
   const hasContent = tracks.length > 0 || orphanItems.length > 0;
-
-  const notificationLevelClass: Record<string, string> = {
-    info: "border-blue-500/30 bg-blue-50 text-blue-800 dark:bg-blue-950/30 dark:text-blue-200",
-    success: "border-green-500/30 bg-green-50 text-green-800 dark:bg-green-950/30 dark:text-green-200",
-    warning: "border-amber-500/30 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200",
-    error: "border-red-500/30 bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-200",
-  };
 
   return (
     <div className="content-block">
-      {/* Notifications */}
       {notifications.length > 0 && (
-        <div className="space-y-2">
-          {notifications.map((n) => (
-            <div
-              key={n.id}
-              className={`rounded-lg border px-4 py-3 text-sm ${notificationLevelClass[n.level] ?? notificationLevelClass.info}`}
-              role="alert"
-            >
-              {n.message}
-            </div>
+        <section className="space-y-2">
+          {notifications.map((notification) => (
+            <NotificationBanner key={notification.id} notification={notification} />
           ))}
-        </div>
+        </section>
       )}
 
-      {/* Page header */}
-      <PageHeader
-        title="Треки"
-        description="Выберите трек или отдельное задание"
-        compact
-        actions={
-          <TemporaryAssignmentsIndicator
-            orphanLectures={orphanLectures}
-            orphanTasks={orphanTasks}
-            orphanPuzzles={orphanPuzzles}
-            orphanQuestions={orphanQuestions}
-            orphanLayouts={orphanLayouts}
-            className=""
-          />
-        }
-      />
+      <section className="hero-surface p-6 sm:p-7 lg:p-8">
+        <div className="relative z-10 grid gap-8 xl:grid-cols-[1.3fr_0.9fr]">
+          <div className="space-y-6">
+            <span className="kavnt-badge">Student main dashboard</span>
+            <PageHeader
+              title="Учебный центр"
+              description="Продолжайте движение по трекам, быстро считывайте дедлайны и открывайте нужный материал без лишних переходов."
+              compact
+              className="mb-0"
+              actions={
+                <TemporaryAssignmentsIndicator
+                  orphanLectures={orphanLectures}
+                  orphanTasks={orphanTasks}
+                  orphanPuzzles={orphanPuzzles}
+                  orphanQuestions={orphanQuestions}
+                  orphanLayouts={orphanLayouts}
+                />
+              }
+            />
 
-      {/* Loading */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <MetricTile
+                label="Активные треки"
+                value={String(activeTracks)}
+                hint="Собранные в одном месте маршруты обучения и прогресс по ним."
+                icon={BookOpen}
+              />
+              <MetricTile
+                label="Завершено"
+                value={`${totalCompleted}/${totalLessons || 0}`}
+                hint="Общий объем выполненного материала по всем текущим программам."
+                icon={Trophy}
+              />
+              <MetricTile
+                label="Нуждается во внимании"
+                value={String(overdueCount)}
+                hint="Материалы с временным доступом и ближайшими точками принятия решения."
+                icon={Clock}
+              />
+            </div>
+          </div>
+
+          <div className="relative z-10 flex flex-col gap-4">
+            <Card className="border-white/60 bg-background/80">
+              <CardHeader className="space-y-3 pb-5">
+                <CardDescription>Next action</CardDescription>
+                <CardTitle className="text-[1.6rem] leading-tight">
+                  {featuredTrack ? featuredTrack.title : "Выберите первый трек"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5 pt-1">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {featuredTrack
+                    ? featuredTrack.description || "Трек с наибольшим текущим прогрессом и самым понятным продолжением."
+                    : "Когда материалы появятся, здесь будет главный рекомендованный шаг для продолжения обучения."}
+                </p>
+                {featuredTrack && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Прогресс</span>
+                      <span>{trackProgress(featuredTrack).percent}%</span>
+                    </div>
+                    <Progress value={trackProgress(featuredTrack).percent} className="h-2.5" />
+                  </div>
+                )}
+                <Link href={featuredTrack ? `/main/${featuredTrack.id}` : "/tracks"} className="block pt-2">
+                  <Button className="w-full justify-between">
+                    <span>{featuredTrack ? "Продолжить трек" : "Открыть каталог"}</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Card className="border-white/50 bg-background/76">
+                <CardHeader className="pb-3">
+                  <CardDescription>Состояние обучения</CardDescription>
+                  <CardTitle className="text-base">Спокойная иерархия</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm leading-6 text-muted-foreground">
+                  Приоритеты, прогресс и дедлайны собраны в короткие сканируемые блоки.
+                </CardContent>
+              </Card>
+              <Card className="border-white/50 bg-background/76">
+                <CardHeader className="pb-3">
+                  <CardDescription>Theme-ready</CardDescription>
+                  <CardTitle className="text-base">Semantic tokens first</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm leading-6 text-muted-foreground">
+                  Компоненты зависят от semantic roles и готовы к смене brand palette.
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {loading ? (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <CardSkeleton key={i} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <CardSkeleton key={index} />
           ))}
         </div>
       ) : !hasContent ? (
         <EmptyState
           icon={Inbox}
           title="Нет доступных треков"
-          description="Войдите в аккаунт, чтобы увидеть доступные учебные материалы."
+          description="Войдите в аккаунт или дождитесь назначения материалов, чтобы увидеть учебные маршруты."
         />
       ) : (
         <div className="space-y-10">
-          {/* Tracks grid */}
           {tracks.length > 0 && (
             <section className="space-y-4">
-              <h2 className="text-lg font-medium">Учебные треки</h2>
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="section-title">Учебные треки</h2>
+                  <p className="section-caption">Каждый трек показывает прогресс, состав и понятное следующее действие.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
                 {tracks.map((track) => {
-                  const { completed, total, percent } = trackProgress(track);
+                  const progress = trackProgress(track);
+
                   return (
-                    <Card key={track.id} className="flex flex-col">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <BookOpen className="h-4 w-4 text-primary shrink-0" />
-                          {track.title}
-                        </CardTitle>
-                        {track.description && (
-                          <CardDescription className="line-clamp-2">{track.description}</CardDescription>
-                        )}
-                        {total > 0 && (
-                          <div className="pt-2 space-y-1">
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Прогресс</span>
-                              <span>{completed}/{total}</span>
+                    <Card key={track.id} className="flex h-full flex-col">
+                      <CardHeader className="pb-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-2">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-primary/10 text-primary">
+                              <BookOpen className="h-5 w-5" />
                             </div>
-                            <Progress value={percent} className="h-1.5" />
+                            <CardTitle>{track.title}</CardTitle>
+                            {track.description && <CardDescription>{track.description}</CardDescription>}
                           </div>
-                        )}
+                          <span className="rounded-full border border-border/70 bg-background/85 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                            {progress.completed}/{progress.total || 0}
+                          </span>
+                        </div>
                       </CardHeader>
-                      <CardContent className="flex-1 flex flex-col gap-2">
-                        <ul className="text-sm text-muted-foreground space-y-1">
-                          {(track.lessons || []).slice(0, 4).map((lesson: { id: string; type: string; title: string; hard?: boolean }) => {
-                            const st = track.progress?.[lesson.id];
-                            const isDone = st === "completed" || st === "completed_late";
-                            return (
-                              <li key={lesson.id} className="flex items-center gap-2">
-                                {isDone ? (
-                                  <CheckCircle2 className="h-3 w-3 shrink-0 text-brand-green" />
-                                ) : lesson.type === "lecture" ? (
-                                  <BookOpen className="h-3 w-3 shrink-0" />
-                                ) : (
-                                  <ListChecks className="h-3 w-3 shrink-0" />
-                                )}
-                                {lesson.hard && <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-500" />}
-                                <span className={isDone ? "text-brand-green" : "truncate"}>
-                                  {lesson.title}
-                                </span>
+                      <CardContent className="mt-auto space-y-5">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm text-muted-foreground">
+                            <span>Прогресс</span>
+                            <span>{progress.percent}%</span>
+                          </div>
+                          <Progress value={progress.percent} className="h-2.5" />
+                        </div>
+
+                        <div className="rounded-[1.25rem] bg-secondary/55 p-4">
+                          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Состав трека</p>
+                          <ul className="space-y-2 text-sm">
+                            {(track.lessons || []).slice(0, 4).map((lesson) => {
+                              const state = track.progress?.[lesson.id];
+                              const isDone = state === "completed" || state === "completed_late";
+
+                              return (
+                                <li key={lesson.id} className="flex items-center gap-2 text-muted-foreground">
+                                  {isDone ? (
+                                    <CheckCircle2 className="h-4 w-4 shrink-0 text-[hsl(var(--success))]" />
+                                  ) : lesson.type === "lecture" ? (
+                                    <BookOpen className="h-4 w-4 shrink-0" />
+                                  ) : (
+                                    <ListChecks className="h-4 w-4 shrink-0" />
+                                  )}
+                                  <span className={isDone ? "text-foreground" : ""}>{lesson.title}</span>
+                                </li>
+                              );
+                            })}
+                            {(track.lessons || []).length > 4 && (
+                              <li className="pt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground/75">
+                                +{(track.lessons || []).length - 4} элементов
                               </li>
-                            );
-                          })}
-                          {(track.lessons || []).length > 4 && (
-                            <li className="text-muted-foreground/60 text-xs">
-                              +{(track.lessons || []).length - 4} ещё
-                            </li>
-                          )}
-                        </ul>
-                        <Link href={`/main/${track.id}`} className="mt-auto pt-3">
-                          <Button variant="outline" size="sm" className="w-full">
-                            Открыть трек
+                            )}
+                          </ul>
+                        </div>
+
+                        <Link href={`/main/${track.id}`} className="mt-auto block">
+                          <Button variant="outline" className="w-full justify-between">
+                            <span>Открыть трек</span>
+                            <ArrowRight className="h-4 w-4" />
                           </Button>
                         </Link>
                       </CardContent>
@@ -499,43 +639,48 @@ export default function MainPage() {
             </section>
           )}
 
-          {/* Orphan items with tabs */}
           {orphanItems.length > 0 && (
             <section className="space-y-4">
-              <h2 className="text-lg font-medium">Отдельные задания</h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="section-title">Отдельные задания</h2>
+                  <p className="section-caption">Сюда попадают самостоятельные материалы, временные окна доступа и быстрые точки возврата.</p>
+                </div>
+              </div>
 
               <Tabs value={orphanTab} onValueChange={setOrphanTab} className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
-                    {TAB_FILTERS.map((t) => (
-                      <TabsTrigger key={t.value} value={t.value} className="text-xs whitespace-nowrap">
-                        {t.label}
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                  <TabsList className="w-full justify-start lg:w-fit">
+                    {TAB_FILTERS.map((tab) => (
+                      <TabsTrigger key={tab.value} value={tab.value} className="text-xs">
+                        {tab.label}
                       </TabsTrigger>
                     ))}
                   </TabsList>
-                  <div className="relative sm:ml-auto max-w-xs w-full">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+
+                  <div className="relative w-full lg:ml-auto lg:max-w-sm">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder="Поиск..."
+                      placeholder="Поиск по отдельным заданиям"
                       value={orphanSearch}
                       onChange={(e) => setOrphanSearch(e.target.value)}
-                      className="pl-8 h-9"
+                      className="pl-11"
                     />
                   </div>
                 </div>
 
-                <TabsContent value={orphanTab} className="mt-0">
-                  {orphanItemsSortedAndFiltered.length === 0 ? (
+                <TabsContent value={orphanTab}>
+                  {filteredOrphanItems.length === 0 ? (
                     <EmptyState
                       icon={Search}
                       title="Ничего не найдено"
-                      description="Попробуйте изменить фильтр или поисковый запрос."
+                      description="Измените фильтр или поисковый запрос, чтобы увидеть доступные материалы."
                       className="py-12"
                     />
                   ) : (
-                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {orphanItemsSortedAndFiltered.map((item) => (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                      {filteredOrphanItems.map((item) => (
                         <OrphanCard key={`${item.type}-${item.id}`} item={item} />
                       ))}
                     </div>
@@ -544,7 +689,6 @@ export default function MainPage() {
               </Tabs>
             </section>
           )}
-
         </div>
       )}
     </div>

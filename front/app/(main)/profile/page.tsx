@@ -1,13 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { User, LogOut, Activity, BarChart3, CheckCircle2, CircleDot, BookOpen, UsersRound, ChevronDown, ChevronRight, KeyRound, QrCode, Link2, Plus, Trash2, Trophy, Clock, Flame, UserPlus } from "lucide-react";
-import { formatLateSeconds } from "@/components/availability-countdown";
+import { useRouter } from "next/navigation";
+import {
+  Activity,
+  BarChart3,
+  BookOpen,
+  Flame,
+  KeyRound,
+  Link2,
+  LogOut,
+  Plus,
+  QrCode,
+  Sparkles,
+  Trophy,
+  User,
+  UsersRound,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
@@ -15,70 +28,148 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
-import { getStoredToken, getStoredUser, getStoredRole, clearStoredToken, clearStoredRole, clearStoredUser } from "@/lib/api/auth";
-import { fetchProfile, type ProfileData, type GroupLinks } from "@/lib/api/profile";
-import { fetchTeacherGroupsProgress, updateGroupLinks, fetchStudentTrackProgress, type GroupWithStudents, type StudentInGroup, type GroupLink } from "@/lib/api/teacher";
-import { fetchTeacherAnalytics, type TeacherAnalytics } from "@/lib/api/analytics";
-import { ProgressDonut, BarChartCard, AreaChartCard, StatCard } from "@/components/charts";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
-import { resetStudentPassword, createStudentInGroup } from "@/lib/api/users";
-import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/components/lib/utils";
-import { QrCodeCard } from "@/components/qr-code-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListSkeleton } from "@/components/ui/loading-skeleton";
+import { QrCodeCard } from "@/components/qr-code-card";
+import { ProgressDonut, AreaChartCard, BarChartCard, StatCard } from "@/components/charts";
+import { formatLateSeconds } from "@/components/availability-countdown";
+import { cn } from "@/components/lib/utils";
+import {
+  clearStoredRole,
+  clearStoredToken,
+  clearStoredUser,
+  getStoredRole,
+  getStoredToken,
+  getStoredUser,
+} from "@/lib/api/auth";
+import { fetchProfile, type ProfileData } from "@/lib/api/profile";
+import {
+  fetchStudentTrackProgress,
+  fetchTeacherGroupsProgress,
+  updateGroupLinks,
+  type GroupLink,
+  type GroupWithStudents,
+  type StudentInGroup,
+  type StudentTrackProgressResponse,
+} from "@/lib/api/teacher";
+import { fetchTeacherAnalytics, type TeacherAnalytics } from "@/lib/api/analytics";
+import { createStudentInGroup, resetStudentPassword } from "@/lib/api/users";
+import { useToast } from "@/components/ui/use-toast";
 
 const LESSON_TYPE_LABELS: Record<string, string> = {
   lecture: "Лекция",
-  task: "Задача",
+  task: "Задание",
   puzzle: "Пазл",
   question: "Вопрос",
   survey: "Опрос",
+  layout: "Верстка",
 };
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("ru-RU", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
+const ROLE_LABELS: Record<string, string> = {
+  student: "Студент",
+  teacher: "Преподаватель",
+  superuser: "Администратор",
+};
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Без даты";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Без даты";
+  return date.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+}
+
+function getDisplayName(user: {
+  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  username: string;
+}) {
+  return user.full_name || [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username;
+}
+
+function parseLinksDraft(draft: string): GroupLink[] {
+  return draft
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [label, url] = line.split("|").map((part) => part.trim());
+      return { label: label || "Ссылка", url: url || "" };
+    })
+    .filter((item) => item.url);
+}
+
+function statusBadge(status: string) {
+  if (status === "completed") return "bg-emerald-500/12 text-emerald-700 border-emerald-500/20";
+  if (status === "completed_late") return "bg-amber-500/12 text-amber-700 border-amber-500/20";
+  if (status === "started") return "bg-sky-500/12 text-sky-700 border-sky-500/20";
+  return "bg-muted text-muted-foreground border-border";
+}
+
+function statusLabel(status: string) {
+  if (status === "completed") return "Выполнено";
+  if (status === "completed_late") return "Выполнено с опозданием";
+  if (status === "started") return "В процессе";
+  return "Не начато";
 }
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [mounted, setMounted] = useState(false);
-  const [user, setUser] = useState<{ full_name: string; first_name?: string; last_name?: string; username: string } | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
+  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [teacherGroups, setTeacherGroups] = useState<GroupWithStudents[]>([]);
   const [teacherAnalytics, setTeacherAnalytics] = useState<TeacherAnalytics | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
-  const [adminPanelGroupId, setAdminPanelGroupId] = useState<string | null>(null);
+  const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
   const [trackDetail, setTrackDetail] = useState<{
-    studentId: string;
+    open: boolean;
+    loading: boolean;
     studentName: string;
-    trackId: string;
     trackTitle: string;
+    data: StudentTrackProgressResponse | null;
+  }>({ open: false, loading: false, studentName: "", trackTitle: "", data: null });
+  const [linksEditor, setLinksEditor] = useState<{
+    groupId: string;
+    groupTitle: string;
+    childChat: string;
+    parentChat: string;
+    customLinks: string;
   } | null>(null);
+  const [studentCreator, setStudentCreator] = useState<{
+    groupId: string;
+    groupTitle: string;
+    username: string;
+    first_name: string;
+    last_name: string;
+    password: string;
+  } | null>(null);
+  const [passwordReset, setPasswordReset] = useState<{ username: string; password: string } | null>(null);
+  const [savingLinks, setSavingLinks] = useState(false);
+  const [creatingStudent, setCreatingStudent] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -88,50 +179,81 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!mounted || !getStoredToken()) {
-      setLoadingProfile(false);
+      setLoading(false);
       return;
     }
+
     let cancelled = false;
-    if (role === "student") {
-      fetchProfile().then((p) => {
-        if (!cancelled) {
-          setProfile(p ?? null);
-          setLoadingProfile(false);
+
+    async function load() {
+      setLoading(true);
+      try {
+        if (role === "student") {
+          const nextProfile = await fetchProfile();
+          if (!cancelled) setProfile(nextProfile);
         }
-      });
-    } else if (role === "teacher" || role === "superuser") {
-      Promise.all([fetchTeacherGroupsProgress(), fetchTeacherAnalytics()]).then(([groupsRes, analyticsRes]) => {
-        if (!cancelled) {
-          setTeacherGroups(groupsRes?.groups ?? []);
-          setTeacherAnalytics(analyticsRes ?? null);
-          setLoadingProfile(false);
+        if (role === "teacher" || role === "superuser") {
+          const [groupsResult, analyticsResult] = await Promise.all([
+            fetchTeacherGroupsProgress(),
+            fetchTeacherAnalytics(),
+          ]);
+          if (!cancelled) {
+            setTeacherGroups(groupsResult.groups ?? []);
+            setTeacherAnalytics(analyticsResult);
+          }
         }
-      });
-    } else {
-      setLoadingProfile(false);
+      } catch (error) {
+        if (!cancelled) {
+          toast({
+            title: "Не удалось загрузить кабинет",
+            description: error instanceof Error ? error.message : "Попробуйте обновить страницу.",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
+
+    void load();
+
     return () => {
       cancelled = true;
     };
-  }, [mounted, role]);
+  }, [mounted, role, toast]);
 
-  function openTrackDetail(student: StudentInGroup, progress: { track_id: string; track_title: string }) {
-    setTrackDetail({
-      studentId: student.id,
-      studentName: student.full_name,
-      trackId: progress.track_id,
-      trackTitle: progress.track_title,
-    });
-  }
+  const displayName = useMemo(() => {
+    if (!user) return "";
+    return getDisplayName(user);
+  }, [user]);
 
-  function toggleStudent(studentId: string) {
-    setExpandedStudents((prev) => {
-      const next = new Set(prev);
-      if (next.has(studentId)) next.delete(studentId);
-      else next.add(studentId);
-      return next;
-    });
-  }
+  const studentSummary = useMemo(() => {
+    const progress = profile?.progress ?? [];
+    const activity = profile?.activity ?? [];
+    return {
+      activeTracks: progress.length,
+      avgProgress: progress.length
+        ? Math.round(progress.reduce((sum, item) => sum + item.percent, 0) / progress.length)
+        : 0,
+      completedCount: activity.filter((item) => item.status === "completed").length,
+      lateCount: activity.filter((item) => item.status === "completed_late").length,
+    };
+  }, [profile]);
+
+  const teacherSummary = useMemo(() => {
+    const students = teacherGroups.flatMap((group) => group.students);
+    const progressItems = students.flatMap((student) => student.progress);
+    const totalTracks = progressItems.length;
+    const avgProgress = totalTracks
+      ? Math.round(progressItems.reduce((sum, item) => sum + item.percent, 0) / totalTracks)
+      : 0;
+    return {
+      groups: teacherGroups.length,
+      students: students.length,
+      totalTracks,
+      avgProgress,
+    };
+  }, [teacherGroups]);
 
   function handleLogout() {
     clearStoredToken();
@@ -141,34 +263,163 @@ export default function ProfilePage() {
     router.refresh();
   }
 
+  async function openTrackDetail(student: StudentInGroup, trackId: string, trackTitle: string) {
+    setTrackDetail({
+      open: true,
+      loading: true,
+      studentName: student.full_name,
+      trackTitle,
+      data: null,
+    });
+
+    const data = await fetchStudentTrackProgress(student.id, trackId).catch(() => null);
+    setTrackDetail({
+      open: true,
+      loading: false,
+      studentName: student.full_name,
+      trackTitle,
+      data,
+    });
+  }
+
+  async function handleSaveLinks() {
+    if (!linksEditor) return;
+    setSavingLinks(true);
+    try {
+      const payload = {
+        child_chat_url: linksEditor.childChat.trim(),
+        parent_chat_url: linksEditor.parentChat.trim(),
+        links: parseLinksDraft(linksEditor.customLinks),
+      };
+      const updated = await updateGroupLinks(linksEditor.groupId, payload);
+      if (!updated) throw new Error("Сервер не принял изменения.");
+
+      setTeacherGroups((prev) =>
+        prev.map((group) =>
+          group.id === linksEditor.groupId
+            ? {
+                ...group,
+                child_chat_url: updated.child_chat_url,
+                parent_chat_url: updated.parent_chat_url,
+                links: updated.links,
+              }
+            : group
+        )
+      );
+      setLinksEditor(null);
+      toast({ title: "Ссылки обновлены", description: "Новые QR и материалы уже доступны группе." });
+    } catch (error) {
+      toast({
+        title: "Не удалось сохранить ссылки",
+        description: error instanceof Error ? error.message : "Попробуйте еще раз.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingLinks(false);
+    }
+  }
+
+  async function handleCreateStudent() {
+    if (!studentCreator) return;
+    if (
+      !studentCreator.username.trim() ||
+      !studentCreator.first_name.trim() ||
+      !studentCreator.last_name.trim() ||
+      studentCreator.password.length < 6
+    ) {
+      toast({
+        title: "Проверьте данные",
+        description: "Нужны логин, имя, фамилия и пароль не короче 6 символов.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingStudent(true);
+    try {
+      const created = await createStudentInGroup(studentCreator.groupId, {
+        username: studentCreator.username,
+        first_name: studentCreator.first_name,
+        last_name: studentCreator.last_name,
+        password: studentCreator.password,
+      });
+
+      setTeacherGroups((prev) =>
+        prev.map((group) =>
+          group.id === studentCreator.groupId
+            ? {
+                ...group,
+                students: [
+                  {
+                    id: created.id,
+                    username: created.username,
+                    first_name: created.first_name,
+                    last_name: created.last_name,
+                    full_name: created.full_name || created.name,
+                    progress: [],
+                  },
+                  ...group.students,
+                ],
+              }
+            : group
+        )
+      );
+      setStudentCreator(null);
+      toast({
+        title: "Ученик добавлен",
+        description: `Логин: ${created.username}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Не удалось создать ученика",
+        description: error instanceof Error ? error.message : "Попробуйте еще раз.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingStudent(false);
+    }
+  }
+
+  async function handlePasswordReset(student: StudentInGroup) {
+    try {
+      const result = await resetStudentPassword(student.id);
+      setPasswordReset(result);
+    } catch (error) {
+      toast({
+        title: "Не удалось сбросить пароль",
+        description: error instanceof Error ? error.message : "Попробуйте еще раз.",
+        variant: "destructive",
+      });
+    }
+  }
+
   if (!mounted) {
-    return <ListSkeleton rows={4} className="py-8" />;
+    return <ListSkeleton rows={5} className="py-10" />;
   }
 
   if (!getStoredToken() || !user) {
     return (
       <EmptyState
         icon={User}
-        title="Требуется авторизация"
-        description="Войдите, чтобы открыть личный кабинет."
+        title="Нужна авторизация"
+        description="Войдите, чтобы открыть личный кабинет и рабочие экраны платформы."
         action={
           <Link href="/login">
-            <Button>Войти</Button>
+            <Button>Перейти ко входу</Button>
           </Link>
         }
       />
     );
   }
 
-  const displayName = user.full_name || [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username;
   const isStudent = role === "student";
   const isTeacherOrAdmin = role === "teacher" || role === "superuser";
 
   return (
-    <div className="content-block">
+    <div className="content-block space-y-6">
       <PageHeader
-        title="Личный кабинет"
-        description={`${displayName} · ${role === "superuser" ? "Администратор" : role === "teacher" ? "Преподаватель" : "Студент"}`}
+        title="Рабочее пространство"
+        description={`${displayName} · ${ROLE_LABELS[role ?? "student"] ?? "Пользователь"}`}
         compact
         actions={
           <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
@@ -178,265 +429,263 @@ export default function ProfilePage() {
         }
       />
 
-      {/* ── Student view ── */}
-      {isStudent && (
-        <Tabs defaultValue="info" className="space-y-6">
+      <section className="hero-surface overflow-hidden rounded-[2rem] border border-border/60 px-6 py-6 sm:px-8 sm:py-8">
+        <div className="grid gap-6 lg:grid-cols-[1.5fr,1fr] lg:items-end">
+          <div className="space-y-4">
+            <div className="kavnt-badge w-fit">
+              {isStudent ? "Student workspace" : role === "superuser" ? "Admin workspace" : "Teacher workspace"}
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">
+                {isStudent
+                  ? "Спокойный кабинет для учебы, прогресса и следующего шага"
+                  : "Операционный центр для групп, прогресса и управленческих действий"}
+              </h2>
+              <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+                {isStudent
+                  ? "Собрали в одном месте вашу траекторию, активность, достижения и быстрый доступ к чатам и ссылкам группы."
+                  : "С этого экрана можно отслеживать успеваемость, открывать прогресс по трекам, выдавать доступы и поддерживать группы без лишнего шума."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(isStudent
+              ? [
+                  { label: "Активные треки", value: String(studentSummary.activeTracks) },
+                  { label: "Средний прогресс", value: `${studentSummary.avgProgress}%` },
+                  { label: "Завершено", value: String(studentSummary.completedCount) },
+                  { label: "С опозданием", value: String(studentSummary.lateCount) },
+                ]
+              : [
+                  { label: "Группы", value: String(teacherSummary.groups) },
+                  { label: "Ученики", value: String(teacherSummary.students) },
+                  { label: "Треки в работе", value: String(teacherSummary.totalTracks) },
+                  { label: "Средний прогресс", value: `${teacherSummary.avgProgress}%` },
+                ]).map((item) => (
+              <div
+                key={item.label}
+                className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur"
+              >
+                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{item.label}</p>
+                <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {loading ? <ListSkeleton rows={6} /> : null}
+
+      {!loading && isStudent && (
+        <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="w-full justify-start overflow-x-auto">
-            <TabsTrigger value="info" className="whitespace-nowrap">Профиль</TabsTrigger>
-            <TabsTrigger value="progress" className="whitespace-nowrap">Успеваемость</TabsTrigger>
-            <TabsTrigger value="activity" className="whitespace-nowrap">Активность</TabsTrigger>
+            <TabsTrigger value="overview">Обзор</TabsTrigger>
+            <TabsTrigger value="progress">Прогресс</TabsTrigger>
+            <TabsTrigger value="activity">Активность</TabsTrigger>
+            <TabsTrigger value="resources">Ссылки и доступы</TabsTrigger>
           </TabsList>
 
-          {/* Tab: Профиль */}
-          <TabsContent value="info" className="space-y-6">
-            {/* QR-коды */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <QrCode className="h-4 w-4" />
-                  Ссылки и чаты
-                </CardTitle>
-                <CardDescription>Отсканируйте QR-код для перехода</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {profile?.group_links?.child_chat_url || profile?.group_links?.parent_chat_url || (profile?.group_links?.links?.length ?? 0) > 0 ? (
-                  <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
-                    <QrCodeCard title="Детский чат" url={profile?.group_links?.child_chat_url ?? ""} />
-                    <QrCodeCard title="Родительский чат" url={profile?.group_links?.parent_chat_url ?? ""} />
-                    {profile?.group_links?.links?.map((l, i) => (
-                      <QrCodeCard key={i} title={l.label || `Ссылка ${i + 1}`} url={l.url ?? ""} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    QR-коды появятся, когда учитель добавит ссылки для вашей группы.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-6 md:grid-cols-2">
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid gap-4 lg:grid-cols-[1.15fr,0.85fr]">
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Данные
-                  </CardTitle>
+                <CardHeader>
+                  <CardTitle>Мой ритм обучения</CardTitle>
+                  <CardDescription>
+                    Главная идея экрана: вы сразу видите, что уже идет хорошо и что стоит добрать сегодня.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Имя</p>
-                    <p className="text-sm">{displayName}</p>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-3xl border border-border/70 bg-muted/20 p-4">
+                    <p className="text-sm text-muted-foreground">Группа</p>
+                    <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                      {profile?.group?.title ?? "Без группы"}
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {profile?.group?.teacher_name
+                        ? `Куратор: ${profile.group.teacher_name}`
+                        : "Куратор будет указан после назначения."}
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Логин</p>
-                    <p className="text-sm font-mono">{user.username}</p>
+                  <div className="rounded-3xl border border-border/70 bg-muted/20 p-4">
+                    <p className="text-sm text-muted-foreground">Достижения</p>
+                    <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                      {profile?.achievements?.length ?? 0}
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Каждое достижение фиксирует устойчивый прогресс, а не случайную активность.
+                    </p>
                   </div>
-                  {profile?.group && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Группа</p>
-                      <p className="text-sm">
-                        {profile.group.title}
-                        {profile.group.teacher_name ? ` (${profile.group.teacher_name})` : ""}
-                      </p>
+                  <div className="md:col-span-2 rounded-3xl border border-border/70 bg-background/70 p-5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      Что сделать следующим
                     </div>
-                  )}
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      {(profile?.progress ?? []).slice(0, 3).map((item) => (
+                        <div key={item.track_id} className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                          <p className="text-sm font-medium text-foreground">{item.track_title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {item.completed} из {item.total} шагов завершено
+                          </p>
+                          <Progress value={item.percent} className="mt-4" />
+                          <p className="mt-3 text-sm font-medium text-primary">{item.percent}% готово</p>
+                        </div>
+                      ))}
+                      {(profile?.progress?.length ?? 0) === 0 && (
+                        <div className="md:col-span-3 rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
+                          Здесь появятся треки, когда вам назначат учебный маршрут.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Trophy className="h-4 w-4" />
-                    Достижения
-                  </CardTitle>
+                <CardHeader>
+                  <CardTitle>Достижения</CardTitle>
+                  <CardDescription>
+                    Небольшая витрина того, что уже закрепилось в обучении.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {profile?.achievements && profile.achievements.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {profile.achievements.map((a) => (
-                        <div
-                          key={a.id}
-                          className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2"
-                          title={a.description}
-                        >
-                          <span className="text-lg">{a.icon}</span>
+                <CardContent className="space-y-3">
+                  {(profile?.achievements ?? []).length > 0 ? (
+                    profile?.achievements?.map((achievement) => (
+                      <div key={achievement.id} className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                            <Trophy className="h-5 w-5" />
+                          </div>
                           <div>
-                            <p className="text-xs font-medium">{a.title}</p>
-                            <p className="text-[11px] text-muted-foreground">{a.description}</p>
+                            <p className="font-medium text-foreground">{achievement.title}</p>
+                            <p className="text-sm text-muted-foreground">{achievement.description}</p>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <p className="mt-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          {achievement.unlocked_at ? `Получено ${formatDate(achievement.unlocked_at)}` : "Открыто"}
+                        </p>
+                      </div>
+                    ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Пока нет достижений. Выполняйте задания, чтобы получить их.
-                    </p>
+                    <EmptyState
+                      icon={Trophy}
+                      title="Пока без достижений"
+                      description="После первых завершенных шагов здесь начнет собираться ваша история прогресса."
+                    />
                   )}
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* Tab: Успеваемость */}
           <TabsContent value="progress" className="space-y-6">
-            {!loadingProfile && profile?.progress && profile.progress.length > 0 && (() => {
-              const totalCompleted = profile.progress.reduce((s, p) => s + p.completed, 0);
-              const totalStarted = profile.progress.reduce((s, p) => s + p.started, 0);
-              const totalLessons = profile.progress.reduce((s, p) => s + p.total, 0);
-              const notStarted = totalLessons - totalCompleted - totalStarted;
-              return (
-                <ProgressDonut
-                  completed={totalCompleted}
-                  started={totalStarted}
-                  notStarted={Math.max(0, notStarted)}
-                  title="Общий прогресс"
-                />
-              );
-            })()}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Прогресс по трекам
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loadingProfile ? (
-                  <ListSkeleton rows={3} />
-                ) : profile?.progress && profile.progress.length > 0 ? (
-                  <div className="space-y-4">
-                    {profile.progress.map((p) => (
-                      <div key={p.track_id} className="space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                          <Link
-                            href={`/main/${p.track_id}`}
-                            className="min-w-0 font-medium hover:underline flex items-center gap-2"
-                          >
-                            <BookOpen className="h-4 w-4 shrink-0 text-primary" />
-                            <span className="break-words">{p.track_title}</span>
-                          </Link>
-                          <span className="text-muted-foreground tabular-nums">
-                            {p.completed}/{p.total} ({p.percent}%)
-                          </span>
-                        </div>
-                        <Progress value={p.percent} className="h-1.5" />
+            <div className="grid gap-4 xl:grid-cols-3">
+              {(profile?.progress ?? []).map((item) => (
+                <Card key={item.track_id} className="overflow-hidden">
+                  <CardHeader>
+                    <CardTitle className="text-lg">{item.track_title}</CardTitle>
+                    <CardDescription>
+                      {item.completed} завершено, {item.started} в процессе
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Progress value={item.percent} className="h-2.5" />
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Прогресс</span>
+                      <span className="font-medium text-foreground">{item.percent}%</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Всего</p>
+                        <p className="mt-2 text-lg font-semibold">{item.total}</p>
                       </div>
-                    ))}
-                  </div>
-                ) : (
+                      <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Готово</p>
+                        <p className="mt-2 text-lg font-semibold">{item.completed}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">В работе</p>
+                        <p className="mt-2 text-lg font-semibold">{item.started}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {(profile?.progress?.length ?? 0) === 0 && (
+                <div className="xl:col-span-3">
                   <EmptyState
-                    icon={BarChart3}
-                    title="Нет данных"
-                    description="Начните проходить треки, чтобы видеть прогресс."
-                    className="py-8"
+                    icon={BookOpen}
+                    title="Треки пока не назначены"
+                    description="Как только появится учебный план, мы покажем его здесь в удобном формате."
                   />
-                )}
-              </CardContent>
-            </Card>
+                </div>
+              )}
+            </div>
           </TabsContent>
 
-          {/* Tab: Активность */}
-          <TabsContent value="activity" className="space-y-6">
-            {!loadingProfile && profile?.activity && profile.activity.length > 0 && (() => {
-              const completed = profile.activity.filter((a) => a.status === "completed" || a.status === "completed_late").length;
-              const late = profile.activity.filter((a) => a.status === "completed_late").length;
-              const dates = profile.activity
-                .map((a) => a.updated_at)
-                .filter(Boolean)
-                .map((iso) => iso!.slice(0, 10));
-              const uniqueDates = Array.from(new Set(dates)).sort();
-              let streak = 0;
-              const today = new Date().toISOString().slice(0, 10);
-              for (let i = 0; i < 365; i++) {
-                const d = new Date();
-                d.setDate(d.getDate() - i);
-                const key = d.toISOString().slice(0, 10);
-                if (uniqueDates.includes(key)) streak++;
-                else break;
-              }
-              const last30 = Array.from({ length: 30 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - (29 - i));
-                return d.toISOString().slice(0, 10);
-              });
-              const activityByDay = last30.map((date) => ({
-                date: date.slice(5),
-                count: profile!.activity.filter((a) => a.updated_at?.slice(0, 10) === date).length,
-              }));
-              const typeCounts: Record<string, number> = { lecture: 0, task: 0, puzzle: 0, question: 0, survey: 0 };
-              profile.activity.forEach((a) => {
-                if (a.status === "completed" || a.status === "completed_late") {
-                  if (a.lesson_type in typeCounts) typeCounts[a.lesson_type]++;
-                }
-              });
-              const lessonTypeData = [
-                { name: "Лекции", value: typeCounts.lecture },
-                { name: "Задачи", value: typeCounts.task },
-                { name: "Пазлы", value: typeCounts.puzzle },
-                { name: "Вопросы", value: typeCounts.question },
-                { name: "Опросы", value: typeCounts.survey },
-              ];
-              return (
-                <>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <StatCard title="Выполнено" value={completed} icon={CheckCircle2} />
-                    <StatCard title="Просрочено" value={late} icon={Clock} />
-                    <StatCard title="Серия дней" value={streak} description="дней подряд с активностью" icon={Flame} />
-                  </div>
-                  <AreaChartCard
-                    title="Активность по дням"
-                    description="Последние 30 дней"
-                    data={activityByDay}
-                  />
-                  <BarChartCard
-                    title="По типу заданий"
-                    data={lessonTypeData}
-                  />
-                </>
-              );
-            })()}
+          <TabsContent value="activity" className="space-y-4">
+            {(profile?.activity ?? []).length > 0 ? (
+              profile?.activity?.map((item) => (
+                <Card key={`${item.lesson_id}-${item.updated_at}`}>
+                  <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cn("rounded-full border px-2.5 py-1 text-xs font-medium", statusBadge(item.status))}>
+                          {statusLabel(item.status)}
+                        </span>
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          {LESSON_TYPE_LABELS[item.lesson_type] ?? item.lesson_type}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{item.lesson_title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {item.track_title} · {formatDate(item.updated_at)}
+                        </p>
+                      </div>
+                    </div>
+                    {item.late_by_seconds ? (
+                      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
+                        Опоздание: {formatLateSeconds(item.late_by_seconds)}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <EmptyState
+                icon={Activity}
+                title="Активность пока не зафиксирована"
+                description="После первых действий здесь появится понятная лента событий."
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="resources" className="space-y-6">
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Activity className="h-4 w-4" />
-                  Последние действия
-                </CardTitle>
+              <CardHeader>
+                <CardTitle>Чаты и полезные ссылки</CardTitle>
+                <CardDescription>
+                  QR и ссылки доступны отдельно, чтобы быстро открыть чат с телефона или отправить родителям.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {loadingProfile ? (
-                  <ListSkeleton rows={4} />
-                ) : profile?.activity && profile.activity.length > 0 ? (
-                  <ul className="space-y-3">
-                    {profile.activity.map((a, i) => (
-                      <li key={`${a.lesson_id}-${i}`} className="flex flex-wrap items-start gap-3 text-sm">
-                        {a.status === "completed" || a.status === "completed_late" ? (
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
-                        ) : (
-                          <CircleDot className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{a.lesson_title}</p>
-                          <p className="text-muted-foreground text-xs">
-                            {a.track_title} · {LESSON_TYPE_LABELS[a.lesson_type] ?? a.lesson_type}
-                            {a.status === "completed_late" && (a.late_by_seconds ?? 0) > 0
-                              ? ` · Просрочка ${formatLateSeconds(a.late_by_seconds!)}`
-                              : ""}
-                            {" · "}{formatDate(a.updated_at)}
-                          </p>
-                        </div>
-                        <Link className="ml-auto sm:ml-0" href={a.track_id ? `/main/${a.track_id}/lesson/${a.lesson_id}` : (a.lesson_type === "survey" ? `/surveys/${a.lesson_id}` : a.lesson_type === "lecture" ? `/lectures/${a.lesson_id}` : a.lesson_type === "task" ? `/tasks/${a.lesson_id}` : a.lesson_type === "puzzle" ? `/puzzles/${a.lesson_id}` : `/questions/${a.lesson_id}`)}>
-                          <Button variant="ghost" size="sm">Открыть</Button>
-                        </Link>
-                      </li>
+                {profile?.group_links?.child_chat_url ||
+                profile?.group_links?.parent_chat_url ||
+                (profile?.group_links?.links?.length ?? 0) > 0 ? (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <QrCodeCard title="Детский чат" url={profile?.group_links?.child_chat_url ?? ""} />
+                    <QrCodeCard title="Родительский чат" url={profile?.group_links?.parent_chat_url ?? ""} />
+                    {(profile?.group_links?.links ?? []).map((item, index) => (
+                      <QrCodeCard key={`${item.label}-${index}`} title={item.label || `Ссылка ${index + 1}`} url={item.url} />
                     ))}
-                  </ul>
+                  </div>
                 ) : (
                   <EmptyState
-                    icon={Activity}
-                    title="Нет активности"
-                    description="Выполняйте задания, чтобы видеть историю."
-                    className="py-8"
+                    icon={QrCode}
+                    title="Ссылки пока не добавлены"
+                    description="Как только преподаватель заполнит материалы группы, здесь появятся QR и быстрые переходы."
                   />
                 )}
               </CardContent>
@@ -445,712 +694,494 @@ export default function ProfilePage() {
         </Tabs>
       )}
 
-      {/* ── Teacher / Admin view ── */}
-      {isTeacherOrAdmin && (
-        <div className="space-y-6">
-          {!loadingProfile && teacherAnalytics && (
-            <>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard
-                  title="Всего учеников"
-                  value={teacherAnalytics.groups_summary.reduce((s, g) => s + g.total_students, 0)}
-                  icon={UsersRound}
-                />
-                <StatCard
-                  title="Средний прогресс"
-                  value={
-                    teacherAnalytics.groups_summary.length > 0
-                      ? `${Math.round(
-                          teacherAnalytics.groups_summary.reduce((s, g) => s + g.avg_percent, 0) /
-                            teacherAnalytics.groups_summary.length
-                        )}%`
-                      : "0%"
-                  }
-                  icon={BarChart3}
-                />
-                <StatCard
-                  title="Просрочек"
-                  value={teacherAnalytics.groups_summary.reduce((s, g) => s + g.late_count, 0)}
-                  icon={Clock}
-                />
-                <StatCard
-                  title="Самая активная группа"
-                  value={
-                    teacherAnalytics.groups_summary.length > 0
-                      ? teacherAnalytics.groups_summary.reduce((a, b) =>
-                          (a.avg_percent >= b.avg_percent ? a : b)
-                        ).group_title
-                      : "—"
-                  }
-                  icon={Activity}
-                />
-              </div>
-              <div className="grid gap-6 lg:grid-cols-2">
-                <BarChartCard
-                  title="Средний прогресс по группам"
-                  data={teacherAnalytics.groups_summary.map((g) => ({
-                    name: g.group_title.length > 18 ? g.group_title.slice(0, 18) + "…" : g.group_title,
-                    value: g.avg_percent,
-                  }))}
-                />
-                <AreaChartCard
-                  title="Активность по дням"
-                  description="Последние 30 дней"
-                  data={teacherAnalytics.activity_heatmap.map((h) => ({ date: h.date.slice(5), count: h.count }))}
-                />
-              </div>
-              {(() => {
-                const breakdown = teacherAnalytics.lesson_type_breakdown;
-                const pieData = [
-                  { name: "Лекции", value: breakdown.lectures ?? 0, color: "hsl(var(--primary))" },
-                  { name: "Задачи", value: breakdown.tasks ?? 0, color: "hsl(var(--success))" },
-                  { name: "Пазлы", value: breakdown.puzzles ?? 0, color: "hsl(var(--warning))" },
-                  { name: "Вопросы", value: breakdown.questions ?? 0, color: "hsl(var(--info))" },
-                  { name: "Опросы", value: breakdown.surveys ?? 0, color: "hsl(var(--muted-foreground))" },
-                ].filter((d) => d.value > 0);
-                if (pieData.length === 0) pieData.push({ name: "Нет данных", value: 1, color: "hsl(var(--muted))" });
-                return (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Типы заданий (выполнено)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[240px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={pieData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={50}
-                              outerRadius={70}
-                              paddingAngle={2}
-                              dataKey="value"
-                            >
-                              {pieData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "8px",
-                              }}
-                            />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
+      {!loading && isTeacherOrAdmin && (
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="overview">Обзор</TabsTrigger>
+            <TabsTrigger value="groups">Группы</TabsTrigger>
+            <TabsTrigger value="activity">Аналитика</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid gap-4 xl:grid-cols-4">
+              <StatCard title="Группы" value={teacherSummary.groups} description="Активные учебные группы" />
+              <StatCard title="Ученики" value={teacherSummary.students} description="Всего в зоне ответственности" />
+              <StatCard title="Средний прогресс" value={`${teacherSummary.avgProgress}%`} description="По всем трекам в работе" />
+              <StatCard
+                title="Активность за неделю"
+                value={teacherAnalytics?.activity_heatmap?.reduce((sum, item) => sum + item.count, 0) ?? 0}
+                description="События и завершения"
+              />
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
+              <AreaChartCard
+                title="Динамика активности"
+                description="Показывает, насколько регулярно группы двигаются по маршрутам."
+                data={(teacherAnalytics?.activity_heatmap ?? []).map((item) => ({
+                  date: formatShortDate(item.date),
+                  count: item.count,
+                }))}
+              />
+              <BarChartCard
+                title="Форматы контента"
+                description="Какие типы материалов чаще всего проходят ваши группы."
+                data={Object.entries(teacherAnalytics?.lesson_type_breakdown ?? {}).map(([name, value]) => ({
+                  name: LESSON_TYPE_LABELS[name] ?? name,
+                  value,
+                }))}
+              />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              {(teacherAnalytics?.groups_summary ?? []).map((group) => (
+                <Card key={group.group_id}>
+                  <CardHeader>
+                    <CardTitle>{group.group_title}</CardTitle>
+                    <CardDescription>
+                      {group.total_students} учеников · {group.completed_all} полностью завершили свои треки
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Средний прогресс</span>
+                        <span className="font-medium text-foreground">{group.avg_percent}%</span>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })()}
-            </>
-          )}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <UsersRound className="h-4 w-4" />
-                Группы
-              </CardTitle>
-              <CardDescription>
-                Нажмите на группу для управления
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingProfile ? (
-                <ListSkeleton rows={3} />
-              ) : teacherGroups.length === 0 ? (
-                <EmptyState
-                  icon={UsersRound}
-                  title="Нет групп"
-                  description={role === "teacher" ? "Вы видите только группы, которые ведёте." : "Создайте группу в разделе администрирования."}
-                  className="py-8"
-                />
-              ) : (
-                <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}>
-                  {teacherGroups.map((group) => (
-                    <button
-                      key={group.id}
-                      type="button"
-                      onClick={() => setAdminPanelGroupId(group.id)}
-                      className="aspect-square rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-colors flex flex-col items-center justify-center gap-1 p-3 text-center"
-                    >
-                      <UsersRound className="h-7 w-7 shrink-0 text-muted-foreground" />
-                      <span className="font-medium text-sm line-clamp-2">{group.title}</span>
-                      <span className="text-xs text-muted-foreground">{group.students.length} уч.</span>
-                    </button>
-                  ))}
+                      <Progress value={group.avg_percent} className="h-2.5" />
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                      <span className="rounded-full border border-border/60 bg-muted/15 px-3 py-1.5">
+                        Late count: {group.late_count}
+                      </span>
+                      <span className="rounded-full border border-border/60 bg-muted/15 px-3 py-1.5">
+                        Completed all: {group.completed_all}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {(teacherAnalytics?.groups_summary?.length ?? 0) === 0 && (
+                <div className="lg:col-span-2">
+                  <EmptyState
+                    icon={BarChart3}
+                    title="Аналитика еще не накопилась"
+                    description="Когда ученики начнут проходить задания, мы соберем здесь управленческий обзор."
+                  />
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </TabsContent>
 
-          {adminPanelGroupId && (() => {
-            const group = teacherGroups.find((g) => g.id === adminPanelGroupId);
-            if (!group) return null;
-            return (
-              <Dialog open={!!adminPanelGroupId} onOpenChange={(open) => !open && setAdminPanelGroupId(null)}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <UsersRound className="h-5 w-5" />
-                      {group.title}
-                    </DialogTitle>
-                    <DialogDescription>
-                      Ссылки для QR-кодов и прогресс учеников
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="flex-1 overflow-y-auto space-y-4 py-2">
-                    <GroupLinksEditor
-                      group={group}
-                      onSaved={(updated) => {
-                        setTeacherGroups((prev) =>
-                          prev.map((g) =>
-                            g.id === updated.id
-                              ? { ...g, child_chat_url: updated.child_chat_url, parent_chat_url: updated.parent_chat_url, links: updated.links }
-                              : g
-                          )
-                        );
-                      }}
-                    />
-                    <AddStudentToGroupBlock
-                      groupId={group.id}
-                      groupTitle={group.title}
-                      onAdded={() => {
-                        fetchTeacherGroupsProgress().then((res) => {
-                          if (res?.groups) setTeacherGroups(res.groups);
-                        });
-                      }}
-                    />
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Ученики</h4>
-                      {group.students.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-2">В группе пока нет учеников. Добавьте ученика выше.</p>
-                      ) : (
+          <TabsContent value="groups" className="space-y-4">
+            {teacherGroups.map((group) => {
+              const expanded = expandedStudents[group.id] ?? true;
+              const totalStudents = group.students.length;
+              const avgPercent = totalStudents
+                ? Math.round(
+                    group.students.reduce((sum, student) => {
+                      const avg = student.progress.length
+                        ? student.progress.reduce((trackSum, item) => trackSum + item.percent, 0) / student.progress.length
+                        : 0;
+                      return sum + avg;
+                    }, 0) / totalStudents
+                  )
+                : 0;
+
+              return (
+                <Card key={group.id} className="overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="border-b border-border/60 px-5 py-5 sm:px-6">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="space-y-3">
-                          {group.students.map((student) => (
-                            <StudentProgressCard
-                              key={student.id}
-                              student={student}
-                              expanded={expandedStudents.has(student.id)}
-                              onToggle={() => toggleStudent(student.id)}
-                              showCredentials
-                              onTrackClick={openTrackDetail}
-                            />
-                          ))}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="kavnt-badge">
+                              {role === "superuser" ? "Admin control" : "Teacher control"}
+                            </span>
+                            <span className="rounded-full border border-border/60 bg-muted/15 px-3 py-1 text-xs text-muted-foreground">
+                              {totalStudents} учеников
+                            </span>
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-semibold tracking-[-0.04em] text-foreground">{group.title}</h3>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Средний прогресс по группе {avgPercent}%. Ссылки, доступы и ученики управляются в одном месте.
+                            </p>
+                          </div>
                         </div>
-                      )}
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setExpandedStudents((prev) => ({ ...prev, [group.id]: !expanded }))}
+                          >
+                            {expanded ? "Свернуть список" : "Показать учеников"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() =>
+                              setLinksEditor({
+                                groupId: group.id,
+                                groupTitle: group.title,
+                                childChat: group.child_chat_url ?? "",
+                                parentChat: group.parent_chat_url ?? "",
+                                customLinks: (group.links ?? []).map((item) => `${item.label}|${item.url}`).join("\n"),
+                              })
+                            }
+                          >
+                            <Link2 className="h-4 w-4" />
+                            Ссылки
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="gap-2"
+                            onClick={() =>
+                              setStudentCreator({
+                                groupId: group.id,
+                                groupTitle: group.title,
+                                username: "",
+                                first_name: "",
+                                last_name: "",
+                                password: "",
+                              })
+                            }
+                          >
+                            <Plus className="h-4 w-4" />
+                            Добавить ученика
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            );
-          })()}
 
-          {trackDetail && (
-            <TrackDetailDialog
-              studentId={trackDetail.studentId}
-              studentName={trackDetail.studentName}
-              trackId={trackDetail.trackId}
-              trackTitle={trackDetail.trackTitle}
-              open={!!trackDetail}
-              onClose={() => setTrackDetail(null)}
-            />
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+                    <div className="grid gap-0 lg:grid-cols-[0.85fr,1.15fr]">
+                      <div className="border-b border-border/60 p-5 lg:border-b-0 lg:border-r lg:p-6">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Детский чат</p>
+                            <p className="mt-3 break-all text-sm text-foreground">{group.child_chat_url || "Не задан"}</p>
+                          </div>
+                          <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Родительский чат</p>
+                            <p className="mt-3 break-all text-sm text-foreground">{group.parent_chat_url || "Не задан"}</p>
+                          </div>
+                          <div className="sm:col-span-2 rounded-2xl border border-border/60 bg-muted/15 p-4">
+                            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Публичные ссылки</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {(group.links ?? []).length > 0 ? (
+                                (group.links ?? []).map((item, index) => (
+                                  <span
+                                    key={`${item.url}-${index}`}
+                                    className="rounded-full border border-border/60 bg-background px-3 py-1.5 text-sm text-foreground"
+                                  >
+                                    {item.label}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-sm text-muted-foreground">Пока ничего не добавлено.</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-/* ── Sub-components (unchanged logic) ── */
+                      <div className="p-5 lg:p-6">
+                        {expanded ? (
+                          <div className="space-y-4">
+                            {group.students.map((student) => (
+                              <div key={student.id} className="rounded-3xl border border-border/70 bg-background/80 p-4">
+                                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                  <div>
+                                    <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">
+                                      {student.full_name}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">@{student.username}</p>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="gap-2"
+                                      onClick={() => void handlePasswordReset(student)}
+                                    >
+                                      <KeyRound className="h-4 w-4" />
+                                      Новый пароль
+                                    </Button>
+                                  </div>
+                                </div>
 
-function TrackDetailDialog({
-  studentId,
-  studentName,
-  trackId,
-  trackTitle,
-  open,
-  onClose,
-}: {
-  studentId: string;
-  studentName: string;
-  trackId: string;
-  trackTitle: string;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const [data, setData] = useState<Awaited<ReturnType<typeof fetchStudentTrackProgress>>>(null);
-  const [loading, setLoading] = useState(true);
+                                <div className="mt-4 grid gap-3">
+                                  {student.progress.length > 0 ? (
+                                    student.progress.map((track) => (
+                                      <button
+                                        key={track.track_id}
+                                        type="button"
+                                        onClick={() => void openTrackDetail(student, track.track_id, track.track_title)}
+                                        className="rounded-2xl border border-border/60 bg-muted/15 p-4 text-left transition hover:border-primary/40 hover:bg-primary/5"
+                                      >
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                          <div>
+                                            <p className="font-medium text-foreground">{track.track_title}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                              {track.completed} из {track.total} завершено · {track.started} в работе
+                                            </p>
+                                          </div>
+                                          <div className="text-sm font-medium text-primary">Открыть детали</div>
+                                        </div>
+                                        <Progress value={track.percent} className="mt-4" />
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="rounded-2xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
+                                      У ученика пока нет назначенных треков.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {group.students.length === 0 && (
+                              <EmptyState
+                                icon={UsersRound}
+                                title="В группе пока нет учеников"
+                                description="Добавьте первого ученика, и кабинет сразу начнет собирать прогресс и аналитику."
+                              />
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
 
-  useEffect(() => {
-    if (!open || !studentId || !trackId) return;
-    setLoading(true);
-    fetchStudentTrackProgress(studentId, trackId).then((res) => {
-      setData(res);
-      setLoading(false);
-    });
-  }, [open, studentId, trackId]);
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
-            {trackTitle}
-          </DialogTitle>
-          <DialogDescription>
-            {studentName} — задания трека
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 overflow-y-auto py-2">
-          {loading ? (
-            <ListSkeleton rows={4} />
-          ) : data?.lessons?.length ? (
-            <ul className="space-y-2">
-              {data.lessons.map((l) => {
-                const isDone = l.status === "completed" || l.status === "completed_late";
-                return (
-                  <li
-                    key={l.lesson_id}
-                    className={cn(
-                      "flex items-center gap-3 p-2 rounded-lg border text-sm",
-                      isDone
-                        ? "bg-green-500/10 border-green-500/30"
-                        : l.status === "started"
-                          ? "bg-amber-500/10 border-amber-500/30"
-                          : "bg-muted/30 border-border/60"
-                    )}
-                  >
-                    {isDone ? (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                    ) : l.status === "started" ? (
-                      <CircleDot className="h-4 w-4 shrink-0 text-amber-600" />
-                    ) : (
-                      <CircleDot className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    )}
-                    <span className="font-medium flex-1 min-w-0 truncate">{l.lesson_title}</span>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {l.status === "completed_late" && (l.late_by_seconds ?? 0) > 0
-                        ? `${l.lesson_type_label} · Просрочка ${formatLateSeconds(l.late_by_seconds!)}`
-                        : l.lesson_type_label}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">Нет уроков в треке</p>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AddStudentToGroupBlock({
-  groupId,
-  groupTitle,
-  onAdded,
-}: {
-  groupId: string;
-  groupTitle: string;
-  onAdded: () => void;
-}) {
-  const { toast } = useToast();
-  const [expanded, setExpanded] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    username: "",
-    first_name: "",
-    last_name: "",
-    password: "",
-  });
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.username.trim() || !form.first_name.trim() || !form.last_name.trim() || !form.password) {
-      toast({ title: "Ошибка", description: "Заполните все поля", variant: "destructive" });
-      return;
-    }
-    if (form.password.length < 6) {
-      toast({ title: "Ошибка", description: "Пароль не менее 6 символов", variant: "destructive" });
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await createStudentInGroup(groupId, {
-        username: form.username.trim(),
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        password: form.password,
-      });
-      toast({
-        title: "Ученик добавлен",
-        description: `Логин: ${form.username.trim()} · Пароль: указанный при создании. Сообщите их ученику.`,
-      });
-      setForm({ username: "", first_name: "", last_name: "", password: "" });
-      onAdded();
-    } catch (err) {
-      toast({
-        title: "Ошибка",
-        description: err instanceof Error ? err.message : "Не удалось создать ученика",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-primary/20 bg-primary/5" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-primary/10 transition-colors rounded-lg"
-      >
-        <div className="flex items-center gap-2">
-          <UserPlus className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Добавить ученика в группу «{groupTitle}»</span>
-        </div>
-        {expanded ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
-      </button>
-      {expanded && (
-        <form onSubmit={handleSubmit} className="space-y-3 px-3 pb-3 pt-0 border-t border-primary/10">
-          <div className="grid gap-2 sm:grid-cols-2 pt-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Имя</Label>
-              <Input
-                value={form.first_name}
-                onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
-                placeholder="Иван"
-                className="text-sm h-9"
-                disabled={submitting}
+            {teacherGroups.length === 0 && (
+              <EmptyState
+                icon={UsersRound}
+                title="Группы пока не назначены"
+                description="Когда появятся группы, здесь откроется единый workspace для сопровождения студентов."
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Фамилия</Label>
-              <Input
-                value={form.last_name}
-                onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
-                placeholder="Иванов"
-                className="text-sm h-9"
-                disabled={submitting}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Логин</Label>
-            <Input
-              value={form.username}
-              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-              placeholder="ivanov"
-              className="text-sm h-9"
-              disabled={submitting}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Пароль</Label>
-            <Input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-              placeholder="Не менее 6 символов"
-              className="text-sm h-9"
-              disabled={submitting}
-            />
-          </div>
-          <Button type="submit" size="sm" disabled={submitting}>
-            {submitting ? "Создание..." : "Создать ученика"}
-          </Button>
-        </form>
-      )}
-    </div>
-  );
-}
+            )}
+          </TabsContent>
 
-function GroupLinksEditor({
-  group,
-  onSaved,
-}: {
-  group: GroupWithStudents;
-  onSaved: (updated: { id: string; child_chat_url: string; parent_chat_url: string; links: GroupLink[] }) => void;
-}) {
-  const { toast } = useToast();
-  const [expanded, setExpanded] = useState(false);
-  const [childUrl, setChildUrl] = useState(group.child_chat_url ?? "");
-  const [parentUrl, setParentUrl] = useState(group.parent_chat_url ?? "");
-  const [links, setLinks] = useState<GroupLink[]>(group.links ?? []);
-  const [saving, setSaving] = useState(false);
-
-  function addLink() {
-    setLinks((prev) => [...prev, { label: "", url: "" }]);
-  }
-
-  function updateLink(i: number, patch: Partial<GroupLink>) {
-    setLinks((prev) => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
-  }
-
-  function removeLink(i: number) {
-    setLinks((prev) => prev.filter((_, j) => j !== i));
-  }
-
-  async function handleSave(e: React.FormEvent) {
-    e.stopPropagation();
-    setSaving(true);
-    try {
-      const res = await updateGroupLinks(group.id, {
-        child_chat_url: childUrl.trim(),
-        parent_chat_url: parentUrl.trim(),
-        links: links.filter((l) => l.label?.trim() || l.url?.trim()).map((l) => ({ label: l.label || "", url: l.url || "" })),
-      });
-      if (res) {
-        toast({ title: "Ссылки сохранены" });
-        onSaved(res);
-      } else {
-        toast({ title: "Ошибка", description: "Не удалось сохранить", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Ошибка", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="rounded-lg border" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/30 transition-colors rounded-lg"
-      >
-        <div className="flex items-center gap-2">
-          <Link2 className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Ссылки для QR-кодов</span>
-        </div>
-        {expanded ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
-      </button>
-      {expanded && (
-        <form onSubmit={handleSave} className="space-y-3 px-3 pb-3 pt-0 border-t">
-          <div className="grid gap-2 sm:grid-cols-2 pt-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Детский чат</Label>
-              <Input
-                value={childUrl}
-                onChange={(e) => setChildUrl(e.target.value)}
-                placeholder="https://..."
-                className="text-sm h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Родительский чат</Label>
-              <Input
-                value={parentUrl}
-                onChange={(e) => setParentUrl(e.target.value)}
-                placeholder="https://..."
-                className="text-sm h-9"
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Дополнительные ссылки</Label>
-              <Button type="button" variant="ghost" size="sm" onClick={addLink} className="h-7 text-xs gap-1">
-                <Plus className="h-3 w-3" />
-                Добавить
-              </Button>
-            </div>
-            {links.map((l, i) => (
-              <div key={i} className="flex gap-2">
-                <Input
-                  value={l.label}
-                  onChange={(e) => updateLink(i, { label: e.target.value })}
-                  placeholder="Название"
-                  className="text-sm h-9 flex-1"
-                />
-                <Input
-                  value={l.url}
-                  onChange={(e) => updateLink(i, { url: e.target.value })}
-                  placeholder="https://..."
-                  className="text-sm h-9 flex-1"
-                />
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeLink(i)}>
-                  <Trash2 className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </div>
-            ))}
-          </div>
-          <Button type="submit" size="sm" disabled={saving}>
-            {saving ? "Сохранение..." : "Сохранить ссылки"}
-          </Button>
-        </form>
-      )}
-    </div>
-  );
-}
-
-function StudentProgressCard({
-  student,
-  expanded,
-  onToggle,
-  showCredentials = false,
-  onTrackClick,
-}: {
-  student: StudentInGroup;
-  expanded: boolean;
-  onToggle: () => void;
-  showCredentials?: boolean;
-  onTrackClick?: (student: StudentInGroup, progress: { track_id: string; track_title: string }) => void;
-}) {
-  const { toast } = useToast();
-  const [credentialsOpen, setCredentialsOpen] = useState(false);
-  const [resetPasswordValue, setResetPasswordValue] = useState<string | null>(null);
-  const [resetting, setResetting] = useState(false);
-
-  async function handleResetPassword() {
-    setResetting(true);
-    try {
-      const { username, password } = await resetStudentPassword(student.id);
-      setResetPasswordValue(password);
-      toast({ title: "Пароль сброшен", description: "Новый пароль сгенерирован." });
-    } catch (err) {
-      toast({
-        title: "Ошибка",
-        description: err instanceof Error ? err.message : "Не удалось сбросить пароль",
-        variant: "destructive",
-      });
-    } finally {
-      setResetting(false);
-    }
-  }
-
-  const avgPercent =
-    student.progress.length > 0
-      ? Math.round(
-          student.progress.reduce((s, p) => s + p.percent, 0) / student.progress.length
-        )
-      : 0;
-
-  return (
-    <div className="rounded-lg border overflow-hidden">
-      <div
-        className={cn(
-          "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/30 transition-colors",
-          expanded && "border-b"
-        )}
-        onClick={onToggle}
-      >
-        {expanded ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
-        <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate text-sm">{student.full_name}</p>
-          <p className="text-xs text-muted-foreground font-mono">{student.username}</p>
-        </div>
-        <div className="text-right shrink-0 flex items-center gap-2">
-          {showCredentials && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 h-8 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                setCredentialsOpen(true);
-                setResetPasswordValue(null);
-              }}
-            >
-              <KeyRound className="h-3.5 w-3.5" />
-              Данные
-            </Button>
-          )}
-          <div>
-            <p className="text-sm font-medium tabular-nums">{avgPercent}%</p>
-            <p className="text-[11px] text-muted-foreground">
-              {student.progress.filter((p) => p.percent === 100).length}/{student.progress.length}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {showCredentials && (
-        <Dialog open={credentialsOpen} onOpenChange={setCredentialsOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Учётные данные</DialogTitle>
-              <DialogDescription>
-                {student.full_name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Логин</p>
-                <p className="font-mono text-sm bg-muted px-3 py-2 rounded-md">{student.username}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Пароль</p>
-                {resetPasswordValue ? (
-                  <p className="font-mono text-sm bg-muted px-3 py-2 rounded-md break-all">{resetPasswordValue}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Пароль зашифрован. Сбросьте, чтобы получить новый.
-                  </p>
+          <TabsContent value="activity" className="space-y-6">
+            <div className="grid gap-4 xl:grid-cols-[0.9fr,1.1fr]">
+              <ProgressDonut
+                title="Структура прогресса"
+                completed={(teacherAnalytics?.groups_summary ?? []).reduce((sum, item) => sum + item.completed_all, 0)}
+                started={Math.max(
+                  teacherSummary.totalTracks -
+                    (teacherAnalytics?.groups_summary ?? []).reduce((sum, item) => sum + item.completed_all, 0),
+                  0
                 )}
+                notStarted={Math.max(teacherSummary.students, 1)}
+              />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Сигналы для внимания</CardTitle>
+                  <CardDescription>
+                    Быстрый список зон, где преподавателю или администратору стоит вмешаться в первую очередь.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(teacherAnalytics?.groups_summary ?? [])
+                    .slice()
+                    .sort((a, b) => b.late_count - a.late_count)
+                    .map((item) => (
+                      <div key={item.group_id} className="rounded-2xl border border-border/70 bg-muted/15 p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-medium text-foreground">{item.group_title}</p>
+                            <p className="text-sm text-muted-foreground">Средний прогресс {item.avg_percent}%</p>
+                          </div>
+                          <div className="flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-sm text-amber-800">
+                            <Flame className="h-4 w-4" />
+                            Late count: {item.late_count}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
+
+      <Dialog open={Boolean(linksEditor)} onOpenChange={(open) => !open && setLinksEditor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ссылки группы</DialogTitle>
+            <DialogDescription>
+              {linksEditor ? `Обновите чаты и материалы для группы «${linksEditor.groupTitle}».` : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {linksEditor ? (
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Детский чат</label>
+                <Input
+                  value={linksEditor.childChat}
+                  onChange={(event) => setLinksEditor({ ...linksEditor, childChat: event.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Родительский чат</label>
+                <Input
+                  value={linksEditor.parentChat}
+                  onChange={(event) => setLinksEditor({ ...linksEditor, parentChat: event.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Дополнительные ссылки</label>
+                <textarea
+                  value={linksEditor.customLinks}
+                  onChange={(event) => setLinksEditor({ ...linksEditor, customLinks: event.target.value })}
+                  placeholder={"Материалы | https://example.com\nTelegram | https://t.me/..."}
+                  className="min-h-[140px] w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+                <p className="text-xs text-muted-foreground">Одна строка = одна ссылка в формате «Название | URL».</p>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setCredentialsOpen(false)}>
-                Закрыть
-              </Button>
-              <Button onClick={handleResetPassword} disabled={resetting}>
-                {resetting ? "Сброс..." : "Сбросить пароль"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-      {expanded && (
-        <div className="p-3 space-y-3">
-          {student.progress.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Нет данных о прогрессе</p>
-          ) : (
-            student.progress.map((p) => (
-              <div key={p.track_id} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onTrackClick?.(student, p);
-                    }}
-                    className="font-medium hover:underline flex items-center gap-1.5 text-left"
-                  >
-                    <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                    {p.track_title}
-                  </button>
-                  <span className="text-muted-foreground tabular-nums">
-                    {p.completed}/{p.total} ({p.percent}%)
-                  </span>
-                </div>
-                <Progress value={p.percent} className="h-1.5" />
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinksEditor(null)}>
+              Отмена
+            </Button>
+            <Button onClick={() => void handleSaveLinks()} disabled={savingLinks}>
+              {savingLinks ? "Сохраняю..." : "Сохранить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(studentCreator)} onOpenChange={(open) => !open && setStudentCreator(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новый ученик</DialogTitle>
+            <DialogDescription>
+              {studentCreator ? `Создаем ученика сразу внутри группы «${studentCreator.groupTitle}».` : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {studentCreator ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-medium text-foreground">Логин</label>
+                <Input
+                  value={studentCreator.username}
+                  onChange={(event) => setStudentCreator({ ...studentCreator, username: event.target.value })}
+                  placeholder="student_01"
+                />
               </div>
-            ))
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Имя</label>
+                <Input
+                  value={studentCreator.first_name}
+                  onChange={(event) => setStudentCreator({ ...studentCreator, first_name: event.target.value })}
+                  placeholder="Иван"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Фамилия</label>
+                <Input
+                  value={studentCreator.last_name}
+                  onChange={(event) => setStudentCreator({ ...studentCreator, last_name: event.target.value })}
+                  placeholder="Петров"
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-medium text-foreground">Временный пароль</label>
+                <Input
+                  type="password"
+                  value={studentCreator.password}
+                  onChange={(event) => setStudentCreator({ ...studentCreator, password: event.target.value })}
+                  placeholder="Не короче 6 символов"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStudentCreator(null)}>
+              Отмена
+            </Button>
+            <Button onClick={() => void handleCreateStudent()} disabled={creatingStudent}>
+              {creatingStudent ? "Создаю..." : "Создать ученика"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={trackDetail.open} onOpenChange={(open) => setTrackDetail((prev) => ({ ...prev, open }))}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{trackDetail.trackTitle || "Прогресс по треку"}</DialogTitle>
+            <DialogDescription>{trackDetail.studentName}</DialogDescription>
+          </DialogHeader>
+
+          {trackDetail.loading ? (
+            <ListSkeleton rows={4} />
+          ) : trackDetail.data ? (
+            <div className="space-y-3">
+              {trackDetail.data.lessons.map((lesson) => (
+                <div key={lesson.lesson_id} className="rounded-2xl border border-border/70 bg-muted/15 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-medium text-foreground">{lesson.lesson_title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {lesson.lesson_type_label || LESSON_TYPE_LABELS[lesson.lesson_type] || lesson.lesson_type}
+                      </p>
+                    </div>
+                    <span className={cn("rounded-full border px-2.5 py-1 text-xs font-medium", statusBadge(lesson.status))}>
+                      {statusLabel(lesson.status)}
+                    </span>
+                  </div>
+                  {lesson.late_by_seconds ? (
+                    <p className="mt-3 text-sm text-amber-700">Опоздание: {formatLateSeconds(lesson.late_by_seconds)}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={BookOpen}
+              title="Детали прогресса недоступны"
+              description="Сейчас сервер не вернул данные по этому треку."
+            />
           )}
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(passwordReset)} onOpenChange={(open) => !open && setPasswordReset(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новый пароль создан</DialogTitle>
+            <DialogDescription>Передайте данные ученику безопасным способом.</DialogDescription>
+          </DialogHeader>
+          {passwordReset ? (
+            <div className="space-y-3 rounded-3xl border border-border/70 bg-muted/20 p-5">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Логин</p>
+                <p className="mt-2 font-medium text-foreground">{passwordReset.username}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Пароль</p>
+                <p className="mt-2 font-mono text-lg text-foreground">{passwordReset.password}</p>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button onClick={() => setPasswordReset(null)}>Закрыть</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

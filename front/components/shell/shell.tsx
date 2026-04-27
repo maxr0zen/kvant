@@ -7,17 +7,19 @@ import { ApiAuthHandler } from "@/components/api-auth-handler";
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen flex-col">
+      <div className="app-shell flex min-h-screen flex-col">
         <ApiAuthHandler />
         <Header />
-        <div className="flex flex-1 min-h-0 relative">
+        <SidebarToggle />
+        <div className="relative flex min-h-0 flex-1 px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3 lg:px-5 lg:pb-5 lg:pt-3">
+          <div className="app-canvas flex min-h-0 flex-1">
           <Sidebar />
-          <SidebarToggle />
-          <main className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden">
-            <div className="w-full min-w-0 px-4 py-6 sm:px-6 md:px-8 lg:px-10 xl:px-14 2xl:px-16">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="w-full min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10">
               {children}
             </div>
           </main>
+          </div>
         </div>
       </div>
     </SidebarProvider>

@@ -50,6 +50,7 @@ function mapQuestionFromApi(data: Record<string, unknown>): Question {
     choices,
     multiple: Boolean(data.multiple),
     trackId: data.track_id != null ? String(data.track_id) : undefined,
+    visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
     hints: Array.isArray(data.hints) ? (data.hints as string[]) : undefined,
     availableFrom: data.available_from != null ? String(data.available_from) : undefined,
     availableUntil: data.available_until != null ? String(data.available_until) : undefined,
@@ -164,3 +165,5 @@ export async function deleteQuestion(id: string): Promise<void> {
     throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка удаления вопроса");
   }
 }
+
+

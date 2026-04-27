@@ -1,105 +1,110 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ClipboardCheck, Filter, MessageSquareText, Send, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import type { Survey } from "@/lib/types";
-import { submitSurveyResponse, fetchSurveyResponses, acceptSurveyResponse, type SurveyResponseItem } from "@/lib/api/surveys";
+import {
+  acceptSurveyResponse,
+  fetchSurveyResponses,
+  submitSurveyResponse,
+  type SurveyResponseItem,
+} from "@/lib/api/surveys";
 import { AvailabilityNotice } from "@/components/availability-notice";
+import { AvailabilityCountdown } from "@/components/availability-countdown";
+import { EmptyState } from "@/components/ui/empty-state";
+import { cn } from "@/components/lib/utils";
 
 interface SurveyViewProps {
   survey: Survey;
 }
 
-/** Уникальные группы по ответам (включая тех без группы) */
-function getGroupsFromResponses(responses: SurveyResponseItem[]): { id: string; title: string }[] {
-  const byId = new Map<string, string>();
-  const hasUngrouped = responses.some((r) => !r.group_id || !r.group_title);
-  if (hasUngrouped) {
-    byId.set("__none__", "Без группы");
+function collectGroups(responses: SurveyResponseItem[]) {
+  const map = new Map<string, string>();
+  const hasUngrouped = responses.some((item) => !item.group_id || !item.group_title);
+  if (hasUngrouped) map.set("__none__", "Без группы");
+  for (const item of responses) {
+    if (item.group_id && item.group_title) map.set(item.group_id, item.group_title);
   }
-  for (const r of responses) {
-    if (r.group_id && r.group_title) {
-      byId.set(r.group_id, r.group_title);
-    }
-  }
-  return Array.from(byId.entries()).map(([id, title]) => ({ id, title }));
+  return Array.from(map.entries()).map(([id, title]) => ({ id, title }));
 }
 
 export function SurveyView({ survey }: SurveyViewProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const [answer, setAnswer] = useState(survey.myResponse ?? "");
-  const [submitted, setSubmitted] = useState(!!survey.myResponse);
+  const [submitted, setSubmitted] = useState(Boolean(survey.myResponse));
   const [loading, setLoading] = useState(false);
   const [responses, setResponses] = useState<SurveyResponseItem[]>([]);
   const [responsesLoaded, setResponsesLoaded] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
   const [acceptingUserId, setAcceptingUserId] = useState<string | null>(null);
-  /** group_id для фильтрации ответов (пустая = все группы) */
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-  const { toast } = useToast();
-
-  const groups = useMemo(() => getGroupsFromResponses(responses), [responses]);
-  const filteredResponses = useMemo(() => {
-    if (!selectedGroupId) return responses;
-    if (selectedGroupId === "__none__") {
-      return responses.filter((r) => !r.group_id || !r.group_title);
-    }
-    return responses.filter((r) => r.group_id === selectedGroupId);
-  }, [responses, selectedGroupId]);
 
   useEffect(() => {
-    if (survey.myResponse != null) {
-      setAnswer(survey.myResponse);
-      setSubmitted(true);
-    }
-  }, [survey.myResponse]);
+    setAnswer(survey.myResponse ?? "");
+    setSubmitted(Boolean(survey.myResponse));
+  }, [survey.myResponse, survey.id]);
 
-  async function loadResponses() {
-    const list = await fetchSurveyResponses(survey.id);
-    setResponses(list);
+  const loadResponses = useCallback(async () => {
+    const next = await fetchSurveyResponses(survey.id);
+    setResponses(next);
     setResponsesLoaded(true);
-  }
+  }, [survey.id]);
 
   useEffect(() => {
     if (!survey.isTeacherOrAdmin) return;
-    let cancelled = false;
-    loadResponses().then(() => {
-      if (cancelled) return;
-    });
-    return () => { cancelled = true; };
-  }, [survey.id, survey.isTeacherOrAdmin]);
+    void loadResponses();
+  }, [loadResponses, survey.isTeacherOrAdmin]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const groups = useMemo(() => collectGroups(responses), [responses]);
+
+  const filteredResponses = useMemo(() => {
+    if (!selectedGroupId) return responses;
+    if (selectedGroupId === "__none__") return responses.filter((item) => !item.group_id || !item.group_title);
+    return responses.filter((item) => item.group_id === selectedGroupId);
+  }, [responses, selectedGroupId]);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
     if (!answer.trim()) {
       toast({ title: "Введите ответ", variant: "destructive" });
       return;
     }
+
     setLoading(true);
     try {
       await submitSurveyResponse(survey.id, answer.trim());
       setSubmitted(true);
-      toast({ title: "Ответ сохранён" });
+      toast({ title: "Ответ сохранен" });
       router.refresh();
-    } catch (err) {
-      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Не удалось отправить ответ",
+        description: error instanceof Error ? error.message : "Попробуйте еще раз.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleAccept(studentUserId: string) {
-    setAcceptingUserId(studentUserId);
+  async function handleAccept(userId: string) {
+    setAcceptingUserId(userId);
     try {
-      await acceptSurveyResponse(survey.id, studentUserId);
+      await acceptSurveyResponse(survey.id, userId);
       await loadResponses();
-      toast({ title: "Опрос принят", description: "Задание засчитано как выполненное." });
+      toast({ title: "Ответ принят", description: "Опрос засчитан как выполненный." });
       router.refresh();
-    } catch (err) {
-      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Не удалось принять ответ",
+        description: error instanceof Error ? error.message : "Попробуйте еще раз.",
+        variant: "destructive",
+      });
     } finally {
       setAcceptingUserId(null);
     }
@@ -108,163 +113,173 @@ export function SurveyView({ survey }: SurveyViewProps) {
   return (
     <div className="space-y-6">
       <AvailabilityNotice availableFrom={survey.availableFrom} availableUntil={survey.availableUntil} />
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">{survey.title}</h1>
-          {survey.prompt && <p className="mt-2 break-words text-muted-foreground">{survey.prompt}</p>}
-        </div>
-      </div>
 
-      {!submitted ? (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ваш ответ</CardTitle>
-              <CardDescription>Свободная форма. Ответ будет виден преподавателю.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <textarea
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                placeholder="Введите ваш ответ..."
-                className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                rows={5}
-              />
-              <Button type="submit" disabled={loading}>
-                {loading ? "Отправка..." : "Отправить ответ"}
-              </Button>
-            </CardContent>
-          </Card>
-        </form>
-      ) : (
+      <section className="hero-surface rounded-[2rem] border border-border/60 px-6 py-6 sm:px-8 sm:py-8">
+        <div className="grid gap-6 lg:grid-cols-[1.35fr,0.65fr] lg:items-end">
+          <div className="space-y-4">
+            <div className="kavnt-badge w-fit">Reflective survey</div>
+            <div className="space-y-3">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">{survey.title}</h2>
+              {survey.prompt ? (
+                <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">{survey.prompt}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Статус</p>
+              <p className="mt-3 text-lg font-semibold tracking-[-0.04em] text-foreground">
+                {submitted ? "Ответ отправлен" : "Ожидается ответ"}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Дедлайн</p>
+              <div className="mt-3">
+                <AvailabilityCountdown availableUntil={survey.availableUntil} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card>
           <CardHeader>
-            <CardTitle>Ваш ответ сохранён</CardTitle>
-            <CardDescription>Вы можете изменить его, отправив новый текст ниже.</CardDescription>
+            <CardTitle>{submitted ? "Ваш ответ" : "Напишите ответ"}</CardTitle>
+            <CardDescription>
+              Текст увидит преподаватель. Можно отправить новый вариант, если хотите уточнить мысль.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">{answer || "(пусто)"}</div>
-            <form onSubmit={handleSubmit} className="space-y-2">
+            {submitted ? (
+              <div className="rounded-2xl border border-border/60 bg-muted/15 p-4 text-sm leading-7 text-foreground whitespace-pre-wrap">
+                {answer || "(пусто)"}
+              </div>
+            ) : null}
+            <form onSubmit={handleSubmit} className="space-y-4">
               <textarea
                 value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                placeholder="Изменить ответ..."
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                rows={3}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder="Сформулируйте ответ свободным текстом..."
+                className="min-h-[180px] w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
-              <Button type="submit" variant="outline" size="sm" disabled={loading}>
-                {loading ? "Сохранение..." : "Обновить ответ"}
+              <Button type="submit" disabled={loading} className="gap-2">
+                <Send className="h-4 w-4" />
+                {loading ? "Сохраняю..." : submitted ? "Обновить ответ" : "Отправить ответ"}
               </Button>
             </form>
           </CardContent>
         </Card>
-      )}
 
-      {survey.isTeacherOrAdmin && responsesLoaded && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Подсказка</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                Отвечайте конкретно: полезнее несколько ясных тезисов, чем длинный, но расплывчатый текст.
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                Если вопрос про рефлексию, опишите не только результат, но и вывод, который вы сделали.
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {survey.isTeacherOrAdmin && responsesLoaded ? (
         <Card>
           <CardHeader>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <CardTitle>Ответы учеников</CardTitle>
-                <CardDescription>Детализация по опросу</CardDescription>
+                <CardDescription>Просмотр, фильтрация по группам и ручное принятие ответов.</CardDescription>
               </div>
-              {responses.length > 0 && (
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <Label htmlFor="survey-group-filter" className="text-xs whitespace-nowrap">
-                    Показать:
+              {responses.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label htmlFor="survey-group-filter" className="text-sm font-medium">
+                    <Filter className="mr-2 inline h-4 w-4" />
+                    Показать
                   </Label>
                   <select
                     id="survey-group-filter"
                     value={selectedGroupId}
-                    onChange={(e) => setSelectedGroupId(e.target.value)}
-                    className="flex h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium sm:w-auto sm:min-w-[180px]"
+                    onChange={(event) => setSelectedGroupId(event.target.value)}
+                    className="flex h-11 min-w-[220px] rounded-2xl border border-input bg-background px-4 text-sm"
                   >
                     <option value="">Все ответы</option>
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.title}
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.title}
                       </option>
                     ))}
                   </select>
                 </div>
-              )}
+              ) : null}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             {responses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Пока нет ответов.</p>
+              <EmptyState
+                icon={MessageSquareText}
+                title="Ответов пока нет"
+                description="Когда ученики начнут отправлять ответы, они появятся здесь."
+              />
             ) : filteredResponses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                В выбранной группе нет ответов.
-              </p>
-            ) : selectedGroupId ? (
-              <ul className="space-y-4">
-                {filteredResponses.map((r) => (
-                  <li key={r.user_id} className="border-b pb-3 last:border-0 last:pb-0">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="font-medium text-sm">{r.full_name}</div>
-                      {(r.status === "completed" || r.status === "completed_late") ? (
-                        <span className="text-xs text-green-600">Принято</span>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleAccept(r.user_id)}
-                          disabled={acceptingUserId === r.user_id}
-                        >
-                          {acceptingUserId === r.user_id ? "Принятие..." : "Принять"}
-                        </Button>
-                      )}
-                    </div>
-                    <div className="mt-1 text-sm whitespace-pre-wrap rounded bg-muted/50 p-2">{r.answer || "(пусто)"}</div>
-                  </li>
-                ))}
-              </ul>
+              <EmptyState
+                icon={Filter}
+                title="По фильтру пусто"
+                description="Снимите фильтр или выберите другую группу."
+              />
             ) : (
-              <div className="space-y-6">
-                {(() => {
-                  const byGroup = new Map<string, { title: string; items: SurveyResponseItem[] }>();
-                  for (const r of filteredResponses) {
-                    const gid = r.group_id || "__none__";
-                    const gtitle = r.group_title || "Без группы";
-                    if (!byGroup.has(gid)) byGroup.set(gid, { title: gtitle, items: [] });
-                    byGroup.get(gid)!.items.push(r);
-                  }
-                  return Array.from(byGroup.entries()).map(([gid, { title, items }]) => (
-                    <div key={gid}>
-                      <h3 className="text-sm font-semibold text-foreground mb-3 pb-1 border-b">
-                        {title}
-                      </h3>
-                      <ul className="space-y-4">
-                        {items.map((r) => (
-                          <li key={r.user_id} className="border-b pb-3 last:border-0 last:pb-0">
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div className="font-medium text-sm">{r.full_name}</div>
-                              {(r.status === "completed" || r.status === "completed_late") ? (
-                                <span className="text-xs text-green-600">Принято</span>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleAccept(r.user_id)}
-                                  disabled={acceptingUserId === r.user_id}
-                                >
-                                  {acceptingUserId === r.user_id ? "Принятие..." : "Принять"}
-                                </Button>
-                              )}
-                            </div>
-                            <div className="mt-1 text-sm whitespace-pre-wrap rounded bg-muted/50 p-2">{r.answer || "(пусто)"}</div>
-                          </li>
-                        ))}
-                      </ul>
+              filteredResponses.map((response) => (
+                <div key={response.user_id} className="rounded-3xl border border-border/70 bg-muted/15 p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-xs font-medium",
+                            response.status === "completed" || response.status === "completed_late"
+                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-800"
+                              : "border-border bg-background text-muted-foreground"
+                          )}
+                        >
+                          {response.status === "completed" || response.status === "completed_late" ? "Принято" : "Ожидает принятия"}
+                        </span>
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          {response.group_title || "Без группы"}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{response.full_name}</p>
+                      </div>
                     </div>
-                  ));
-                })()}
-              </div>
+
+                    {response.status === "completed" || response.status === "completed_late" ? (
+                      <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800">
+                        <ShieldCheck className="h-4 w-4" />
+                        Ответ принят
+                      </div>
+                    ) : (
+                      <Button onClick={() => void handleAccept(response.user_id)} disabled={acceptingUserId === response.user_id} className="gap-2">
+                        <ClipboardCheck className="h-4 w-4" />
+                        {acceptingUserId === response.user_id ? "Принимаю..." : "Принять ответ"}
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-border/60 bg-background p-4 text-sm leading-7 text-foreground whitespace-pre-wrap">
+                    {response.answer || "(пусто)"}
+                  </div>
+                </div>
+              ))
             )}
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }

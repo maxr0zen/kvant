@@ -10,7 +10,7 @@ export interface ProgressDonutSegment {
   color: string;
 }
 
-const DEFAULT_COLORS = [
+const DEFAULT_COLORS: [string, string, string] = [
   "hsl(var(--success))",   // completed
   "hsl(var(--warning))",   // started
   "hsl(var(--muted-foreground))", // not started
@@ -68,7 +68,7 @@ export function ProgressDonut({
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number) => [value, ""]}
+                formatter={(value) => [value ?? 0, ""]}
                 contentStyle={{
                   backgroundColor: "hsl(var(--card))",
                   border: "1px solid hsl(var(--border))",

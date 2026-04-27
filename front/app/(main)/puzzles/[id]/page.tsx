@@ -21,8 +21,9 @@ export default async function PuzzlePage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={puzzle.title || "Puzzle"}
-        breadcrumbs={[{ label: "РўСЂРµРєРё", href: "/main" }, { label: "Puzzle" }]}
+        title={puzzle.title || "Пазл"}
+        description="Проверьте логику решения, соберите блоки в правильном порядке и сразу получите обратную связь."
+        breadcrumbs={[{ label: "Главная", href: "/main" }, { label: "Пазл" }]}
         actions={
           <div className="flex items-center gap-2">
             <AvailabilityCountdown availableUntil={puzzle.availableUntil} className="shrink-0" />

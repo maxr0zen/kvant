@@ -12,7 +12,8 @@ interface AvailabilityNoticeProps {
 }
 
 /** Формат даты в UTC, одинаковый на сервере и клиенте — избегает hydration mismatch. */
-function formatDate(s: string): string {
+function formatDate(s: string | null): string {
+  if (!s) return "";
   const d = parseDateTime(s);
   if (!d) return s;
   const pad = (n: number) => String(n).padStart(2, "0");

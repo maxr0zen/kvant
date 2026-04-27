@@ -376,6 +376,10 @@ def create_test_tracks_with_lessons():
             hints=None,
             editable_files=None,
             attached_lecture_id="",
+            check_mode="subtasks",
+            reference_html=None,
+            reference_css=None,
+            reference_js=None,
         ):
             nonlocal order
             seed = f"layout:{track.title}:{title}"
@@ -389,6 +393,10 @@ def create_test_tracks_with_lessons():
                 template_html=template_html,
                 template_css=template_css,
                 template_js=template_js,
+                reference_html=reference_html if reference_html is not None else template_html,
+                reference_css=reference_css if reference_css is not None else template_css,
+                reference_js=reference_js if reference_js is not None else template_js,
+                check_mode=check_mode,
                 editable_files=ef,
                 subtasks=[LayoutSubtaskEmbed(**st) for st in subtasks],
                 hints=hints or [],
@@ -914,6 +922,96 @@ def create_test_tracks_with_lessons():
                 hints=["Проверьте id элементов: login-form, email, form-message."],
                 editable_files=["html", "css", "js"],
                 attached_lecture_id=form_theory_id,
+            ))
+            lessons.append(add_layout(
+                "Тестовое задание: полное совпадение с эталоном",
+                "Доведите верстку до точного совпадения с эталонным макетом преподавателя.",
+                (
+                    "<section class='dashboard-card'>\n"
+                    "  <h2 class='title'>Профиль студента</h2>\n"
+                    "  <button class='save-btn' type='button'>Сохранить</button>\n"
+                    "</section>"
+                ),
+                (
+                    ".dashboard-card {\n"
+                    "  max-width: 420px;\n"
+                    "  margin: 24px auto;\n"
+                    "  padding: 20px;\n"
+                    "  border: 1px solid #d1d5db;\n"
+                    "  border-radius: 12px;\n"
+                    "  display: grid;\n"
+                    "  gap: 12px;\n"
+                    "}\n"
+                    "\n"
+                    ".save-btn {\n"
+                    "  border: 0;\n"
+                    "  border-radius: 8px;\n"
+                    "  padding: 10px 14px;\n"
+                    "  background: #1f2937;\n"
+                    "  color: #fff;\n"
+                    "}"
+                ),
+                (
+                    "const saveBtn = document.querySelector('.save-btn');\n"
+                    "const status = document.querySelector('.status');\n"
+                    "\n"
+                    "saveBtn?.addEventListener('click', () => {\n"
+                    "  if (status) status.textContent = 'Сохранено';\n"
+                    "});"
+                ),
+                [],
+                hints=[
+                    "Проверка идет в режиме полного совпадения с эталоном.",
+                    "Добавьте недостающие элементы и стили так, чтобы макет полностью совпал.",
+                ],
+                editable_files=["html", "css", "js"],
+                attached_lecture_id=form_theory_id,
+                check_mode="full_match",
+                reference_html=(
+                    "<section class='dashboard-card'>\n"
+                    "  <h2 class='title'>Профиль студента</h2>\n"
+                    "  <p class='status' aria-live='polite'>Готово к отправке</p>\n"
+                    "  <button class='save-btn' type='button'>Сохранить</button>\n"
+                    "</section>"
+                ),
+                reference_css=(
+                    ".dashboard-card {\n"
+                    "  max-width: 420px;\n"
+                    "  margin: 24px auto;\n"
+                    "  padding: 20px;\n"
+                    "  border: 1px solid #d1d5db;\n"
+                    "  border-radius: 12px;\n"
+                    "  background: #ffffff;\n"
+                    "  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);\n"
+                    "  display: grid;\n"
+                    "  gap: 12px;\n"
+                    "}\n"
+                    "\n"
+                    ".title {\n"
+                    "  margin: 0 0 8px;\n"
+                    "}\n"
+                    "\n"
+                    ".status {\n"
+                    "  margin: 0 0 14px;\n"
+                    "  color: #4b5563;\n"
+                    "}\n"
+                    "\n"
+                    ".save-btn {\n"
+                    "  border: 0;\n"
+                    "  border-radius: 8px;\n"
+                    "  padding: 10px 14px;\n"
+                    "  background: #1f2937;\n"
+                    "  color: #fff;\n"
+                    "}"
+                ),
+                reference_js=(
+                    "const saveBtn = document.querySelector('.save-btn');\n"
+                    "const status = document.querySelector('.status');\n"
+                    "\n"
+                    "saveBtn?.addEventListener('click', () => {\n"
+                    "  if (status) status.textContent = 'Сохранено';\n"
+                    "});"
+                ),
             ))
 
         track.lessons = lessons

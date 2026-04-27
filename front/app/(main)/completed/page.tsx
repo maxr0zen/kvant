@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock, ListChecks, Puzzle, HelpCircle, BookOpen, MessageCircle, Code2 } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Code2, HelpCircle, ListChecks, MessageCircle, Puzzle, Trophy } from "lucide-react";
 import { fetchPlatformCompleted, type PlatformCompletedItem } from "@/lib/api/profile";
 import { getStoredToken } from "@/lib/api/auth";
 import { PageHeader } from "@/components/ui/page-header";
@@ -43,8 +43,7 @@ function formatDate(iso: string | null): string {
   try {
     return new Date(iso).toLocaleString("ru-RU", {
       day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+      month: "long",
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -59,7 +58,6 @@ export default function CompletedPage() {
   const [items, setItems] = useState<PlatformCompletedItem[]>([]);
 
   useEffect(() => {
-    // Avoid SSR/CSR mismatch: token is readable only on the client.
     setHasToken(Boolean(getStoredToken()));
   }, []);
 
@@ -68,6 +66,7 @@ export default function CompletedPage() {
       setLoading(false);
       return;
     }
+
     let mounted = true;
     fetchPlatformCompleted()
       .then((list) => {
@@ -76,31 +75,21 @@ export default function CompletedPage() {
       .finally(() => {
         if (mounted) setLoading(false);
       });
+
     return () => {
       mounted = false;
     };
   }, [hasToken]);
 
   if (hasToken === null) {
-    return (
-      <div className="content-block">
-        <PageHeader
-          title="Выполненные задания"
-          description="Отдельные задания, которые уже зачтены"
-          breadcrumbs={[{ label: "Выполненные" }]}
-        />
-        <Card>
-          <CardContent className="py-10 text-sm text-muted-foreground">Загрузка...</CardContent>
-        </Card>
-      </div>
-    );
+    return <div className="py-8 text-sm text-muted-foreground">Загрузка...</div>;
   }
 
   if (!hasToken) {
     return (
       <EmptyState
         title="Требуется авторизация"
-        description="Войдите, чтобы видеть выполненные задания."
+        description="Войдите, чтобы видеть завершенные материалы и историю прохождения."
         action={
           <Link href="/login">
             <Button>Войти</Button>
@@ -110,13 +99,49 @@ export default function CompletedPage() {
     );
   }
 
+  const completedLate = items.filter((item) => item.status === "completed_late").length;
+
   return (
     <div className="content-block">
-      <PageHeader
-        title="Выполненные задания"
-        description="Отдельные задания, которые уже зачтены"
-        breadcrumbs={[{ label: "Выполненные" }]}
-      />
+      <section className="hero-surface p-6 sm:p-7 lg:p-8">
+        <div className="relative z-10 grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-5">
+            <span className="kavnt-badge">Completed items</span>
+            <PageHeader
+              title="Завершенные материалы"
+              description="История того, что уже пройдено: видно качество завершения, тайминг и быстрый возврат к материалам."
+              breadcrumbs={[{ label: "Completed" }]}
+              compact
+              className="mb-0"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-[1.5rem] border border-white/55 bg-background/78 p-4 shadow-[var(--shadow-soft)] dark:border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-primary/10 text-primary">
+                  <Trophy className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Всего завершено</p>
+                  <p className="text-2xl font-semibold tracking-[-0.03em]">{items.length}</p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-[1.5rem] border border-white/55 bg-background/78 p-4 shadow-[var(--shadow-soft)] dark:border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-amber-500/12 text-amber-700 dark:text-amber-300">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Завершено позже</p>
+                  <p className="text-2xl font-semibold tracking-[-0.03em]">{completedLate}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {loading ? (
         <Card>
@@ -125,46 +150,58 @@ export default function CompletedPage() {
       ) : items.length === 0 ? (
         <EmptyState
           icon={CheckCircle2}
-          title="Пока нет выполненных заданий"
-          description="Выполненные отдельные задания будут отображаться здесь."
+          title="Пока нет завершенных заданий"
+          description="Когда материалы будут завершены, они появятся здесь с полным контекстом."
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {items.map((item) => {
             const Icon = TYPE_ICONS[item.lesson_type];
             const isLate = item.status === "completed_late";
+
             return (
               <Card key={`${item.lesson_type}-${item.lesson_id}`}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    <span className="truncate">{item.lesson_title}</span>
-                  </CardTitle>
-                  <CardDescription className="flex items-center gap-2">
-                    <span>{TYPE_LABELS[item.lesson_type]}</span>
-                    {isLate ? (
-                      <span className="inline-flex items-center gap-1 text-amber-600 text-xs">
-                        <Clock className="h-3 w-3" />
-                        После срока
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-green-600 text-xs">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Выполнено
-                      </span>
-                    )}
-                  </CardDescription>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-secondary/72 text-foreground">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-border/70 bg-background/82 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                          {TYPE_LABELS[item.lesson_type]}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            isLate
+                              ? "bg-amber-500/12 text-amber-700 dark:text-amber-300"
+                              : "bg-[hsl(var(--success)/0.14)] text-[hsl(var(--success))]"
+                          }`}
+                        >
+                          {isLate ? <Clock className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
+                          {isLate ? "Completed late" : "Completed"}
+                        </span>
+                      </div>
+                      <CardTitle className="text-base">{item.lesson_title}</CardTitle>
+                      <CardDescription>{formatDate(item.completed_at)}</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(item.completed_at)}
-                    {isLate && (item.late_by_seconds ?? 0) > 0
-                      ? ` · Просрочка ${formatLateSeconds(item.late_by_seconds ?? 0)}`
-                      : ""}
-                  </p>
+                <CardContent className="space-y-4">
+                  {isLate && (item.late_by_seconds ?? 0) > 0 ? (
+                    <div className="rounded-[1.1rem] bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                      Выполнено с задержкой {formatLateSeconds(item.late_by_seconds ?? 0)}.
+                    </div>
+                  ) : (
+                    <div className="rounded-[1.1rem] bg-secondary/55 px-4 py-3 text-sm text-muted-foreground">
+                      Материал завершен вовремя и доступен для повторного просмотра.
+                    </div>
+                  )}
+
                   <Link href={lessonHref(item)}>
-                    <Button variant="outline" size="sm" className="w-full">
-                      Открыть
+                    <Button variant="outline" className="w-full justify-between">
+                      <span>Открыть материал</span>
+                      <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
                 </CardContent>

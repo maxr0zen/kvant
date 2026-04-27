@@ -9,9 +9,16 @@ import {
   ToastViewport,
 } from "@/components/ui/toast";
 import { useToast } from "@/components/ui/use-toast";
+import type { ReactNode } from "react";
 
-function copyToastToClipboard(title?: string, description?: string) {
-  const text = [title, description].filter(Boolean).join("\n");
+function toPlainText(value?: ReactNode): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function copyToastToClipboard(title?: ReactNode, description?: ReactNode) {
+  const titleText = toPlainText(title);
+  const descriptionText = toPlainText(description);
+  const text = [titleText, descriptionText].filter(Boolean).join("\n");
   if (text && typeof navigator?.clipboard?.writeText === "function") {
     navigator.clipboard.writeText(text);
   }

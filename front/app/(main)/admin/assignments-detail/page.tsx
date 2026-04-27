@@ -1,8 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  BookOpen,
+  Clock3,
+  ExternalLink,
+  FileCode2,
+  FileText,
+  Filter,
+  HelpCircle,
+  Layers3,
+  ListChecks,
+  MessageCircle,
+  Puzzle,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,34 +25,38 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { fetchStandaloneProgress, fetchStudentTaskSubmission, type StandaloneAssignment, type StandaloneStudentProgress } from "@/lib/api/teacher";
-import { getStoredRole, getStoredToken } from "@/lib/api/auth";
-import { AvailabilityOverdue, formatLateSeconds } from "@/components/availability-countdown";
-import { parseDateTime } from "@/lib/utils/datetime";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageSkeleton } from "@/components/ui/loading-skeleton";
-import { BookOpen, ListChecks, Puzzle, HelpCircle, MessageCircle, Users, FileText, ExternalLink, ChevronDown, ChevronRight, UserCircle, CheckCircle2, Clock } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { CodeEditor } from "@/components/editor/code-editor";
+import { AvailabilityOverdue, formatLateSeconds } from "@/components/availability-countdown";
+import { getStoredRole, getStoredToken } from "@/lib/api/auth";
+import {
+  fetchStandaloneProgress,
+  fetchStudentTaskSubmission,
+  type StandaloneAssignment,
+  type StandaloneStudentProgress,
+} from "@/lib/api/teacher";
 import { cn } from "@/components/lib/utils";
 
-const TYPE_LABEL: Record<string, string> = {
+const TYPE_LABELS: Record<string, string> = {
   lecture: "Лекция",
-  task: "Задача",
+  task: "Задание",
   puzzle: "Пазл",
   question: "Вопрос",
   survey: "Опрос",
 };
 
-const TYPE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   lecture: BookOpen,
   task: ListChecks,
   puzzle: Puzzle,
@@ -46,66 +64,93 @@ const TYPE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   survey: MessageCircle,
 };
 
-function formatCompletedAt(iso: string | null | undefined): string {
-  const d = parseDateTime(iso ?? null);
-  if (!d) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function getHref(a: { type: string; id: string }): string {
-  switch (a.type) {
-    case "lecture": return `/lectures/${a.id}`;
-    case "task": return `/tasks/${a.id}`;
-    case "puzzle": return `/puzzles/${a.id}`;
-    case "question": return `/questions/${a.id}`;
-    case "survey": return `/surveys/${a.id}`;
-    default: return "/main";
+function assignmentHref(item: StandaloneAssignment) {
+  switch (item.type) {
+    case "lecture":
+      return `/lectures/${item.id}`;
+    case "task":
+      return `/tasks/${item.id}`;
+    case "puzzle":
+      return `/puzzles/${item.id}`;
+    case "question":
+      return `/questions/${item.id}`;
+    case "survey":
+      return `/surveys/${item.id}`;
+    default:
+      return "/main";
   }
 }
 
-/** Ученик с его заданиями (для режима «по ученикам») */
-interface StudentWithAssignments {
-  user_id: string;
-  full_name: string;
-  group_id: string;
-  group_title: string;
-  assignments: { assignment: StandaloneAssignment; student: StandaloneStudentProgress }[];
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Без срока";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Без срока";
+  return date.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function buildStudentsView(assignments: StandaloneAssignment[], groupFilter: string): StudentWithAssignments[] {
-  const byStudent = new Map<string, StudentWithAssignments>();
-  for (const a of assignments) {
-    for (const s of a.students) {
-      if (groupFilter && s.group_id !== groupFilter) continue;
-      let rec = byStudent.get(s.user_id);
-      if (!rec) {
-        rec = { user_id: s.user_id, full_name: s.full_name, group_id: s.group_id, group_title: s.group_title, assignments: [] };
-        byStudent.set(s.user_id, rec);
-      }
-      rec.assignments.push({ assignment: a, student: s });
+function completionLabel(student: StandaloneStudentProgress) {
+  if (student.status === "completed") return "Выполнено";
+  if (student.status === "completed_late") return "Выполнено с опозданием";
+  if (student.status === "started") return "В процессе";
+  return "Не начато";
+}
+
+function completionTone(student: StandaloneStudentProgress) {
+  if (student.status === "completed") return "bg-emerald-500/12 text-emerald-700 border-emerald-500/20";
+  if (student.status === "completed_late") return "bg-amber-500/12 text-amber-700 border-amber-500/20";
+  if (student.status === "started") return "bg-sky-500/12 text-sky-700 border-sky-500/20";
+  return "bg-muted text-muted-foreground border-border";
+}
+
+function buildStudentsView(assignments: StandaloneAssignment[], groupFilter: string) {
+  const map = new Map<
+    string,
+    {
+      user_id: string;
+      full_name: string;
+      group_id: string;
+      group_title: string;
+      assignments: { assignment: StandaloneAssignment; student: StandaloneStudentProgress }[];
+    }
+  >();
+
+  for (const assignment of assignments) {
+    for (const student of assignment.students) {
+      if (groupFilter && student.group_id !== groupFilter) continue;
+      const existing = map.get(student.user_id) ?? {
+        user_id: student.user_id,
+        full_name: student.full_name,
+        group_id: student.group_id,
+        group_title: student.group_title,
+        assignments: [],
+      };
+      existing.assignments.push({ assignment, student });
+      map.set(student.user_id, existing);
     }
   }
-  return Array.from(byStudent.values()).sort((a, b) => a.full_name.localeCompare(b.full_name));
+
+  return Array.from(map.values()).sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
 
 export default function AssignmentsDetailPage() {
   const router = useRouter();
-  const [data, setData] = useState<{ assignments: StandaloneAssignment[]; groups: { id: string; title: string }[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"students" | "assignments">("students");
-  const [groupFilter, setGroupFilter] = useState<string>("");
-  const [selectedGroupByAssignment, setSelectedGroupByAssignment] = useState<Record<string, string>>({});
-  const [expandedAssignmentId, setExpandedAssignmentId] = useState<string | null>(null);
-  const [solutionViewer, setSolutionViewer] = useState<{
-    type: string;
-    assignmentId: string;
-    assignmentTitle: string;
+  const [mode, setMode] = useState<"students" | "assignments">("students");
+  const [groupFilter, setGroupFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [data, setData] = useState<{ assignments: StandaloneAssignment[]; groups: { id: string; title: string }[] } | null>(null);
+  const [viewer, setViewer] = useState<{
+    assignment: StandaloneAssignment;
     student: StandaloneStudentProgress;
+    taskCode: string | null;
+    loading: boolean;
   } | null>(null);
-  const [taskCode, setTaskCode] = useState<string | null>(null);
-  const [taskCodeLoading, setTaskCodeLoading] = useState(false);
 
   useEffect(() => {
     const role = getStoredRole();
@@ -113,491 +158,417 @@ export default function AssignmentsDetailPage() {
       router.replace("/main");
       return;
     }
+
     fetchStandaloneProgress()
       .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : "Ошибка загрузки"))
+      .catch((reason) => setError(reason instanceof Error ? reason.message : "Не удалось загрузить детализацию заданий"))
       .finally(() => setLoading(false));
   }, [router]);
 
-  useEffect(() => {
-    if (!solutionViewer || solutionViewer.type !== "task") return;
-    setTaskCodeLoading(true);
-    fetchStudentTaskSubmission(solutionViewer.assignmentId, solutionViewer.student.user_id, getStoredToken())
-      .then((res) => {
-        if (res) setTaskCode(res.code);
-        else setTaskCode(null);
-      })
-      .finally(() => setTaskCodeLoading(false));
-  }, [solutionViewer?.assignmentId, solutionViewer?.student?.user_id, solutionViewer?.type]);
+  const assignments = useMemo(() => {
+    const source = data?.assignments ?? [];
+    return source.filter((assignment) => {
+      if (typeFilter && assignment.type !== typeFilter) return false;
+      if (groupFilter && !assignment.students.some((student) => student.group_id === groupFilter)) return false;
+      return true;
+    });
+  }, [data?.assignments, groupFilter, typeFilter]);
 
-  useEffect(() => {
-    if (!solutionViewer) setTaskCode(null);
-  }, [solutionViewer]);
+  const studentsView = useMemo(() => buildStudentsView(assignments, groupFilter), [assignments, groupFilter]);
+
+  const summary = useMemo(() => {
+    const students = assignments.flatMap((assignment) => assignment.students);
+    const completed = students.filter((student) => student.status === "completed").length;
+    const completedLate = students.filter((student) => student.status === "completed_late").length;
+    const started = students.filter((student) => student.status === "started").length;
+    return {
+      assignments: assignments.length,
+      completed,
+      completedLate,
+      started,
+    };
+  }, [assignments]);
+
+  async function openViewer(assignment: StandaloneAssignment, student: StandaloneStudentProgress) {
+    if (student.status !== "completed" && student.status !== "completed_late") return;
+
+    setViewer({ assignment, student, taskCode: null, loading: assignment.type === "task" });
+
+    if (assignment.type === "task") {
+      const submission = await fetchStudentTaskSubmission(assignment.id, student.user_id, getStoredToken()).catch(() => null);
+      setViewer({ assignment, student, taskCode: submission?.code ?? null, loading: false });
+    }
+  }
 
   if (loading) {
-    return <PageSkeleton cards={3} />;
+    return <PageSkeleton cards={4} />;
   }
 
   if (error) {
     return (
-      <div className="space-y-6">
+      <div className="content-block space-y-6">
         <PageHeader
           title="Детализация заданий"
-          breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Детализация" }]}
+          description="Не удалось загрузить monitoring-данные."
+          breadcrumbs={[{ label: "Главная", href: "/main" }, { label: "Детализация заданий" }]}
         />
         <Card className="border-destructive/50">
           <CardContent className="pt-6">
-            <p className="text-destructive font-medium">{error}</p>
-            <Button variant="outline" className="mt-4" onClick={() => router.push("/main")}>
-              На главную
-            </Button>
+            <p className="font-medium text-destructive">{error}</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const assignments = data?.assignments ?? [];
-  const groups = data?.groups ?? [];
-
-  const { permanent, temporary, overdue } = (() => {
-    const perm: StandaloneAssignment[] = [];
-    const temp: StandaloneAssignment[] = [];
-    const over: StandaloneAssignment[] = [];
-    const now = Date.now();
-    for (const a of assignments) {
-      const untilTs = parseDateTime(a.available_until ?? null)?.getTime() ?? null;
-      if (untilTs == null) perm.push(a);
-      else if (untilTs < now) over.push(a);
-      else temp.push(a);
-    }
-    return { permanent: perm, temporary: temp, overdue: over };
-  })();
-
-  const studentsView = buildStudentsView(assignments, groupFilter);
-
-  const openSolution = (a: StandaloneAssignment, s: StandaloneStudentProgress) => {
-    if (s.status !== "completed" && s.status !== "completed_late") return;
-    setSolutionViewer({
-      type: a.type,
-      assignmentId: a.id,
-      assignmentTitle: a.title,
-      student: s,
-    });
-  };
-
   return (
-    <div className="content-block w-full max-w-6xl">
+    <div className="content-block space-y-6">
       <PageHeader
         title="Детализация заданий"
-        description="Активность учеников и выполнение одиночных заданий"
-        breadcrumbs={[{ label: "Треки", href: "/main" }, { label: "Детализация" }]}
-        compact
+        description="Monitoring-экран для одиночных и временных материалов: смотрим активность по ученикам, группам, типам и срокам."
+        breadcrumbs={[{ label: "Главная", href: "/main" }, { label: "Детализация заданий" }]}
       />
 
-      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "students" | "assignments")} className="w-full">
-        <TabsList className="h-11 w-full max-w-full justify-start overflow-x-auto p-1 bg-muted/50 sm:max-w-md">
-          <TabsTrigger value="students" className="flex items-center gap-2 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
+      <section className="hero-surface rounded-[2rem] border border-border/60 px-6 py-6 sm:px-8 sm:py-8">
+        <div className="grid gap-4 lg:grid-cols-[1.4fr,1fr] lg:items-end">
+          <div className="space-y-4">
+            <div className="kavnt-badge w-fit">Standalone monitoring</div>
+            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">
+              Быстро считываем completion, overdue и фактические ответы учеников
+            </h2>
+            <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+              Экран специально собран как рабочая аналитическая поверхность: сначала фильтр, потом сигнал, потом действие.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Материалы</p>
+              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{summary.assignments}</p>
+            </div>
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Выполнено</p>
+              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{summary.completed}</p>
+            </div>
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">С опозданием</p>
+              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{summary.completedLate}</p>
+            </div>
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">В процессе</p>
+              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{summary.started}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Filter className="h-4 w-4 text-primary" />
+            Фильтры обзора
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:w-[520px]">
+            <select
+              className="flex h-11 w-full rounded-2xl border border-input bg-background px-4 text-sm"
+              value={groupFilter}
+              onChange={(event) => setGroupFilter(event.target.value)}
+            >
+              <option value="">Все группы</option>
+              {(data?.groups ?? []).map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.title}
+                </option>
+              ))}
+            </select>
+            <select
+              className="flex h-11 w-full rounded-2xl border border-input bg-background px-4 text-sm"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value)}
+            >
+              <option value="">Все типы</option>
+              {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs value={mode} onValueChange={(value) => setMode(value as "students" | "assignments")} className="space-y-6">
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="students" className="gap-2">
             <Users className="h-4 w-4" />
             По ученикам
           </TabsTrigger>
-          <TabsTrigger value="assignments" className="flex items-center gap-2 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <FileText className="h-4 w-4" />
-            По заданиям
+          <TabsTrigger value="assignments" className="gap-2">
+            <Layers3 className="h-4 w-4" />
+            По материалам
           </TabsTrigger>
         </TabsList>
 
-        {/* ========== РЕЖИМ: ПО УЧЕНИКАМ ========== */}
-        <TabsContent value="students" className="mt-6 space-y-4">
-          <Card className="border-0 bg-muted/30">
-            <CardContent className="pt-5 pb-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-                  <Label htmlFor="group-filter" className="text-sm font-medium shrink-0">Фильтр по группе</Label>
-                  <select
-                    id="group-filter"
-                    value={groupFilter}
-                    onChange={(e) => setGroupFilter(e.target.value)}
-                    className="flex h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-[220px] focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
-                    <option value="">Все группы</option>
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>{g.title}</option>
-                    ))}
-                  </select>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {groupFilter ? `Показаны ученики выбранной группы` : "Показаны ученики из всех групп"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {studentsView.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-16">
-                <UserCircle className="h-12 w-12 text-muted-foreground/50 mb-3" />
-                <p className="text-muted-foreground font-medium">Нет учеников</p>
-                <p className="text-sm text-muted-foreground/80 mt-1">
-                  {groupFilter ? "В выбранной группе нет учеников с заданиями" : "Нет одиночных заданий для ваших групп"}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {studentsView.map((swa) => {
-                const completedCount = swa.assignments.filter(({ student }) => student.status === "completed" || student.status === "completed_late").length;
-                return (
-                  <Card key={swa.user_id} className="overflow-hidden transition-shadow hover:shadow-md">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start gap-4">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg">
-                          {swa.full_name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="text-lg">{swa.full_name}</CardTitle>
-                          <CardDescription className="mt-0.5 flex items-center gap-1">
-                            {swa.group_title || "—"}
-                            {completedCount > 0 && (
-                              <>
-                                <span className="text-muted-foreground/50">·</span>
-                                <span className="text-green-600 dark:text-green-400 font-medium">{completedCount} выполнено</span>
-                              </>
-                            )}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      {completedCount === 0 ? (
-                        <div className="py-6 rounded-lg bg-muted/20">
-                          <p className="text-sm text-muted-foreground">Пока нет выполненных заданий</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {swa.assignments
-                            .filter(({ student }) => student.status === "completed" || student.status === "completed_late")
-                            .sort((x, y) => (y.student.completed_at ?? "").localeCompare(x.student.completed_at ?? ""))
-                            .map(({ assignment, student }) => {
-                              const Icon = TYPE_ICON[assignment.type] ?? ListChecks;
-                              const isOnTime = student.status === "completed";
-                              return (
-                                <div
-                                  key={`${assignment.type}-${assignment.id}`}
-                                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border bg-card hover:bg-muted/20 transition-colors"
-                                >
-                                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                                      <Icon className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                    <div className="min-w-0">
-                                      <p className="font-medium truncate">{assignment.title}</p>
-                                      <p className="text-xs text-muted-foreground mt-0.5">
-                                        {TYPE_LABEL[assignment.type]} · {formatCompletedAt(student.completed_at)}
-                                      </p>
-                                    </div>
+        <TabsContent value="students" className="space-y-4">
+          {studentsView.length > 0 ? (
+            studentsView.map((item) => {
+              const done = item.assignments.filter(
+                ({ student }) => student.status === "completed" || student.status === "completed_late"
+              );
+              return (
+                <Card key={item.user_id}>
+                  <CardHeader>
+                    <CardTitle>{item.full_name}</CardTitle>
+                    <CardDescription>
+                      {item.group_title} · {done.length} завершенных материалов
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-3">
+                    {done.length > 0 ? (
+                      done
+                        .sort((a, b) => (b.student.completed_at ?? "").localeCompare(a.student.completed_at ?? ""))
+                        .map(({ assignment, student }) => {
+                          const Icon = TYPE_ICONS[assignment.type] ?? FileText;
+                          return (
+                            <div key={`${assignment.id}-${student.user_id}`} className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex items-start gap-3">
+                                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-background text-primary">
+                                    <Icon className="h-4 w-4" />
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                                    <span
-                                      className={cn(
-                                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                                        isOnTime
-                                          ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                                          : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                                      )}
-                                    >
-                                      {isOnTime ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                                      {isOnTime ? "В срок" : `После срока (${formatLateSeconds(student.late_by_seconds ?? 0)})`}
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <Link href={getHref(assignment)} target="_blank" rel="noopener noreferrer">
-                                        <Button variant="outline" size="sm" className="h-8">
-                                          <ExternalLink className="h-3.5 w-3 mr-1" />
-                                          Открыть
-                                        </Button>
-                                      </Link>
-                                      {(assignment.type === "task" || assignment.type === "survey") && (
-                                        <Button
-                                          variant="secondary"
-                                          size="sm"
-                                          className="h-8"
-                                          onClick={() => openSolution(assignment, student)}
-                                        >
-                                          Решение
-                                        </Button>
-                                      )}
-                                    </div>
+                                  <div>
+                                    <p className="font-medium text-foreground">{assignment.title}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {TYPE_LABELS[assignment.type]} · {formatDate(student.completed_at)}
+                                    </p>
                                   </div>
                                 </div>
-                              );
-                            })}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <span className={cn("rounded-full border px-2.5 py-1 text-xs font-medium", completionTone(student))}>
+                                    {completionLabel(student)}
+                                  </span>
+                                  <Link href={assignmentHref(assignment)} target="_blank" rel="noreferrer">
+                                    <Button size="sm" variant="outline" className="gap-2">
+                                      <ExternalLink className="h-4 w-4" />
+                                      Открыть
+                                    </Button>
+                                  </Link>
+                                  {(assignment.type === "task" || assignment.type === "survey") && (
+                                    <Button size="sm" onClick={() => void openViewer(assignment, student)}>
+                                      Смотреть ответ
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              {student.status === "completed_late" && student.late_by_seconds ? (
+                                <p className="mt-3 text-sm text-amber-700">
+                                  Опоздание: {formatLateSeconds(student.late_by_seconds)}
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
+                        У ученика пока нет завершенных материалов по текущему фильтру.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          ) : (
+            <EmptyState
+              icon={Users}
+              title="Нет данных по ученикам"
+              description="Попробуйте снять фильтры или дождитесь первых завершений."
+            />
           )}
         </TabsContent>
 
-        {/* ========== РЕЖИМ: ПО ЗАДАНИЯМ ========== */}
-        <TabsContent value="assignments" className="mt-6">
-          <Tabs defaultValue={permanent.length > 0 ? "permanent" : temporary.length > 0 ? "temporary" : "overdue"} className="w-full">
-            <TabsList className="mb-6 h-11 w-full max-w-full justify-start overflow-x-auto p-1 bg-muted/50 sm:max-w-lg">
-              <TabsTrigger value="permanent" className="whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                Постоянные ({permanent.length})
-              </TabsTrigger>
-              <TabsTrigger value="temporary" className="whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                Временные ({temporary.length})
-              </TabsTrigger>
-              <TabsTrigger value="overdue" className="whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                Просроченные ({overdue.length})
-              </TabsTrigger>
-            </TabsList>
+        <TabsContent value="assignments" className="space-y-4">
+          {assignments.length > 0 ? (
+            assignments.map((assignment) => {
+              const Icon = TYPE_ICONS[assignment.type] ?? FileText;
+              const relevantStudents = groupFilter
+                ? assignment.students.filter((student) => student.group_id === groupFilter)
+                : assignment.students;
+              const completed = relevantStudents.filter((student) => student.status === "completed").length;
+              const completedLate = relevantStudents.filter((student) => student.status === "completed_late").length;
+              const started = relevantStudents.filter((student) => student.status === "started").length;
+              const overdue = relevantStudents.some((student) => student.status === "completed_late");
 
-            {(["permanent", "temporary", "overdue"] as const).map((tab) => {
-              const list = tab === "permanent" ? permanent : tab === "temporary" ? temporary : overdue;
-              const tabLabel = tab === "permanent" ? "постоянных" : tab === "temporary" ? "временных" : "просроченных";
               return (
-                <TabsContent key={tab} value={tab} className="mt-0 space-y-4">
-                  {list.length === 0 ? (
-                    <Card className="border-dashed">
-                      <CardContent className="py-16">
-                        <FileText className="h-12 w-12 text-muted-foreground/50 mb-3" />
-                        <p className="text-muted-foreground font-medium">Нет {tabLabel} заданий</p>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    list.map((a) => {
-                      const assignmentKey = `${a.type}-${a.id}`;
-                      const groupsInAssignment = Array.from(new Map(a.students.filter((s) => s.group_id && s.group_title).map((s) => [s.group_id, s.group_title])).entries()).map(([id, title]) => ({ id, title }));
-                      const hasMultipleGroups = groupsInAssignment.length > 1;
-                      const selectedGroupId = selectedGroupByAssignment[assignmentKey] ?? "";
-                      const studentsFiltered = hasMultipleGroups && selectedGroupId
-                        ? a.students.filter((s) => s.group_id === selectedGroupId)
-                        : a.students;
-                      const completions = studentsFiltered.filter((s) => s.status === "completed" || s.status === "completed_late");
-                      const isExpanded = expandedAssignmentId === assignmentKey;
-                      const Icon = TYPE_ICON[a.type] ?? ListChecks;
-                      const untilTs = parseDateTime(a.available_until ?? null)?.getTime() ?? null;
-                      const isExpired = untilTs != null && untilTs < Date.now();
-
-                      return (
-                        <Card key={assignmentKey} className="overflow-hidden transition-shadow hover:shadow-md">
-                          <CardHeader className="pb-3">
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                              <div className="flex items-start gap-4 min-w-0">
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                                  <Icon className="h-6 w-6 text-primary" />
-                                </div>
-                                <div className="min-w-0">
-                                  <CardTitle className="text-lg">{a.title}</CardTitle>
-                                  <CardDescription className="mt-1 flex items-center gap-2">
-                                    <span>{TYPE_LABEL[a.type] ?? a.type}</span>
-                                    <span className="text-muted-foreground/50">·</span>
-                                    <span className={completions.length > 0 ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground"}>
-                                      {completions.length} выполнили
-                                    </span>
-                                  </CardDescription>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                {hasMultipleGroups && (
-                                  <select
-                                    value={selectedGroupId}
-                                    onChange={(e) =>
-                                      setSelectedGroupByAssignment((prev) => ({
-                                        ...prev,
-                                        [assignmentKey]: e.target.value,
-                                      }))
-                                    }
-                                    className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-auto sm:min-w-[180px] focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                  >
-                                    <option value="">Выберите группу</option>
-                                    {groupsInAssignment.map((g) => (
-                                      <option key={g.id} value={g.id}>{g.title}</option>
-                                    ))}
-                                  </select>
-                                )}
-                                <Link href={getHref(a)} target="_blank" rel="noopener noreferrer">
-                                  <Button variant="outline" size="sm" className="h-9">
-                                    <ExternalLink className="h-3.5 w-3 mr-1.5" />
-                                    Открыть
-                                  </Button>
-                                </Link>
-                                {!isExpired && (!hasMultipleGroups || selectedGroupId) && (
-                                  <Button
-                                    variant={isExpanded ? "secondary" : "default"}
-                                    size="sm"
-                                    className="h-9"
-                                    onClick={() => setExpandedAssignmentId(isExpanded ? null : assignmentKey)}
-                                  >
-                                    {isExpanded ? (
-                                      <>
-                                        <ChevronDown className="h-3.5 w-3 mr-1.5" />
-                                        Свернуть
-                                      </>
-                                    ) : (
-                                      <>
-                                        <ChevronRight className="h-3.5 w-3 mr-1.5" />
-                                        Кто выполнил
-                                      </>
-                                    )}
-                                  </Button>
-                                )}
-                                {isExpired && <AvailabilityOverdue availableUntil={a.available_until ?? undefined} className="shrink-0" />}
-                              </div>
+                <Card key={assignment.id}>
+                  <CardContent className="p-0">
+                    <div className="border-b border-border/60 px-5 py-5 sm:px-6">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                              <Icon className="h-4 w-4" />
                             </div>
-                          </CardHeader>
-                          {isExpanded && (
-                            <>
-                              <Separator />
-                              <CardContent className="pt-5">
-                                <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
-                                  <Users className="h-4 w-4" />
-                                  Выполнили задание
-                                </h4>
-                                {completions.length === 0 ? (
-                                  <div className="py-10 rounded-lg bg-muted/20">
-                                    <p className="text-sm text-muted-foreground">Пока никто не выполнил это задание</p>
+                            <span className="kavnt-badge">{TYPE_LABELS[assignment.type]}</span>
+                            {overdue ? (
+                              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs text-amber-800">
+                                Есть late-completions
+                              </span>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-semibold tracking-[-0.04em] text-foreground">{assignment.title}</h3>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {assignment.available_until ? (
+                                <>
+                                  Дедлайн: {formatDate(assignment.available_until)}
+                                </>
+                              ) : (
+                                "Постоянный материал без срока"
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Link href={assignmentHref(assignment)} target="_blank" rel="noreferrer">
+                            <Button variant="outline" size="sm" className="gap-2">
+                              <ExternalLink className="h-4 w-4" />
+                              Открыть материал
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-0 lg:grid-cols-[0.8fr,1.2fr]">
+                      <div className="border-b border-border/60 p-5 lg:border-b-0 lg:border-r lg:p-6">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Выполнено</p>
+                            <p className="mt-3 text-2xl font-semibold">{completed}</p>
+                          </div>
+                          <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Late</p>
+                            <p className="mt-3 text-2xl font-semibold">{completedLate}</p>
+                          </div>
+                          <div className="rounded-2xl border border-border/60 bg-muted/15 p-4 sm:col-span-2">
+                            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">В процессе</p>
+                            <p className="mt-3 text-2xl font-semibold">{started}</p>
+                          </div>
+                        </div>
+                        {assignment.available_until ? (
+                          <div className="mt-4 rounded-2xl border border-border/60 bg-background p-4">
+                            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                              <Clock3 className="h-4 w-4 text-primary" />
+                              Статус срока
+                            </div>
+                            <div className="mt-3">
+                              <AvailabilityOverdue availableUntil={assignment.available_until} />
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="p-5 lg:p-6">
+                        <div className="grid gap-3">
+                          {relevantStudents.length > 0 ? (
+                            relevantStudents.map((student) => (
+                              <div key={`${assignment.id}-${student.user_id}`} className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                  <div>
+                                    <p className="font-medium text-foreground">{student.full_name}</p>
+                                    <p className="text-sm text-muted-foreground">{student.group_title}</p>
                                   </div>
-                                ) : (
-                                  <div className="space-y-3">
-                                    {completions
-                                      .sort((p, q) => (q.completed_at ?? "").localeCompare(p.completed_at ?? ""))
-                                      .map((s) => {
-                                        const isOnTime = s.status === "completed";
-                                        return (
-                                          <div
-                                            key={s.user_id}
-                                            className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border bg-muted/20 hover:bg-muted/30 transition-colors"
-                                          >
-                                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background border font-medium">
-                                                {s.full_name.charAt(0).toUpperCase()}
-                                              </div>
-                                              <div>
-                                                <p className="font-medium">{s.full_name}</p>
-                                                <p className="text-xs text-muted-foreground mt-0.5">{formatCompletedAt(s.completed_at)}</p>
-                                              </div>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                                              <span
-                                                className={cn(
-                                                  "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                                                  isOnTime
-                                                    ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                                                    : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                                                )}
-                                              >
-                                                {isOnTime ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                                                {isOnTime ? "В срок" : `После срока (${formatLateSeconds(s.late_by_seconds ?? 0)})`}
-                                              </span>
-                                              <div className="flex items-center gap-1">
-                                                <Link href={getHref(a)} target="_blank" rel="noopener noreferrer">
-                                                  <Button variant="outline" size="sm" className="h-8">
-                                                    <ExternalLink className="h-3.5 w-3 mr-1" />
-                                                    Задание
-                                                  </Button>
-                                                </Link>
-                                                {(a.type === "task" || a.type === "survey") && (
-                                                  <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    className="h-8"
-                                                    onClick={() => openSolution(a, s)}
-                                                  >
-                                                    Решение
-                                                  </Button>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
+                                  <div className="flex flex-wrap gap-2">
+                                    <span className={cn("rounded-full border px-2.5 py-1 text-xs font-medium", completionTone(student))}>
+                                      {completionLabel(student)}
+                                    </span>
+                                    {(assignment.type === "task" || assignment.type === "survey") &&
+                                    (student.status === "completed" || student.status === "completed_late") ? (
+                                      <Button size="sm" onClick={() => void openViewer(assignment, student)}>
+                                        Смотреть ответ
+                                      </Button>
+                                    ) : null}
                                   </div>
-                                )}
-                              </CardContent>
-                            </>
+                                </div>
+                                {student.completed_at ? (
+                                  <p className="mt-3 text-sm text-muted-foreground">
+                                    Завершено: {formatDate(student.completed_at)}
+                                  </p>
+                                ) : null}
+                                {student.status === "completed_late" && student.late_by_seconds ? (
+                                  <p className="mt-2 text-sm text-amber-700">
+                                    Опоздание: {formatLateSeconds(student.late_by_seconds)}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
+                              По текущему фильтру не найдено ни одного ученика.
+                            </div>
                           )}
-                        </Card>
-                      );
-                    })
-                  )}
-                </TabsContent>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               );
-            })}
-          </Tabs>
+            })
+          ) : (
+            <EmptyState
+              icon={Layers3}
+              title="Standalone-материалы не найдены"
+              description="Снимите фильтры или проверьте, назначены ли материалы группам."
+            />
+          )}
         </TabsContent>
       </Tabs>
 
-      {groups.length > 0 && (
-        <div className="pt-2">
-          <Separator className="mb-3" />
-          <p className="text-xs text-muted-foreground">Группы: {groups.map((g) => g.title).join(", ")}</p>
-        </div>
-      )}
-
-      {/* Диалог просмотра решения */}
-      <Dialog open={!!solutionViewer} onOpenChange={(open) => !open && setSolutionViewer(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col gap-0">
-          <DialogHeader className="pb-4">
-            <DialogTitle className="text-lg flex items-center gap-2">
-              <span className="truncate">{solutionViewer?.assignmentTitle}</span>
-              <span className="text-muted-foreground font-normal">·</span>
-              <span className="font-medium text-primary">{solutionViewer?.student.full_name}</span>
-            </DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              {solutionViewer?.type === "task" && "Код решения ученика"}
-              {solutionViewer?.type === "survey" && "Ответ на опрос"}
-            </p>
+      <Dialog open={Boolean(viewer)} onOpenChange={(open) => !open && setViewer(null)}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>{viewer ? `${viewer.student.full_name} · ${viewer.assignment.title}` : "Просмотр ответа"}</DialogTitle>
+            <DialogDescription>
+              {viewer ? `${TYPE_LABELS[viewer.assignment.type]} · ${viewer.student.group_title}` : ""}
+            </DialogDescription>
           </DialogHeader>
-          <Separator />
-          <div className="flex-1 overflow-y-auto py-5 space-y-4">
-            {solutionViewer?.type === "task" && (
-              <>
-                {taskCodeLoading ? (
-                  <div className="flex items-center justify-center py-16">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      <p className="text-sm text-muted-foreground">Загрузка кода…</p>
-                    </div>
-                  </div>
-                ) : (
-                  <CodeEditor value={taskCode ?? ""} onChange={() => {}} readOnly language="python" className="min-h-[280px]" />
-                )}
-                <div className="flex justify-end">
-                  <Link href={getHref({ type: "task", id: solutionViewer?.assignmentId ?? "" })} target="_blank" rel="noopener noreferrer">
-                    <Button variant="outline">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Открыть задание
-                    </Button>
-                  </Link>
+
+          {viewer?.assignment.type === "survey" ? (
+            <div className="rounded-3xl border border-border/70 bg-muted/15 p-5 text-sm leading-7 text-foreground">
+              {viewer.student.response_text || "Ответ не был сохранен."}
+            </div>
+          ) : viewer?.assignment.type === "task" ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <FileCode2 className="h-4 w-4 text-primary" />
+                  Кодовое решение ученика
                 </div>
-              </>
-            )}
-            {solutionViewer?.type === "survey" && (
-              <>
-                <div className="rounded-lg border bg-muted/30 p-5">
-                  <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{solutionViewer?.student.response_text || "—"}</pre>
-                </div>
-                <div className="flex justify-end">
-                  <Link href={getHref({ type: "survey", id: solutionViewer?.assignmentId ?? "" })} target="_blank" rel="noopener noreferrer">
-                    <Button variant="outline">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Открыть опрос
-                    </Button>
-                  </Link>
-                </div>
-              </>
-            )}
-            {(solutionViewer?.type === "puzzle" || solutionViewer?.type === "question") && (
-              <div className="py-12">
-                <p className="text-muted-foreground">Решение не сохраняется. Перейдите к заданию для просмотра.</p>
               </div>
-            )}
-          </div>
+              {viewer.loading ? (
+                <PageSkeleton cards={1} />
+              ) : viewer.taskCode ? (
+                <CodeEditor
+                  value={viewer.taskCode}
+                  onChange={() => {}}
+                  language="python"
+                  readOnly
+                />
+              ) : (
+                <EmptyState
+                  icon={FileCode2}
+                  title="Код не найден"
+                  description="Сервер не вернул сохраненную submission-версию."
+                />
+              )}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewer(null)}>
+              Закрыть
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

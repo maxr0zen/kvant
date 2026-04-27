@@ -21,8 +21,9 @@ export default async function QuestionPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={question.title || "Р’РѕРїСЂРѕСЃ"}
-        breadcrumbs={[{ label: "РўСЂРµРєРё", href: "/main" }, { label: "Р’РѕРїСЂРѕСЃ" }]}
+        title={question.title || "Вопрос"}
+        description="Короткий focused-screen для выбора ответа, попыток и быстрой проверки результата."
+        breadcrumbs={[{ label: "Главная", href: "/main" }, { label: "Вопрос" }]}
         actions={
           <div className="flex items-center gap-2">
             <AvailabilityCountdown availableUntil={question.availableUntil} className="shrink-0" />

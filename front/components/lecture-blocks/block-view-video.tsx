@@ -103,7 +103,7 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
   const embedPlayerRef = useRef<YTPlayer | { seekTo: (t: number) => void; play: () => void } | null>(null);
   const { toast } = useToast();
   const router = useRouter();
-  const [activePause, setActivePause] = useState<{ pp: (typeof block.pause_points)[number]; blockId: string } | null>(null);
+  const [activePause, setActivePause] = useState<{ pp: NonNullable<typeof block.pause_points>[number]; blockId: string } | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ passed: boolean; message: string } | null>(null);
@@ -175,6 +175,7 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
   // Паузы для YouTube
   useEffect(() => {
     if (parsed?.type !== "youtube" || !parsed.youtubeId || pausePoints.length === 0) return;
+    const youtubeId = parsed.youtubeId;
 
     const container = embedContainerRef.current;
     if (!container) return;
@@ -186,7 +187,7 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
       const YT = typeof window !== "undefined" ? window.YT : undefined;
       if (!YT?.Player) return false;
       player = new YT.Player(container, {
-        videoId: parsed!.youtubeId,
+        videoId: youtubeId,
         width: "100%",
         height: "100%",
         playerVars: {
@@ -388,12 +389,13 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
     function loadVimeoPlayer() {
       const Vimeo = (window as unknown as { Vimeo?: { Player: new (el: HTMLIFrameElement) => typeof player } }).Vimeo;
       if (!Vimeo) return;
-      player = new Vimeo.Player(iframe) as typeof player & { play: () => Promise<void> };
+      player = new Vimeo.Player(iframe) as typeof player;
+      const vimeoPlayer = player as typeof player & { play: () => Promise<void>; on: (event: string, cb: () => void) => void };
       embedPlayerRef.current = {
         seekTo: (t: number) => player!.setCurrentTime(t),
-        play: () => player!.play(),
+        play: () => vimeoPlayer.play(),
       };
-      player.on("play", () => {
+      vimeoPlayer.on("play", () => {
         intervalId = setInterval(async () => {
           if (!player) return;
           try {
@@ -537,7 +539,7 @@ export function BlockViewVideo({ block, lectureId, blockProgress = {}, onCorrect
                         Ответьте на вопрос, чтобы продолжить просмотр
                       </p>
                       <div className="space-y-2">
-                        {activePause.pp.question.choices.map((c) => (
+                        {activePause.pp.question.choices.map((c: { id: string; text: string }) => (
                           <div
                             key={c.id}
                             className={`rounded-lg p-3 border cursor-pointer select-none text-sm transition-colors ${

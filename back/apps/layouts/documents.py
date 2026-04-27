@@ -10,6 +10,7 @@ from mongoengine import (
 )
 
 VALID_EDITABLE = ("html", "css", "js")
+VALID_CHECK_MODES = ("subtasks", "full_match")
 
 
 def _generate_public_id():
@@ -37,6 +38,12 @@ class LayoutLesson(Document):
     template_html = StringField(required=True, default="")
     template_css = StringField(required=True, default="")
     template_js = StringField(required=True, default="")
+    # Эталонный финальный результат для проверки совпадения
+    reference_html = StringField(required=True, default="")
+    reference_css = StringField(required=True, default="")
+    reference_js = StringField(required=True, default="")
+    # Режим проверки: legacy по подзадачам или полное совпадение результата
+    check_mode = StringField(required=True, choices=list(VALID_CHECK_MODES), default="subtasks")
     # Какие файлы пользователь может редактировать (остальные read-only)
     editable_files = ListField(StringField(), default=lambda: ["html", "css", "js"])
     # Подзадачи для проверки

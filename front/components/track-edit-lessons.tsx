@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -132,9 +132,9 @@ export function TrackEditLessons({ track, trackId }: TrackEditLessonsProps) {
         })
         .finally(() => setLoadingOrphans(false));
     }
-  }, [editing, track.lessons, orphans, pendingAddedLesson]);
+  }, [editing, orphans, pendingAddedLesson, track.lessons, trackId]);
 
-  const inTrackIds = new Set(lessons.map((l) => l.id));
+  const inTrackIds = useMemo(() => new Set(lessons.map((l) => l.id)), [lessons]);
 
   const addLesson = useCallback((type: LessonRef["type"], id: string, title: string) => {
     if (inTrackIds.has(id)) return;

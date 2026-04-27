@@ -29,27 +29,24 @@ export default async function LayoutPage({
 
   const breadcrumbs = layout.trackId
     ? [
-        { label: "РўСЂРµРєРё", href: "/main" },
-        { label: "РўСЂРµРє", href: `/main/${layout.trackId}` },
+        { label: "Главная", href: "/main" },
+        { label: "Трек", href: `/main/${layout.trackId}` },
         { label: layout.title },
       ]
-    : [
-        { label: "РўСЂРµРєРё", href: "/main" },
-        { label: layout.title },
-      ];
+    : [{ label: "Главная", href: "/main" }, { label: layout.title }];
 
   return (
     <div className="w-full min-w-0 space-y-6">
       <PageHeader
         title={layout.title}
-        description={layout.description ? undefined : ""}
+        description={layout.description || "Практический layout workspace с live-preview и проверкой результата."}
         breadcrumbs={breadcrumbs}
         actions={
           <div className="flex items-center gap-2">
             <AvailabilityCountdown availableUntil={layout.availableUntil} className="shrink-0" />
             {layout.canEdit && (
               <Link href={`/admin/layouts/${id}/edit`}>
-                <Button variant="outline" size="sm">Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ</Button>
+                <Button variant="outline" size="sm">Редактировать</Button>
               </Link>
             )}
           </div>

@@ -1,35 +1,40 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredRole } from "@/lib/api/auth";
 import { fetchSystemStats, type SystemStats } from "@/lib/api/analytics";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard, GaugeCard, BarChartCard } from "@/components/charts";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { HardDrive, Database, Users, UsersRound, BookOpen, Activity, RefreshCw } from "lucide-react";
+  Activity,
+  AlertTriangle,
+  Database,
+  HardDrive,
+  RefreshCw,
+  ShieldCheck,
+  Users,
+  UsersRound,
+  Workflow,
+} from "lucide-react";
 import { ListSkeleton } from "@/components/ui/loading-skeleton";
+import { Button } from "@/components/ui/button";
 
 const POLL_INTERVAL_MS = 15000;
 
 const ROLE_LABELS: Record<string, string> = {
-  superuser: "Администратор",
-  teacher: "Учитель",
-  student: "Ученик",
+  superuser: "Администраторы",
+  teacher: "Учителя",
+  student: "Ученики",
 };
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
+function formatDate(value: string | null): string {
+  if (!value) return "—";
+
   try {
-    return new Date(iso).toLocaleString("ru-RU", {
+    return new Date(value).toLocaleString("ru-RU", {
       day: "numeric",
       month: "short",
       hour: "2-digit",
@@ -38,6 +43,30 @@ function formatDate(iso: string | null): string {
   } catch {
     return "—";
   }
+}
+
+function InsightCard({
+  title,
+  description,
+  icon: Icon,
+}: {
+  title: string;
+  description: string;
+  icon: typeof ShieldCheck;
+}) {
+  return (
+    <Card className="border-white/50 bg-background/80">
+      <CardContent className="flex items-start gap-4 p-5 !pt-5">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] bg-primary/10 text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="font-semibold tracking-[-0.02em]">{title}</h3>
+          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function AdminDashboardPage() {
@@ -58,24 +87,23 @@ export default function AdminDashboardPage() {
       router.replace("/main");
       return;
     }
+
     setLoading(true);
     load().finally(() => setLoading(false));
-  }, [router, load]);
+  }, [load, router]);
 
   useEffect(() => {
     if (getStoredRole() !== "superuser" || !stats) return;
-    const t = setInterval(load, POLL_INTERVAL_MS);
-    return () => clearInterval(t);
+    const timer = setInterval(load, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
   }, [load, stats]);
 
-  if (getStoredRole() !== "superuser") {
-    return null;
-  }
+  if (getStoredRole() !== "superuser") return null;
 
   if (loading && !stats) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Панель мониторинга" description="Сервер и аналитика проекта" />
+        <PageHeader title="Панель мониторинга" description="Серверные показатели и состояние продукта в реальном времени." />
         <ListSkeleton rows={8} className="py-8" />
       </div>
     );
@@ -84,33 +112,74 @@ export default function AdminDashboardPage() {
   const server = stats?.server;
   const mongodb = stats?.mongodb;
   const app = stats?.app;
+  const totalUsers = app ? Object.values(app.users_by_role).reduce((sum, value) => sum + value, 0) : 0;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Панель мониторинга"
-        compact
-        description={
-          lastUpdate
-            ? `Обновлено: ${lastUpdate.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · автообновление каждые 15 с`
-            : "Сервер и аналитика проекта"
-        }
-        actions={
-          <button
-            type="button"
-            onClick={() => load()}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Обновить
-          </button>
-        }
-      />
+    <div className="content-block">
+      <section className="hero-surface p-6 sm:p-7 lg:p-8">
+        <div className="relative z-10 grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-6">
+            <span className="kavnt-badge">Admin dashboard</span>
+            <PageHeader
+              title="Платформенный мониторинг"
+              description="Системная зона для superuser: здоровье инфраструктуры, динамика обучения и быстрый контроль критичных точек."
+              compact
+              className="mb-0"
+              actions={
+                <Button variant="outline" onClick={() => load()} className="justify-between">
+                  <span>Обновить данные</span>
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              }
+            />
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        {/* ── Left: Server ── */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatCard
+                title="Обновлено"
+                value={
+                  lastUpdate
+                    ? lastUpdate.toLocaleTimeString("ru-RU", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })
+                    : "—"
+                }
+                description="Автообновление каждые 15 секунд."
+                icon={Activity}
+              />
+              <StatCard title="Пользователи" value={totalUsers} description="Все роли в одной платформе." icon={Users} />
+              <StatCard
+                title="Активных сегодня"
+                value={app?.active_users_today ?? 0}
+                description="Показатель текущей вовлеченности."
+                icon={Workflow}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            <InsightCard
+              title="Monitoring-oriented hierarchy"
+              description="Исключения и риски не спорят с основными метриками, а поддерживают спокойное принятие решений."
+              icon={ShieldCheck}
+            />
+            <InsightCard
+              title="Implementation-friendly surfaces"
+              description="Карты, таблицы и графики остаются пригодными для прямой реализации на Tailwind и shadcn-style primitives."
+              icon={AlertTriangle}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-6">
-          <h2 className="text-lg font-semibold">Сервер</h2>
+          <div>
+            <h2 className="section-title">Сервер и база данных</h2>
+            <p className="section-caption">Базовые ресурсные показатели и состояние MongoDB, читаемые за один взгляд.</p>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             {server && (
               <>
@@ -125,6 +194,7 @@ export default function AdminDashboardPage() {
                 <StatCard
                   title="Диск"
                   value={`${server.disk_used_gb} / ${server.disk_total_gb} ГБ`}
+                  description="Использование файлового пространства."
                   icon={HardDrive}
                 />
               </>
@@ -133,51 +203,58 @@ export default function AdminDashboardPage() {
               <StatCard
                 title="MongoDB"
                 value={`${mongodb.db_size_mb} МБ`}
+                description="Текущий размер базы данных."
                 icon={Database}
               />
             )}
           </div>
+
           {mongodb?.collections && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Коллекции</CardTitle>
+              <CardHeader>
+                <CardTitle>Коллекции</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="w-full overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Коллекция</TableHead>
-                      <TableHead className="text-right">Документов</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.entries(mongodb.collections).map(([name, count]) => (
-                      <TableRow key={name}>
-                        <TableCell className="font-mono text-sm">{name}</TableCell>
-                        <TableCell className="text-right tabular-nums">{count}</TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Коллекция</TableHead>
+                        <TableHead className="text-right">Документов</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(mongodb.collections).map(([name, count]) => (
+                        <TableRow key={name}>
+                          <TableCell className="font-mono text-sm">{name}</TableCell>
+                          <TableCell className="text-right tabular-nums">{count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               </CardContent>
             </Card>
           )}
         </div>
 
-        {/* ── Right: Project ── */}
         <div className="space-y-6">
-          <h2 className="text-lg font-semibold">Проект</h2>
+          <div>
+            <h2 className="section-title">Продукт и пользователи</h2>
+            <p className="section-caption">Ролевой состав, учебная активность и последние сигналы использования платформы.</p>
+          </div>
+
           {app && (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <StatCard title="Пользователи" value={Object.values(app.users_by_role).reduce((a, b) => a + b, 0)} icon={Users} />
-                <StatCard title="Ученики" value={app.users_by_role.student ?? 0} icon={UsersRound} />
-                <StatCard title="Учителя" value={app.users_by_role.teacher ?? 0} icon={UsersRound} />
-                <StatCard title="Группы" value={app.total_groups} icon={UsersRound} />
-                <StatCard title="Треки" value={app.total_tracks} icon={BookOpen} />
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <StatCard title="Ученики" value={app.users_by_role.student ?? 0} description="Основной контур обучения." icon={UsersRound} />
+                <StatCard title="Учителя" value={app.users_by_role.teacher ?? 0} description="Управление группами и проверками." icon={UsersRound} />
+                <StatCard title="Группы" value={app.total_groups} description="Активные организационные единицы." icon={Users} />
+                <StatCard title="Треки" value={app.total_tracks} description="Доступные учебные маршруты." icon={Workflow} />
+                <StatCard title="Отправок сегодня" value={app.submissions_today} description="Динамика выполнения заданий." icon={Activity} />
+                <StatCard title="Отправок за неделю" value={app.submissions_week} description="Недельный темп платформы." icon={Activity} />
               </div>
+
               <BarChartCard
                 title="Пользователи по ролям"
                 data={[
@@ -186,38 +263,32 @@ export default function AdminDashboardPage() {
                   { name: ROLE_LABELS.superuser, value: app.users_by_role.superuser ?? 0 },
                 ]}
               />
-              <div className="grid gap-3 sm:grid-cols-3">
-                <StatCard title="Отправок сегодня" value={app.submissions_today} icon={Activity} />
-                <StatCard title="Отправок за неделю" value={app.submissions_week} icon={Activity} />
-                <StatCard title="Активных сегодня" value={app.active_users_today} icon={Activity} />
-              </div>
+
               {app.recent_activity && app.recent_activity.length > 0 && (
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Последняя активность</CardTitle>
+                  <CardHeader>
+                    <CardTitle>Последняя активность</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="w-full overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Урок</TableHead>
-                          <TableHead>Тип</TableHead>
-                          <TableHead className="text-right">Обновлено</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {app.recent_activity.slice(0, 10).map((a, i) => (
-                          <TableRow key={`${a.user_id}-${a.updated_at}-${i}`}>
-                            <TableCell className="font-medium truncate max-w-[180px]">{a.lesson_title}</TableCell>
-                            <TableCell className="text-muted-foreground">{a.lesson_type}</TableCell>
-                            <TableCell className="text-right text-muted-foreground text-xs">
-                              {formatDate(a.updated_at)}
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Материал</TableHead>
+                            <TableHead>Тип</TableHead>
+                            <TableHead className="text-right">Обновлено</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {app.recent_activity.slice(0, 10).map((item, index) => (
+                            <TableRow key={`${item.user_id}-${item.updated_at}-${index}`}>
+                              <TableCell className="max-w-[220px] truncate font-medium">{item.lesson_title}</TableCell>
+                              <TableCell className="text-muted-foreground">{item.lesson_type}</TableCell>
+                              <TableCell className="text-right text-sm text-muted-foreground">{formatDate(item.updated_at)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   </CardContent>
                 </Card>
@@ -225,7 +296,7 @@ export default function AdminDashboardPage() {
             </>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

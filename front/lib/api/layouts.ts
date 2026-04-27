@@ -220,9 +220,9 @@ function readLayoutDraftMock(layoutId: string): { html: string; css: string; js:
 }
 
 function mapLayoutFromApi(data: Record<string, unknown>): Layout {
-  const editable = Array.isArray(data.editable_files)
-    ? (data.editable_files as string[]).filter((f) => ["html", "css", "js"].includes(f)) as ("html" | "css" | "js")[]
-    : (["html", "css", "js"] as const);
+  const editable: ("html" | "css" | "js")[] = Array.isArray(data.editable_files)
+    ? ((data.editable_files as string[]).filter((f) => ["html", "css", "js"].includes(f)) as ("html" | "css" | "js")[])
+    : ["html", "css", "js"];
   const subtasks = Array.isArray(data.subtasks)
     ? (data.subtasks as Record<string, unknown>[]).map((s) => ({
         id: String(s.id),
@@ -241,6 +241,7 @@ function mapLayoutFromApi(data: Record<string, unknown>): Layout {
     id: String(data.id),
     title: String(data.title),
     description: String(data.description ?? ""),
+    checkMode: (data.check_mode === "full_match" ? "full_match" : "subtasks") as "subtasks" | "full_match",
     attachedLectureId:
       data.attached_lecture_id != null && String(data.attached_lecture_id).trim() !== ""
         ? String(data.attached_lecture_id).trim()
@@ -250,7 +251,10 @@ function mapLayoutFromApi(data: Record<string, unknown>): Layout {
     templateHtml: String(data.template_html ?? ""),
     templateCss: String(data.template_css ?? ""),
     templateJs: String(data.template_js ?? ""),
-    editableFiles: editable.length ? editable : (["html", "css", "js"] as const),
+    referenceHtml: data.reference_html != null ? String(data.reference_html) : undefined,
+    referenceCss: data.reference_css != null ? String(data.reference_css) : undefined,
+    referenceJs: data.reference_js != null ? String(data.reference_js) : undefined,
+    editableFiles: editable.length ? editable : ["html", "css", "js"],
     subtasks,
     visibleGroupIds: Array.isArray(data.visible_group_ids) ? (data.visible_group_ids as string[]) : undefined,
     hints: Array.isArray(data.hints) ? (data.hints as string[]) : undefined,
@@ -384,11 +388,15 @@ export async function fetchLayoutDraft(layoutId: string): Promise<{ html: string
 export async function createLayout(data: {
   title: string;
   description?: string;
+  checkMode?: "subtasks" | "full_match";
   attachedLectureId?: string;
   trackId?: string;
   templateHtml: string;
   templateCss: string;
   templateJs: string;
+  referenceHtml?: string;
+  referenceCss?: string;
+  referenceJs?: string;
   editableFiles?: ("html" | "css" | "js")[];
   subtasks: { id: string; title: string; checkType: LayoutSubtaskCheckType; checkValue: string }[];
   visibleGroupIds?: string[];
@@ -404,11 +412,15 @@ export async function createLayout(data: {
     body: {
       title: data.title,
       description: data.description ?? "",
+      check_mode: data.checkMode ?? "subtasks",
       attached_lecture_id: data.attachedLectureId ?? "",
       track_id: data.trackId ?? "",
       template_html: data.templateHtml,
       template_css: data.templateCss,
       template_js: data.templateJs,
+      reference_html: data.referenceHtml ?? "",
+      reference_css: data.referenceCss ?? "",
+      reference_js: data.referenceJs ?? "",
       editable_files: data.editableFiles ?? ["html", "css", "js"],
       subtasks: (data.subtasks ?? []).map((s) => ({
         id: s.id,
@@ -437,11 +449,15 @@ export async function updateLayout(
   data: Partial<{
     title: string;
     description: string;
+    checkMode: "subtasks" | "full_match";
     attachedLectureId: string;
     trackId: string;
     templateHtml: string;
     templateCss: string;
     templateJs: string;
+    referenceHtml: string;
+    referenceCss: string;
+    referenceJs: string;
     editableFiles: ("html" | "css" | "js")[];
     subtasks: { id: string; title: string; checkType: LayoutSubtaskCheckType; checkValue: string }[];
     visibleGroupIds: string[];
@@ -456,11 +472,15 @@ export async function updateLayout(
   const body: Record<string, unknown> = {};
   if (data.title !== undefined) body.title = data.title;
   if (data.description !== undefined) body.description = data.description;
+  if (data.checkMode !== undefined) body.check_mode = data.checkMode;
   if (data.attachedLectureId !== undefined) body.attached_lecture_id = data.attachedLectureId;
   if (data.trackId !== undefined) body.track_id = data.trackId;
   if (data.templateHtml !== undefined) body.template_html = data.templateHtml;
   if (data.templateCss !== undefined) body.template_css = data.templateCss;
   if (data.templateJs !== undefined) body.template_js = data.templateJs;
+  if (data.referenceHtml !== undefined) body.reference_html = data.referenceHtml;
+  if (data.referenceCss !== undefined) body.reference_css = data.referenceCss;
+  if (data.referenceJs !== undefined) body.reference_js = data.referenceJs;
   if (data.editableFiles !== undefined) body.editable_files = data.editableFiles;
   if (data.subtasks !== undefined)
     body.subtasks = data.subtasks.map((s) => ({

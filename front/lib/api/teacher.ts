@@ -77,7 +77,7 @@ export async function updateGroupLinks(
   if (!hasApi()) return null;
   const res = await apiFetch(`/api/auth/teacher/groups/${encodeURIComponent(groupId)}/links/`, {
     method: "PATCH",
-    body: payload,
+    body: payload as Record<string, unknown>,
     token: token ?? undefined,
   });
   if (!res.ok) return null;

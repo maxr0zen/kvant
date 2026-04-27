@@ -2,146 +2,270 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens: цвета, типографика, elevation */
 @layer base {
   :root {
-    --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
-    --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
-
-    /* Цвета */
-    --background: 0 0% 99%;
-    --foreground: 221 25% 12%;
+    --background: 210 20% 98%;
+    --foreground: 215 34% 15%;
     --card: 0 0% 100%;
-    --card-foreground: 221 25% 12%;
-    --primary: 221 45% 42%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 95%;
-    --secondary-foreground: 221 25% 20%;
-    --muted: 220 18% 94%;
-    --muted-foreground: 220 12% 42%;
-    --accent: 220 20% 93%;
-    --accent-foreground: 221 45% 32%;
-    --destructive: 0 84% 60%;
+    --card-foreground: 215 34% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 34% 15%;
+    --primary: 216 65% 36%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 24% 94%;
+    --secondary-foreground: 215 30% 23%;
+    --muted: 210 22% 94%;
+    --muted-foreground: 214 13% 42%;
+    --accent: 212 30% 88%;
+    --accent-foreground: 215 34% 15%;
+    --destructive: 0 76% 57%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 14% 88%;
-    --input: 220 14% 88%;
-    --ring: 221 45% 42%;
-    --brand-cyan: 191 68% 52%;
-    --brand-orange: 28 87% 55%;
-    --brand-green: 98 42% 45%;
-    --brand-coral: 9 78% 58%;
-    --success: var(--brand-green);
-    --warning: var(--brand-orange);
-    --info: var(--brand-cyan);
-
-    /* Sidebar */
-    --sidebar-width: clamp(14rem, 16vw, 20rem);
-    --sidebar-width-collapsed: 4rem;
+    --border: 214 21% 85%;
+    --input: 214 21% 85%;
+    --ring: 216 65% 36%;
+    --brand-cyan: 212 58% 45%;
+    --brand-orange: 29 74% 48%;
+    --brand-green: 152 41% 36%;
+    --brand-coral: 8 64% 54%;
+    --success: 152 47% 41%;
+    --warning: 33 96% 59%;
+    --info: 193 83% 55%;
+    --surface-0: 210 20% 98%;
+    --surface-1: 0 0% 100%;
+    --surface-2: 210 21% 96%;
+    --surface-3: 212 22% 92%;
+    --surface-glow: 210 30% 96%;
+    --shadow-color: 217 34% 24%;
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+    --shadow-soft: 0 8px 20px -16px hsl(var(--shadow-color) / 0.18);
+    --shadow-medium: 0 18px 40px -24px hsl(var(--shadow-color) / 0.22);
+    --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.2);
+    --grid-line: hsl(214 20% 86% / 0.34);
+    --sidebar-width: clamp(17rem, 18vw, 20rem);
+    --sidebar-width-collapsed: 5.25rem;
   }
+
   .dark {
-    --background: 220 14% 12%;
-    --foreground: 220 10% 96%;
-    --card: 220 14% 15%;
-    --card-foreground: 220 10% 96%;
-    --primary: 221 50% 58%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 20%;
-    --secondary-foreground: 220 10% 92%;
-    --muted: 220 14% 20%;
-    --muted-foreground: 220 10% 65%;
-    --accent: 220 14% 24%;
-    --accent-foreground: 220 10% 92%;
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 12% 22%;
-    --input: 220 12% 22%;
-    --ring: 221 50% 58%;
-    --brand-cyan: 191 68% 58%;
-    --brand-orange: 28 87% 60%;
-    --brand-green: 98 42% 52%;
-    --brand-coral: 9 78% 62%;
-    --success: var(--brand-green);
-    --warning: var(--brand-orange);
-    --info: var(--brand-cyan);
-
-    --sidebar-width: clamp(14rem, 16vw, 20rem);
-    --sidebar-width-collapsed: 4rem;
+    --background: 216 24% 10%;
+    --foreground: 210 32% 94%;
+    --card: 216 22% 12%;
+    --card-foreground: 210 32% 94%;
+    --popover: 216 22% 12%;
+    --popover-foreground: 210 32% 94%;
+    --primary: 210 72% 67%;
+    --primary-foreground: 216 40% 13%;
+    --secondary: 216 16% 18%;
+    --secondary-foreground: 210 32% 94%;
+    --muted: 216 15% 18%;
+    --muted-foreground: 214 11% 70%;
+    --accent: 216 14% 24%;
+    --accent-foreground: 210 32% 94%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 216 12% 26%;
+    --input: 216 12% 26%;
+    --ring: 210 72% 67%;
+    --brand-cyan: 208 60% 64%;
+    --brand-orange: 29 77% 66%;
+    --brand-green: 152 43% 50%;
+    --brand-coral: 8 66% 68%;
+    --success: 152 47% 48%;
+    --warning: 33 96% 64%;
+    --info: 193 83% 62%;
+    --surface-0: 216 24% 10%;
+    --surface-1: 216 22% 12%;
+    --surface-2: 216 19% 14%;
+    --surface-3: 216 16% 17%;
+    --surface-glow: 216 24% 13%;
+    --shadow-color: 222 60% 2%;
+    --grid-line: hsl(217 18% 22% / 0.45);
+    --shadow-soft: 0 14px 32px -20px hsl(var(--shadow-color) / 0.62);
+    --shadow-medium: 0 22px 56px -28px hsl(var(--shadow-color) / 0.78);
+    --shadow-focus: 0 0 0 3px hsl(var(--ring) / 0.22);
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
   }
-  /* no global flash styles */
-  /* Ссылки в стиле логотипа */
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+    line-height: 1.45;
+    background-image: linear-gradient(to bottom, hsl(var(--surface-glow) / 0.55), transparent 36%);
+    background-attachment: fixed;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.6), transparent 78%);
+    opacity: 0.28;
+    z-index: -2;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 16% 2%, hsl(var(--primary) / 0.08), transparent 16%);
+    filter: blur(26px);
+    opacity: 0.7;
+    z-index: -1;
+  }
+
   a:not([class]) {
     @apply text-[hsl(var(--primary))] underline-offset-4 hover:underline;
   }
 
-  /* Native select — соответствие теме (светлая/тёмная) */
   select {
     @apply bg-background text-foreground;
   }
 
-  /* Шрифт кода: проектный mono везде (подсветка сохраняет цвета, шрифт — наш) */
   .code-font-mono,
-  .code-font-mono * {
-    font-family: var(--font-mono), ui-monospace, "Cascadia Code", "Source Code Pro", monospace !important;
-  }
+  .code-font-mono *,
   .cm-editor .cm-scroller,
   .cm-editor .cm-content,
   .cm-editor .cm-line,
   .cm-editor .cm-line * {
-    font-family: var(--font-mono), ui-monospace, "Cascadia Code", "Source Code Pro", monospace !important;
+    font-family: var(--font-mono), ui-monospace, monospace !important;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+    box-shadow: var(--shadow-focus);
   }
 }
 
-/* Skeleton pulse animation, responsive utilities */
 @layer utilities {
   .skeleton {
-    @apply animate-pulse rounded-md bg-muted;
+    @apply animate-pulse rounded-[1rem] bg-muted/80;
   }
-  /* Tabs horizontal scroll: smooth touch scrolling on mobile */
+
   .tabs-scroll-container {
     -webkit-overflow-scrolling: touch;
   }
-  /* Reusable responsive guards against collision/overlap */
+
   .collision-safe-row {
-    @apply flex flex-wrap items-center gap-2 min-w-0;
+    @apply min-w-0 flex flex-wrap items-center gap-2;
   }
+
   .collision-safe-stack {
     @apply min-w-0 break-words;
   }
+
   .compact-density {
     @apply gap-2 p-3 sm:gap-3 sm:p-4;
   }
+
+  .surface-1 {
+    background-color: hsl(var(--surface-1) / 0.95);
+    backdrop-filter: blur(8px);
+  }
+
+  .surface-2 {
+    background-color: hsl(var(--surface-2) / 0.88);
+  }
+
+  .surface-3 {
+    background-color: hsl(var(--surface-3) / 0.96);
+  }
 }
 
-/* Responsive spacing scale for content blocks */
 @layer components {
-  .content-block {
-    @apply space-y-5 sm:space-y-6 md:space-y-7 lg:space-y-8;
+  .app-shell {
+    @apply relative min-h-screen;
   }
+
+  .app-canvas {
+    @apply relative overflow-hidden rounded-[var(--radius-xl)] border border-border/70 bg-card shadow-[var(--shadow-medium)] backdrop-blur-md;
+  }
+
+  .app-canvas::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      160deg,
+      hsl(214 24% 93% / 0.78) 0%,
+      hsl(214 18% 89% / 0.45) 38%,
+      transparent 72%
+    );
+  }
+
+  .hero-surface {
+    @apply relative overflow-hidden rounded-[var(--radius-xl)] border border-border/70 bg-card shadow-[var(--shadow-soft)] backdrop-blur-sm;
+  }
+
+  .hero-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      165deg,
+      hsl(214 26% 93% / 0.68) 0%,
+      hsl(214 20% 90% / 0.34) 42%,
+      transparent 78%
+    );
+  }
+
+  .dark .app-canvas::before {
+    background: linear-gradient(
+      160deg,
+      hsl(217 28% 20% / 0.62) 0%,
+      hsl(218 24% 16% / 0.42) 40%,
+      transparent 78%
+    );
+  }
+
+  .dark .hero-surface::before {
+    background: linear-gradient(
+      165deg,
+      hsl(217 30% 21% / 0.54) 0%,
+      hsl(218 24% 17% / 0.34) 44%,
+      transparent 82%
+    );
+  }
+
+  .kavnt-badge {
+    @apply inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-border/70 bg-secondary/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-foreground;
+  }
+
+  .section-caption {
+    @apply text-sm leading-6 text-muted-foreground;
+  }
+
+  .content-block {
+    @apply space-y-6 sm:space-y-7 lg:space-y-8;
+  }
+
   .content-block-tight {
     @apply space-y-4 sm:space-y-5;
-  }
-}
-
-/* Smooth color scheme transitions */
-@layer base {
-  html {
-    color-scheme: light;
-  }
-  html.dark {
-    color-scheme: dark;
-  }
-  /* Focus visible ring for accessibility */
-  :focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }

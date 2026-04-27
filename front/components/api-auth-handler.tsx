@@ -18,7 +18,7 @@ export function ApiAuthHandler() {
     setOn401(() => {
       router.push("/login");
     });
-    return () => setOn401(null);
+    return () => setOn401(() => {});
   }, [router]);
   return null;
 }

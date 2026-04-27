@@ -1,7 +1,7 @@
 """Проверка верстки: синтаксис + подзадачи + анти-абьюз."""
 import re
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 
 from .documents import LayoutLesson, LayoutSubtaskEmbed, VALID_EDITABLE
 
@@ -83,6 +83,57 @@ def _clean_html_for_contains(html: str) -> str:
     out = SCRIPT_BLOCK_RE.sub("", out)
     out = STYLE_BLOCK_RE.sub("", out)
     return out
+
+
+def _normalize_multiline_source(source: str) -> str:
+    text = (source or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = [line.rstrip() for line in text.split("\n")]
+    normalized = "\n".join(lines).strip()
+    return normalized
+
+
+def _normalize_html_for_match(html: str) -> str:
+    soup = BeautifulSoup(html or "", "html.parser")
+    for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
+        comment.extract()
+
+    for tag in soup.find_all(True):
+        attrs = dict(tag.attrs or {})
+        sorted_attrs: dict[str, object] = {}
+        for key in sorted(attrs.keys()):
+            value = attrs[key]
+            if isinstance(value, list):
+                # class порядок визуально не важен; нормализуем.
+                value = sorted(str(v) for v in value if str(v))
+            sorted_attrs[key] = value
+        tag.attrs = sorted_attrs
+
+    rendered = soup.decode(formatter="minimal")
+    rendered = re.sub(r">\s+<", "><", rendered)
+    return _normalize_multiline_source(rendered)
+
+
+def _check_full_match(
+    html: str,
+    css: str,
+    js: str,
+    expected_html: str,
+    expected_css: str,
+    expected_js: str,
+) -> tuple[bool, str, list[str]]:
+    mismatches: list[str] = []
+
+    if _normalize_html_for_match(html) != _normalize_html_for_match(expected_html):
+        mismatches.append("HTML")
+    if _normalize_multiline_source(css) != _normalize_multiline_source(expected_css):
+        mismatches.append("CSS")
+    if _normalize_multiline_source(js) != _normalize_multiline_source(expected_js):
+        mismatches.append("JS")
+
+    if not mismatches:
+        return True, "Полное совпадение с эталонной версткой.", []
+
+    return False, f"Не совпадает с эталоном: {', '.join(mismatches)}.", []
 
 
 def _validate_payload_sizes(html: str, css: str, js: str) -> tuple[list[str], list[str]]:
@@ -338,6 +389,41 @@ def check_layout(layout: LayoutLesson, user_html: str, user_css: str, user_js: s
         return {
             "subtasks": results,
             "passed": False,
+            "errors": _dedupe_preserve_order(blocking_errors),
+            "warnings": _dedupe_preserve_order(warnings),
+            "abuse_flags": _dedupe_preserve_order(abuse_flags),
+        }
+
+    check_mode = (getattr(layout, "check_mode", None) or "subtasks").strip().lower()
+    if check_mode == "full_match":
+        expected_html = getattr(layout, "reference_html", None)
+        expected_css = getattr(layout, "reference_css", None)
+        expected_js = getattr(layout, "reference_js", None)
+        if expected_html is None:
+            expected_html = getattr(layout, "template_html", "")
+        if expected_css is None:
+            expected_css = getattr(layout, "template_css", "")
+        if expected_js is None:
+            expected_js = getattr(layout, "template_js", "")
+
+        passed, msg, match_abuse = _check_full_match(
+            html,
+            css,
+            js,
+            expected_html or "",
+            expected_css or "",
+            expected_js or "",
+        )
+        abuse_flags.extend(match_abuse)
+        results = [{
+            "id": "__full_match__",
+            "title": "Полное совпадение с эталоном",
+            "passed": passed,
+            "message": msg,
+        }]
+        return {
+            "subtasks": results,
+            "passed": passed,
             "errors": _dedupe_preserve_order(blocking_errors),
             "warnings": _dedupe_preserve_order(warnings),
             "abuse_flags": _dedupe_preserve_order(abuse_flags),

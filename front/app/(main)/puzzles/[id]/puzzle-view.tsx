@@ -1,300 +1,313 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import React from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, GripVertical, Play, RotateCcw, Shapes, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import type { AchievementUnlocked, Puzzle, PuzzleBlock, PuzzleCheckResult } from "@/lib/types";
 import { checkPuzzleSolution } from "@/lib/api/puzzles";
-import { GripVertical, Play, RotateCcw } from "lucide-react";
-import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
+import {
+  getCooldownMinutesRemaining,
+  getRemainingAttempts,
+  isAttemptLimitExceeded,
+  recordFailedAttempt,
+} from "@/lib/utils/attempt-limiter";
 import { HintsBlock } from "@/components/hints-block";
 import { AvailabilityNotice } from "@/components/availability-notice";
 import { AvailabilityCountdown } from "@/components/availability-countdown";
 import { CodeHighlight } from "@/components/code-highlight";
 import { AchievementUnlockCelebration } from "@/components/achievement-unlock-celebration";
+import { cn } from "@/components/lib/utils";
 
 interface PuzzleViewProps {
   puzzle: Puzzle;
 }
 
+function shuffleBlocks(blocks: PuzzleBlock[]) {
+  return [...blocks].sort(() => Math.random() - 0.5);
+}
+
 export function PuzzleView({ puzzle }: PuzzleViewProps) {
   const router = useRouter();
+  const { toast } = useToast();
+  const shownAchievementIds = useRef<Set<string>>(new Set());
+  const [mounted, setMounted] = useState(false);
   const [blocks, setBlocks] = useState<PuzzleBlock[]>([]);
   const [result, setResult] = useState<PuzzleCheckResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [draggedBlock, setDraggedBlock] = useState<PuzzleBlock | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [unlockedAchievements, setUnlockedAchievements] = useState<AchievementUnlocked[]>([]);
-  const shownAchievementIds = useRef<Set<string>>(new Set());
-  const { toast } = useToast();
+
+  useEffect(() => {
+    setMounted(true);
+    setBlocks(shuffleBlocks(puzzle.blocks));
+    setResult(null);
+  }, [puzzle.blocks, puzzle.id]);
+
+  const maxAttempts = puzzle.maxAttempts ?? null;
+  const attemptsUsed = puzzle.attemptsUsed ?? 0;
+  const attemptsLeft = maxAttempts != null ? Math.max(maxAttempts - attemptsUsed, 0) : null;
+  const attemptsExhausted = maxAttempts != null && attemptsLeft === 0;
+
+  const assembledCode = useMemo(
+    () => blocks.map((block) => `${block.indent}${block.code}`).join("\n"),
+    [blocks]
+  );
 
   function showUnlocked(items: AchievementUnlocked[] | undefined) {
-    if (!items || items.length === 0) return;
-    const fresh = items.filter((a) => a.id && !shownAchievementIds.current.has(a.id));
+    if (!items?.length) return;
+    const fresh = items.filter((item) => item.id && !shownAchievementIds.current.has(item.id));
     if (!fresh.length) return;
-    for (const a of fresh) shownAchievementIds.current.add(a.id);
+    for (const item of fresh) shownAchievementIds.current.add(item.id);
     setUnlockedAchievements(fresh);
   }
 
-  // Инициализируем и перемешиваем блоки только на клиенте
-  useEffect(() => {
-    setMounted(true);
-    setBlocks([...puzzle.blocks].sort(() => Math.random() - 0.5));
-  }, [puzzle.blocks]);
-
   function moveBlock(fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return;
-    
-    const newBlocks = [...blocks];
-    const [movedBlock] = newBlocks.splice(fromIndex, 1);
-    newBlocks.splice(toIndex, 0, movedBlock);
-    setBlocks(newBlocks);
-    setResult(null); // Сбрасываем результат при изменении
-  }
-
-  function removeBlock(index: number) {
-    const newBlocks = blocks.filter((_, i) => i !== index);
-    setBlocks(newBlocks);
+    const next = [...blocks];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setBlocks(next);
     setResult(null);
   }
 
-  function insertBlock(block: PuzzleBlock, index: number) {
-    const newBlocks = [...blocks];
-    newBlocks.splice(index, 0, block);
-    setBlocks(newBlocks);
-    setResult(null);
-  }
-
-  function shuffleBlocks() {
-    setBlocks([...blocks].sort(() => Math.random() - 0.5));
-    setResult(null);
-  }
-
-  function handleDragStart(e: React.DragEvent, index: number) {
+  function handleDragStart(index: number) {
     setDraggedIndex(index);
-    setDraggedBlock(blocks[index]);
-    // Ensure the drag has transferable data for cross-browser support
-    try {
-      e.dataTransfer.setData("text/plain", String(index));
-    } catch (err) {
-      // ignore; some environments may restrict setData
-    }
-    e.dataTransfer.effectAllowed = "move";
   }
 
-  function handleDragOver(e: React.DragEvent, index: number) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex(index);
-  }
-
-  function handleDragLeave() {
-    setDragOverIndex(null);
-  }
-
-  function handleDrop(e: React.DragEvent, dropIndex: number) {
-    e.preventDefault();
-    setDragOverIndex(null);
-    
-    if (draggedIndex !== null && draggedIndex !== dropIndex) {
+  function handleDrop(dropIndex: number) {
+    if (draggedIndex != null && draggedIndex !== dropIndex) {
       moveBlock(draggedIndex, dropIndex);
     }
-    setDraggedIndex(null);
-  }
-
-  function handleDragEnd() {
     setDraggedIndex(null);
     setDragOverIndex(null);
   }
 
   async function handleCheck() {
+    if (isAttemptLimitExceeded(puzzle.id)) {
+      const minutesLeft = getCooldownMinutesRemaining(puzzle.id);
+      toast({
+        title: "Лимит попыток исчерпан",
+        description: `Попробуйте снова через ${minutesLeft} мин.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      if (isAttemptLimitExceeded(puzzle.id)) {
-        const minutesLeft = getCooldownMinutesRemaining(puzzle.id);
-        toast({
-          title: "Лимит попыток исчерпан",
-          description: `Вы превысили лимит неверных ответов. Попробуйте через ${minutesLeft} минут.`,
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-      const res = await checkPuzzleSolution(puzzle.id, blocks);
-      setResult(res);
-      if (res.passed) {
-        showUnlocked(res.unlockedAchievements);
+      const response = await checkPuzzleSolution(puzzle.id, blocks);
+      setResult(response);
+
+      if (response.passed) {
+        showUnlocked(response.unlockedAchievements);
+        toast({ title: "Решение принято", description: response.message });
         router.refresh();
       } else {
         recordFailedAttempt(puzzle.id);
         const remaining = getRemainingAttempts(puzzle.id);
-        if (remaining === 0) {
-          toast({
-            title: "Лимит попыток исчерпан",
-            description: "Вы превысили лимит неверных ответов. Попробуйте через час.",
-            variant: "destructive",
-          });
-        } else if (remaining <= 1) {
-          toast({
-            title: "Внимание",
-            description: `У вас осталось ${remaining} попытка. Будьте осторожнее!`,
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: remaining === 0 ? "Попытки закончились" : "Порядок пока неверный",
+          description:
+            remaining === 0
+              ? "Следующая попытка будет доступна после cooldown."
+              : `Осталось попыток до cooldown: ${remaining}.`,
+          variant: "destructive",
+        });
       }
-    } catch (err) {
-      toast({ title: "Ошибка проверки", description: String(err) });
+    } catch (error) {
+      toast({
+        title: "Не удалось проверить решение",
+        description: error instanceof Error ? error.message : "Попробуйте еще раз.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   }
 
-  // Собираем код для предпросмотра
-  const assembledCode = blocks.map(block => block.indent + block.code).join("\n");
-
-  // Показываем загрузку пока компонент не смонтирован на клиенте
   if (!mounted) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-          <div className="min-w-0">
-            <h1 className="text-3xl font-semibold tracking-tight">{puzzle.title}</h1>
-            <p className="text-muted-foreground mt-2">{puzzle.description}</p>
-          </div>
-          <AvailabilityCountdown availableUntil={puzzle.availableUntil} className="shrink-0" />
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="text-muted-foreground">Загрузка...</div>
-        </div>
+      <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+        Готовим puzzle workspace...
       </div>
     );
   }
 
-  const maxAttempts = puzzle.maxAttempts ?? null;
-  const attemptsUsed = puzzle.attemptsUsed ?? 0;
-  const attemptsExhausted = maxAttempts != null && attemptsUsed >= maxAttempts;
-
   return (
     <div className="space-y-6">
       <AvailabilityNotice availableFrom={puzzle.availableFrom} availableUntil={puzzle.availableUntil} />
-      {maxAttempts != null && (
-        <p className="text-sm text-muted-foreground">
-          {attemptsExhausted ? "Попытки исчерпаны." : `Попыток осталось: ${maxAttempts - attemptsUsed} из ${maxAttempts}`}
-        </p>
-      )}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight break-words">{puzzle.title}</h1>
-          <p className="text-muted-foreground mt-2">{puzzle.description}</p>
-        </div>
-        <AvailabilityCountdown availableUntil={puzzle.availableUntil} className="shrink-0" />
-      </div>
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
-        <div className="space-y-4 min-w-0">
+      <section className="hero-surface rounded-[2rem] border border-border/60 px-6 py-6 sm:px-8 sm:py-8">
+        <div className="grid gap-6 lg:grid-cols-[1.35fr,0.65fr] lg:items-end">
+          <div className="space-y-4">
+            <div className="kavnt-badge w-fit">Logic puzzle</div>
+            <div className="space-y-3">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">{puzzle.title}</h2>
+              <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">{puzzle.description}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Блоков</p>
+              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{blocks.length}</p>
+            </div>
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Дедлайн</p>
+              <div className="mt-3">
+                <AvailabilityCountdown availableUntil={puzzle.availableUntil} />
+              </div>
+            </div>
+            {maxAttempts != null ? (
+              <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:col-span-2">
+                <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Попытки</p>
+                <p className="mt-3 text-lg font-semibold tracking-[-0.04em] text-foreground">
+                  {attemptsExhausted ? "Лимит исчерпан" : `Осталось ${attemptsLeft} из ${maxAttempts}`}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Соберите порядок блоков</CardTitle>
+            <CardDescription>
+              Перетаскивайте карточки, пока логика решения не станет цельной и читаемой.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {blocks.map((block, index) => (
+              <div
+                key={block.id}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDragOverIndex(index);
+                }}
+                onDragLeave={() => setDragOverIndex(null)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  handleDrop(index);
+                }}
+                onDragEnd={() => {
+                  setDraggedIndex(null);
+                  setDragOverIndex(null);
+                }}
+                className={cn(
+                  "rounded-2xl border p-4 transition",
+                  draggedIndex === index && "scale-[0.99] opacity-60",
+                  dragOverIndex === index
+                    ? "border-primary/40 bg-primary/5 shadow-[0_14px_32px_rgba(39,110,241,0.12)]"
+                    : "border-border/70 bg-muted/15 hover:border-primary/20 hover:bg-background"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl border border-border/60 bg-background text-muted-foreground">
+                    <GripVertical className="h-4 w-4" />
+                  </div>
+                  <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-sm leading-6 text-foreground">
+                    <code>{`${block.indent}${block.code}`}</code>
+                  </pre>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex flex-wrap gap-3 pt-3">
+              <Button onClick={() => void handleCheck()} disabled={loading || blocks.length === 0 || attemptsExhausted} className="gap-2">
+                <Play className="h-4 w-4" />
+                {loading ? "Проверяю..." : "Проверить решение"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBlocks(shuffleBlocks(blocks));
+                  setResult(null);
+                }}
+                className="gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Перемешать
+              </Button>
+              {puzzle.trackId ? (
+                <Link href={`/main/${puzzle.trackId}`}>
+                  <Button variant="outline">К треку</Button>
+                </Link>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Блоки кода</CardTitle>
-              <CardDescription>
-                Перетащите блоки в правильном порядке
-              </CardDescription>
+              <CardTitle>Предпросмотр</CardTitle>
+              <CardDescription>Так будет выглядеть собранный код в текущем порядке.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {blocks.map((block, index) => (
+            <CardContent className="p-0">
+              <CodeHighlight
+                code={assembledCode || "# Перетащите блоки в нужном порядке"}
+                language={puzzle.language ?? "python"}
+                className="min-h-[160px] rounded-b-[1.5rem]"
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Статус</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {result ? (
                 <div
-                  key={block.id}
-                  className={`
-                    rounded-lg bg-muted p-4 transition-all cursor-move
-                    ${draggedIndex === index ? 'opacity-50 scale-95' : ''}
-                    ${dragOverIndex === index ? 'ring-2 ring-blue-500 dark:ring-blue-400 bg-blue-100 dark:bg-blue-900' : ''}
-                    ${result && !result.passed ? 'border-4 border-red-400' : ''}
-                    ${result && result.passed ? 'border-4 border-green-400' : ''}
-                    hover:shadow-md
-                  `}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, index)}
-                  onDragEnd={handleDragEnd}
+                  className={cn(
+                    "rounded-2xl border px-4 py-4 text-sm leading-6",
+                    result.passed
+                      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-800"
+                      : "border-rose-500/20 bg-rose-500/10 text-rose-800"
+                  )}
                 >
-                  {/* Код с drag & drop и адаптивной подсветкой */}
-                  <div className="relative w-full h-full">
-                    <pre
-                      className="text-sm font-mono overflow-x-auto select-none w-full h-full whitespace-pre"
-                    >
-                      <code>{block.indent}{block.code}</code>
-                    </pre>
+                  <div className="flex items-center gap-2 font-medium">
+                    {result.passed ? <CheckCircle2 className="h-4 w-4" /> : <Shapes className="h-4 w-4" />}
+                    {result.passed ? "Порядок верный" : "Нужно перестроить блоки"}
                   </div>
+                  <p className="mt-3">{result.message}</p>
                 </div>
-              ))}
-              
-              {blocks.length === 0 && (
-                <div className="py-8 text-muted-foreground">
-                  <p>Перетащите блоки кода сюда</p>
+              ) : (
+                <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-4 text-sm text-muted-foreground">
+                  Когда проверите puzzle, итог и обратная связь появятся здесь.
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={handleCheck}
-              disabled={loading || blocks.length === 0 || attemptsExhausted}
-              className="flex items-center gap-2"
-              size="lg"
-            >
-              <Play className="h-4 w-4" />
-              {loading ? "Проверка..." : "Проверить решение"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={shuffleBlocks}
-              className="flex items-center gap-2"
-              size="lg"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Перемешать
-            </Button>
-            {puzzle.trackId && (
-              <Link href={`/main/${puzzle.trackId}`}>
-                <Button variant="outline" size="lg">К треку</Button>
-              </Link>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-4 min-w-0">
-          <HintsBlock hints={puzzle.hints ?? []} />
           <Card>
             <CardHeader>
-              <CardTitle>Предпросмотр кода</CardTitle>
-              <CardDescription>
-                Как будет выглядеть собранный код
-              </CardDescription>
+              <CardTitle>Подход</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <CodeHighlight
-                code={assembledCode || "# Перетащите блоки кода слева"}
-                language={puzzle.language ?? "python"}
-                className="min-h-[100px] rounded-b-lg"
-              />
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                Сначала найдите опорный блок, с которого естественно начинается алгоритм.
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
+                Проверьте, чтобы вложенность и отступы поддерживали логику, а не ломали ее.
+              </div>
             </CardContent>
           </Card>
 
-          {/* Result UI intentionally hidden for puzzles; per-block highlighting remains */}
+          <HintsBlock hints={puzzle.hints ?? []} />
         </div>
       </div>
-      <AchievementUnlockCelebration
-        items={unlockedAchievements}
-        onDone={() => setUnlockedAchievements([])}
-      />
+
+      <AchievementUnlockCelebration items={unlockedAchievements} onDone={() => setUnlockedAchievements([])} />
     </div>
   );
 }

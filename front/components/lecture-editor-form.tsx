@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Type, Image, Code, HelpCircle, Video, ChevronUp, ChevronDown, Settings2, Plus, Trash2 } from "lucide-react";
+import { Type, Image as ImageIcon, Code, HelpCircle, Video, ChevronUp, ChevronDown, Settings2, Plus, Trash2 } from "lucide-react";
 
 function genBlockId() {
   return "q" + Math.random().toString(36).slice(2, 10);
@@ -360,7 +360,7 @@ export function LectureEditorForm({
                 Текст
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => addBlock("image")} className="gap-2 rounded-lg shrink-0">
-                <Image className="h-4 w-4" />
+                <ImageIcon className="h-4 w-4" />
                 Изображение
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => addBlock("code")} className="gap-2 rounded-lg shrink-0">
@@ -462,7 +462,7 @@ export function LectureEditorForm({
                 <Type className="h-3.5 w-3.5" /> Текст
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => addBlock("image")} className="gap-1.5 rounded-lg text-muted-foreground">
-                <Image className="h-3.5 w-3.5" /> Изображение
+                <ImageIcon className="h-3.5 w-3.5" /> Изображение
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => addBlock("code")} className="gap-1.5 rounded-lg text-muted-foreground">
                 <Code className="h-3.5 w-3.5" /> Код
@@ -492,3 +492,4 @@ export function LectureEditorForm({
     </form>
   );
 }
+

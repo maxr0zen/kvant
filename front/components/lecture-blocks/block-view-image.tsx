@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import type { LectureBlock } from "@/lib/types";
@@ -31,3 +32,4 @@ export function BlockViewImage({ block }: BlockViewImageProps) {
     </figure>
   );
 }
+

@@ -24,13 +24,11 @@ function formatRemaining(ms: number): string {
   return parts.join(" ");
 }
 
-/** Форматирует просрочку (положительное число миллисекунд) */
 export function formatOverdue(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return "0 с";
   return formatRemaining(ms);
 }
 
-/** Форматирует просрочку в секундах (для completed_late) */
 export function formatLateSeconds(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0 с";
   const sec = seconds % 60;
@@ -46,38 +44,31 @@ export function formatLateSeconds(seconds: number): string {
 }
 
 function parseUntil(value: string | null | undefined): number | null {
-  const d = parseDateTime(value ?? null);
-  if (!d) return null;
-  const t = d.getTime();
-  return Number.isFinite(t) ? t : null;
+  const date = parseDateTime(value ?? null);
+  if (!date) return null;
+  const time = date.getTime();
+  return Number.isFinite(time) ? time : null;
 }
 
-export function AvailabilityCountdown({
-  availableUntil,
-  className = "",
-}: AvailabilityCountdownProps) {
+export function AvailabilityCountdown({ availableUntil, className = "" }: AvailabilityCountdownProps) {
   const until = useMemo(() => parseUntil(availableUntil), [availableUntil]);
-
   const now = useNow(1000);
 
   if (until == null) return null;
   const ms = until - now;
   if (ms <= 0) return null;
 
-  const remaining = formatRemaining(ms);
-
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm font-medium text-muted-foreground ${className}`}
+      className={`inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/82 px-3.5 py-2 text-sm font-medium text-muted-foreground shadow-sm backdrop-blur-xl ${className}`}
       title="До окончания доступности задания"
     >
       <Clock className="h-4 w-4 shrink-0" />
-      <span>Осталось: {remaining}</span>
+      <span>Осталось: {formatRemaining(ms)}</span>
     </div>
   );
 }
 
-/** Показывает «Просрочено на X» когда availableUntil в прошлом */
 export function AvailabilityOverdue({
   availableUntil,
   className = "",
@@ -90,7 +81,6 @@ export function AvailabilityOverdue({
   iconOnly?: boolean;
 }) {
   const until = useMemo(() => parseUntil(availableUntil), [availableUntil]);
-
   const now = useNow(1000);
 
   if (until == null) return null;
@@ -101,12 +91,12 @@ export function AvailabilityOverdue({
 
   return (
     <div
-      className={`inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 font-medium text-amber-800 dark:text-amber-200 ${compact ? "gap-1 px-2 py-1 text-xs" : "gap-2 px-3 py-1.5 text-sm"} ${className}`}
+      className={`inline-flex items-center rounded-full border border-amber-500/35 bg-amber-500/12 font-medium text-amber-800 dark:text-amber-200 ${compact ? "gap-1 px-2.5 py-1 text-xs" : "gap-2 px-3.5 py-2 text-sm"} ${className}`}
       title={iconOnly ? `Просрочено на ${overdue}` : "Задание просрочено"}
       aria-label={`Просрочено на ${overdue}`}
     >
       <Clock className={`${compact ? "h-3 w-3" : "h-4 w-4"} shrink-0`} />
-      {!iconOnly && <span>{compact ? `${overdue}` : `Просрочено на ${overdue}`}</span>}
+      {!iconOnly && <span>{compact ? overdue : `Просрочено на ${overdue}`}</span>}
     </div>
   );
 }

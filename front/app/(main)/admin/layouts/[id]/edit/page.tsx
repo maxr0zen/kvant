@@ -28,6 +28,7 @@ import { Trash2, Plus, Settings2 } from "lucide-react";
 
 type LayoutFile = "html" | "css" | "js";
 type LayoutCheckType = "selector_exists" | "html_contains" | "css_contains" | "js_contains";
+type LayoutCheckMode = "subtasks" | "full_match";
 
 function buildPreviewDoc(html: string, css: string, js: string): string {
   const styleTag = css ? `<style>\n${css}\n</style>` : "";
@@ -76,7 +77,12 @@ export default function EditLayoutPage() {
   const [templateHtml, setTemplateHtml] = useState("");
   const [templateCss, setTemplateCss] = useState("");
   const [templateJs, setTemplateJs] = useState("");
+  const [referenceHtml, setReferenceHtml] = useState("");
+  const [referenceCss, setReferenceCss] = useState("");
+  const [referenceJs, setReferenceJs] = useState("");
+  const [checkMode, setCheckMode] = useState<LayoutCheckMode>("full_match");
   const [activeFile, setActiveFile] = useState<LayoutFile>("html");
+  const [activeReferenceFile, setActiveReferenceFile] = useState<LayoutFile>("html");
   const [editableHtml, setEditableHtml] = useState(true);
   const [editableCss, setEditableCss] = useState(true);
   const [editableJs, setEditableJs] = useState(true);
@@ -106,6 +112,10 @@ export default function EditLayoutPage() {
       setTemplateHtml(layout.templateHtml ?? "");
       setTemplateCss(layout.templateCss ?? "");
       setTemplateJs(layout.templateJs ?? "");
+      setReferenceHtml(layout.referenceHtml ?? layout.templateHtml ?? "");
+      setReferenceCss(layout.referenceCss ?? layout.templateCss ?? "");
+      setReferenceJs(layout.referenceJs ?? layout.templateJs ?? "");
+      setCheckMode(layout.checkMode ?? "subtasks");
       const ed = layout.editableFiles ?? ["html", "css", "js"];
       setEditableHtml(ed.includes("html"));
       setEditableCss(ed.includes("css"));
@@ -184,8 +194,12 @@ export default function EditLayoutPage() {
         templateHtml,
         templateCss,
         templateJs,
+        referenceHtml,
+        referenceCss,
+        referenceJs,
+        checkMode,
         editableFiles,
-        subtasks,
+        subtasks: checkMode === "subtasks" ? subtasks : [],
         visibleGroupIds: visibleGroupIds.length > 0 ? visibleGroupIds : [],
         hints: hints.filter((h) => h.trim()),
         availableFrom: tempMode === "none" ? null : availableFrom.trim() ? datetimeLocalToISOUTC(availableFrom.trim()) : null,
@@ -223,6 +237,15 @@ export default function EditLayoutPage() {
     else setTemplateJs(value);
   };
   const previewDoc = buildPreviewDoc(templateHtml, templateCss, templateJs);
+  const activeReferenceLanguage = activeReferenceFile === "js" ? "javascript" : activeReferenceFile;
+  const activeReferenceValue =
+    activeReferenceFile === "html" ? referenceHtml : activeReferenceFile === "css" ? referenceCss : referenceJs;
+  const setActiveReferenceValue = (value: string) => {
+    if (activeReferenceFile === "html") setReferenceHtml(value);
+    else if (activeReferenceFile === "css") setReferenceCss(value);
+    else setReferenceJs(value);
+  };
+  const referencePreviewDoc = buildPreviewDoc(referenceHtml, referenceCss, referenceJs);
 
   return (
     <div className="content-block w-full max-w-5xl">
@@ -323,6 +346,18 @@ export default function EditLayoutPage() {
               <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="checkMode">Режим проверки</Label>
+              <select
+                id="checkMode"
+                value={checkMode}
+                onChange={(e) => setCheckMode(e.target.value as LayoutCheckMode)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="full_match">Полное совпадение с эталоном</option>
+                <option value="subtasks">Подзадачи (legacy)</option>
+              </select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="attachedLecture">Связанная лекция (опционально)</Label>
               {trackId && trackLectures.length > 0 ? (
                 <select
@@ -405,6 +440,64 @@ export default function EditLayoutPage() {
 
         <Card>
           <CardHeader className="pb-3">
+            <CardTitle className="text-base">Эталонная верстка для проверки</CardTitle>
+            <CardDescription>
+              В режиме полного совпадения задание будет зачтено только при полном совпадении с этим эталоном.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setReferenceHtml(templateHtml);
+                  setReferenceCss(templateCss);
+                  setReferenceJs(templateJs);
+                }}
+              >
+                Скопировать из шаблона
+              </Button>
+            </div>
+            <div className="grid gap-4 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 overflow-x-auto">
+                  {(["html", "css", "js"] as LayoutFile[]).map((file) => (
+                    <Button
+                      key={`reference-${file}`}
+                      type="button"
+                      variant={activeReferenceFile === file ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setActiveReferenceFile(file)}
+                    >
+                      {file.toUpperCase()}
+                    </Button>
+                  ))}
+                </div>
+                <CodeEditor
+                  value={activeReferenceValue}
+                  onChange={setActiveReferenceValue}
+                  language={activeReferenceLanguage}
+                  className="code-font-mono"
+                />
+              </div>
+              <div className="rounded-lg border border-border/80 overflow-hidden bg-card">
+                <div className="px-3 py-2 border-b text-xs text-muted-foreground font-medium">Эталонный предпросмотр</div>
+                <iframe
+                  srcDoc={referencePreviewDoc}
+                  sandbox="allow-scripts"
+                  title="Layout reference preview"
+                  className="w-full h-[260px] border-0 bg-white"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {checkMode === "subtasks" && (
+        <Card>
+          <CardHeader className="pb-3">
             <CardTitle className="text-base">Подзадачи</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -441,6 +534,7 @@ export default function EditLayoutPage() {
             </Button>
           </CardContent>
         </Card>
+        )}
 
         <div className="flex flex-wrap gap-3 pt-2">
           <Button type="submit" disabled={saving} className="sm:min-w-[160px]">

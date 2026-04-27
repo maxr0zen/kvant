@@ -287,14 +287,18 @@ export function LayoutView({
       event.preventDefault();
     };
 
+    const onHandleMouseDown: EventListener = (event) => {
+      onHandleDown(event as MouseEvent);
+    };
+
     const handle = root.querySelector("[data-layout-split-handle='true']");
     if (!handle) return;
-    handle.addEventListener("mousedown", onHandleDown);
+    handle.addEventListener("mousedown", onHandleMouseDown);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", stopDragging);
 
     return () => {
-      handle.removeEventListener("mousedown", onHandleDown);
+      handle.removeEventListener("mousedown", onHandleMouseDown);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", stopDragging);
       document.body.style.cursor = "";
@@ -487,7 +491,7 @@ export function LayoutView({
                   Обнаружены подозрительные паттерны: {abuseFlags.join(", ")}
                 </div>
               )}
-              {layout.subtasks.length > 0 && (
+              {((checkResult?.subtasks?.length ?? 0) > 0 || layout.subtasks.length > 0) && (
                 <Card>
                   <CardHeader className="py-3">
                     <CardTitle className="text-base">Подзадачи и прогресс</CardTitle>
