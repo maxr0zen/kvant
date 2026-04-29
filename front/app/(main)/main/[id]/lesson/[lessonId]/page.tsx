@@ -15,6 +15,7 @@ import { LectureHeader } from "@/components/lecture-header";
 import { AvailabilityCountdown } from "@/components/availability-countdown";
 import { getPrevNextLesson } from "@/lib/utils/track-nav";
 import { LectureBlocks } from "@/app/(main)/lectures/[id]/lecture-blocks";
+import type { LectureBlock } from "@/lib/types";
 import { LegacyLectureContent } from "@/app/(main)/lectures/[id]/legacy-lecture-content";
 import { TaskView } from "@/app/(main)/tasks/[id]/task-view";
 import { PuzzleView } from "@/app/(main)/puzzles/[id]/puzzle-view";
@@ -98,6 +99,32 @@ export default async function MainTrackLessonPage({
     const lecture = await fetchLectureById(lessonId, token, { cache: "no-store" });
     if (!lecture) notFound();
     const hasBlocks = lecture.blocks && lecture.blocks.length > 0;
+    const isImmersive = lecture.blocks?.some((b: LectureBlock) => b.type === "web_file") ?? false;
+
+    if (isImmersive) {
+      return (
+        <div className="space-y-6">
+          <TrackLessonNav trackId={trackId} trackTitle={track.title} prev={prev} next={next} className="sticky top-0 z-50" />
+          <LectureViewTracker lectureId={lessonId} />
+          <div className="-mx-4 -my-5 sm:-mx-6 sm:-my-6 lg:-mx-8 lg:-my-8 xl:-mx-10">
+            {hasBlocks ? (
+              <LectureBlocks blocks={lecture.blocks!} lectureId={lessonId} immersive />
+            ) : lecture.content ? (
+              <div className="px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10">
+                <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-6 py-6 prose prose-sm max-w-none dark:prose-invert">
+                  <LegacyLectureContent content={lecture.content} />
+                </div>
+              </div>
+            ) : (
+              <div className="px-4 py-10 text-sm text-muted-foreground">
+                Содержимое лекции пока пусто.
+              </div>
+            )}
+          </div>
+          <TrackLessonNav trackId={trackId} trackTitle={track.title} prev={prev} next={next} />
+        </div>
+      );
+    }
 
     return shell(
       lecture.title,

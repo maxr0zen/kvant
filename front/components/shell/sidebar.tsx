@@ -54,30 +54,30 @@ interface NavItemProps {
   label: string;
   icon: LucideIcon;
   active: boolean;
-  collapsed: boolean;
+  isCollapsed: boolean;
 }
 
-function NavItem({ href, label, icon: Icon, active, collapsed }: NavItemProps) {
+function NavItem({ href, label, icon: Icon, active, isCollapsed }: NavItemProps) {
   return (
     <Link
       href={href}
-      title={collapsed ? label : undefined}
+      title={isCollapsed ? label : undefined}
       className={cn(
         "group flex items-center rounded-[1.15rem] text-sm transition-all duration-200",
-        collapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3",
+        isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3",
         active
           ? "bg-primary text-primary-foreground shadow-[0_10px_24px_-14px_hsl(var(--primary)/0.72)]"
           : "text-muted-foreground hover:bg-secondary/75 hover:text-foreground"
       )}
     >
       <Icon className={cn("h-4 w-4 shrink-0", !active && "group-hover:scale-105")} />
-      {!collapsed && <span className="truncate">{label}</span>}
+      {!isCollapsed && <span className="truncate">{label}</span>}
     </Link>
   );
 }
 
-function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean }) {
-  if (collapsed) return null;
+function SectionLabel({ label, isCollapsed }: { label: string; isCollapsed: boolean }) {
+  if (isCollapsed) return null;
 
   return (
     <div className="px-2 pb-1 pt-4">
@@ -88,7 +88,7 @@ function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean 
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { collapsed } = useSidebar();
+  const { width, isCollapsed } = useSidebar();
   const [tracksOpen, setTracksOpen] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -116,11 +116,12 @@ export function Sidebar() {
     <aside
       className={cn(
         "hidden shrink-0 border-r border-border/70 bg-transparent lg:flex lg:flex-col",
-        collapsed ? "w-[var(--sidebar-width-collapsed)]" : "w-[var(--sidebar-width)]"
+        "transition-[width] duration-300 ease-out"
       )}
+      style={{ width }}
     >
       <div className="flex h-full flex-col px-3 py-4">
-        {!collapsed && (
+        {!isCollapsed && (
           <div className="mb-4 rounded-[var(--radius-lg)] border border-border/70 bg-background/95 p-4 shadow-sm backdrop-blur-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Navigation</p>
             <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em]">Навигация по платформе</h2>
@@ -131,9 +132,9 @@ export function Sidebar() {
         )}
 
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
-          <SectionLabel label="Платформа" collapsed={collapsed} />
+          <SectionLabel label="Платформа" isCollapsed={isCollapsed} />
 
-          {collapsed ? (
+          {isCollapsed ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -223,58 +224,58 @@ export function Sidebar() {
                 label="Выполненные"
                 icon={CheckCircle2}
                 active={pathname === "/completed" || pathname.startsWith("/completed/")}
-                collapsed={collapsed}
+                isCollapsed={isCollapsed}
               />
               <NavItem
                 href="/overdue"
                 label="Просроченные"
                 icon={Clock}
                 active={pathname === "/overdue" || pathname.startsWith("/overdue/")}
-                collapsed={collapsed}
+                isCollapsed={isCollapsed}
               />
             </>
           )}
 
           {isSuperuser && (
             <>
-              <SectionLabel label="Администрирование" collapsed={collapsed} />
+              <SectionLabel label="Администрирование" isCollapsed={isCollapsed} />
               <NavItem
                 href="/admin/dashboard"
                 label="Мониторинг"
                 icon={Activity}
                 active={pathname.startsWith("/admin/dashboard")}
-                collapsed={collapsed}
+                isCollapsed={isCollapsed}
               />
               <NavItem
                 href="/admin/groups"
                 label="Группы"
                 icon={UsersRound}
                 active={pathname.startsWith("/admin/groups")}
-                collapsed={collapsed}
+                isCollapsed={isCollapsed}
               />
               <NavItem
                 href="/admin/users"
                 label="Пользователи"
                 icon={Users}
                 active={pathname.startsWith("/admin/users")}
-                collapsed={collapsed}
+                isCollapsed={isCollapsed}
               />
             </>
           )}
 
           {isTeacher && (
             <>
-              <SectionLabel label="Управление" collapsed={collapsed} />
-              <NavItem href="/profile" label="Кабинет" icon={UserCircle} active={pathname === "/profile"} collapsed={collapsed} />
+              <SectionLabel label="Управление" isCollapsed={isCollapsed} />
+              <NavItem href="/profile" label="Кабинет" icon={UserCircle} active={pathname === "/profile"} isCollapsed={isCollapsed} />
               <NavItem
                 href="/admin/teachers-materials"
                 label="Материалы учителей"
                 icon={Library}
                 active={pathname.startsWith("/admin/teachers-materials")}
-                collapsed={collapsed}
+                isCollapsed={isCollapsed}
               />
 
-              {collapsed ? (
+              {isCollapsed ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -346,20 +347,20 @@ export function Sidebar() {
                 label="Уведомления"
                 icon={Bell}
                 active={pathname.startsWith("/admin/notifications")}
-                collapsed={collapsed}
+                isCollapsed={isCollapsed}
               />
               <NavItem
                 href="/admin/assignments-detail"
                 label="Детализация"
                 icon={BarChart3}
                 active={pathname.startsWith("/admin/assignments-detail")}
-                collapsed={collapsed}
+                isCollapsed={isCollapsed}
               />
             </>
           )}
         </nav>
 
-        {!collapsed && (
+        {!isCollapsed && (
           <div className="mt-4 rounded-[var(--radius-lg)] border border-border/70 bg-secondary/45 p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-primary/10 text-primary">

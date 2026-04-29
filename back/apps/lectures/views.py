@@ -4,11 +4,19 @@ from rest_framework.mixins import RetrieveModelMixin, CreateModelMixin, UpdateMo
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.conf import settings
+from django.core.files.storage import default_storage
+import zipfile
+import uuid
+import os
+from pathlib import Path
 
 from common.db_utils import get_doc_by_pk
 from .documents import Lecture
 from .serializers import LectureSerializer
-from apps.users.permissions import IsTeacher
+from apps.users.permissions import IsTeacher, IsTeacherOrSuperuser
 from apps.users.teacher_utils import validate_visible_group_ids_for_teacher
 from apps.submissions.progress import save_lesson_progress
 from apps.tracks.documents import Track
@@ -290,3 +298,82 @@ class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Updat
             "passed": passed,
             "message": "Правильно!" if passed else "Неправильно. Попробуйте ещё раз.",
         })
+
+
+class WebLectureUploadView(APIView):
+    """Upload a ZIP archive containing a web lecture (HTML/CSS/JS/assets).
+
+    Extracts the archive into web-lection-files/<uuid>/ and returns the URL.
+    Only teachers and superusers can upload.
+    """
+    permission_classes = [IsAuthenticated, IsTeacherOrSuperuser]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        archive = request.FILES.get("file")
+        if not archive:
+            return Response({"detail": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        max_size = getattr(settings, "WEB_LECTION_MAX_UPLOAD_SIZE", 50 * 1024 * 1024)
+        if archive.size > max_size:
+            return Response(
+                {"detail": f"File too large. Max size: {max_size // (1024 * 1024)} MB."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        if not archive.name.lower().endswith(".zip"):
+            return Response({"detail": "Only ZIP archives are allowed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        root = Path(getattr(settings, "WEB_LECTION_FILES_ROOT", settings.BASE_DIR / "web-lection-files"))
+        folder_name = str(uuid.uuid4())
+        extract_path = root / folder_name
+        extract_path.mkdir(parents=True, exist_ok=True)
+
+        zip_path = extract_path / "_temp.zip"
+        with open(zip_path, "wb") as f:
+            for chunk in archive.chunks():
+                f.write(chunk)
+
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                # Security: prevent path traversal
+                for member in zf.namelist():
+                    member_path = extract_path / member
+                    try:
+                        member_path.resolve().relative_to(extract_path.resolve())
+                    except ValueError:
+                        return Response(
+                            {"detail": "Invalid ZIP: path traversal detected."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                zf.extractall(extract_path)
+        except zipfile.BadZipFile:
+            return Response({"detail": "Invalid ZIP archive."}, status=status.HTTP_400_BAD_REQUEST)
+        finally:
+            if zip_path.exists():
+                zip_path.unlink()
+
+        # Validate that index.html exists somewhere in the extracted folder
+        index_html = None
+        for f in extract_path.rglob("index.html"):
+            index_html = f
+            break
+
+        if not index_html:
+            # Cleanup extracted files
+            import shutil
+            shutil.rmtree(extract_path, ignore_errors=True)
+            return Response(
+                {"detail": "ZIP must contain an index.html file."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Compute relative URL from the index.html location
+        relative = index_html.relative_to(root).as_posix()
+        url = f"/web-lection-files/{relative}"
+
+        return Response(
+            {"url": url, "folder": folder_name},
+            status=status.HTTP_201_CREATED,
+        )

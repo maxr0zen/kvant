@@ -7,14 +7,16 @@ import { BlockViewImage } from "@/components/lecture-blocks/block-view-image";
 import { BlockViewCode } from "@/components/lecture-blocks/block-view-code";
 import { BlockViewQuestion } from "@/components/lecture-blocks/block-view-question";
 import { BlockViewVideo } from "@/components/lecture-blocks/block-view-video";
+import { BlockViewWebFile } from "@/components/lecture-blocks/block-view-web-file";
 import { fetchLectureQuestionBlocksProgress, type BlockProgressItem } from "@/lib/api/lectures";
 
 interface LectureBlocksProps {
   blocks: LectureBlock[];
   lectureId?: string;
+  immersive?: boolean;
 }
 
-export function LectureBlocks({ blocks, lectureId }: LectureBlocksProps) {
+export function LectureBlocks({ blocks, lectureId, immersive }: LectureBlocksProps) {
   const [blockProgress, setBlockProgress] = useState<Record<string, BlockProgressItem>>({});
 
   const normalizedProgress = useMemo(
@@ -61,6 +63,8 @@ export function LectureBlocks({ blocks, lectureId }: LectureBlocksProps) {
               fetchLectureQuestionBlocksProgress(lectureId!).then(setBlockProgress);
             }}
           />
+        ) : block.type === "web_file" ? (
+          <BlockViewWebFile key={index} block={block} immersive={immersive} />
         ) : block.type === "question" && lectureId && block.id ? (
           <BlockViewQuestion
             key={block.id}

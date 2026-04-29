@@ -21,9 +21,9 @@ export default async function PuzzlePage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={puzzle.title || "Ïàçë"}
-        description="Ïðîâåðüòå ëîãèêó ðåøåíèÿ, ñîáåðèòå áëîêè â ïðàâèëüíîì ïîðÿäêå è ñðàçó ïîëó÷èòå îáðàòíóþ ñâÿçü."
-        breadcrumbs={[{ label: "Ãëàâíàÿ", href: "/main" }, { label: "Ïàçë" }]}
+        title={puzzle.title || "ÐŸÐ°Ð·Ð»"}
+        description="ÐŸÑ€Ð¾Ð²ÐµÑ€ÑŒÑ‚Ðµ Ð»Ð¾Ð³Ð¸ÐºÑƒ Ñ€ÐµÑˆÐµÐ½Ð¸Ñ, ÑÐ¾Ð±ÐµÑ€Ð¸Ñ‚Ðµ Ð±Ð»Ð¾ÐºÐ¸ Ð² Ð¿Ñ€Ð°Ð²Ð¸Ð»ÑŒÐ½Ð¾Ð¼ Ð¿Ð¾Ñ€ÑÐ´ÐºÐµ Ð¸ ÑÑ€Ð°Ð·Ñƒ Ð¿Ð¾Ð»ÑƒÑ‡Ð¸Ñ‚Ðµ Ð¾Ð±Ñ€Ð°Ñ‚Ð½ÑƒÑŽ ÑÐ²ÑÐ·ÑŒ."
+        breadcrumbs={[{ label: "Ð“Ð»Ð°Ð²Ð½Ð°Ñ", href: "/main" }, { label: "ÐŸÐ°Ð·Ð»" }]}
         actions={
           <div className="flex items-center gap-2">
             <AvailabilityCountdown availableUntil={puzzle.availableUntil} className="shrink-0" />
@@ -34,4 +34,4 @@ export default async function PuzzlePage({
       <PuzzleView puzzle={puzzle} />
     </div>
   );
-}
+}

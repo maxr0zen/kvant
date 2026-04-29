@@ -86,6 +86,13 @@ export type LectureBlock =
       /** Формат прямой ссылки: "mp4" | "m3u8" */
       video_format?: string;
       pause_points?: VideoPausePoint[];
+    }
+  | {
+      type: "web_file";
+      /** URL к HTML-файлу (например, /web-lection-files/lesson.html) */
+      url: string;
+      /** Опциональный заголовок блока */
+      title?: string;
     };
 
 export interface Lecture {

@@ -11,6 +11,7 @@ import { LectureViewTracker } from "@/components/lecture-view-tracker";
 import { LectureHeader } from "@/components/lecture-header";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import type { LectureBlock } from "@/lib/types";
 
 export default async function LecturePage({
   params,
@@ -65,6 +66,30 @@ export default async function LecturePage({
   }
 
   const hasBlocks = lecture.blocks && lecture.blocks.length > 0;
+  const isImmersive = lecture.blocks?.some((b: LectureBlock) => b.type === "web_file") ?? false;
+
+  if (isImmersive) {
+    return (
+      <div className="space-y-6">
+        <LectureViewTracker lectureId={resolvedLectureId} />
+        <div className="-mx-4 -my-5 sm:-mx-6 sm:-my-6 lg:-mx-8 lg:-my-8 xl:-mx-10">
+          {hasBlocks ? (
+            <LectureBlocks blocks={lecture.blocks!} lectureId={resolvedLectureId} immersive />
+          ) : lecture.content ? (
+            <div className="px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10">
+              <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-6 py-6 prose prose-sm max-w-none dark:prose-invert">
+                <LegacyLectureContent content={lecture.content} />
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-10 text-sm text-muted-foreground">
+              Содержимое лекции пока пусто.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -242,19 +242,19 @@ export default function AssignmentsDetailPage() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div className="rounded-3xl border border-border/70 bg-card/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
               <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Материалы</p>
               <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{summary.assignments}</p>
             </div>
-            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div className="rounded-3xl border border-border/70 bg-card/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
               <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Выполнено</p>
               <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{summary.completed}</p>
             </div>
-            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div className="rounded-3xl border border-border/70 bg-card/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
               <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">С опозданием</p>
               <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{summary.completedLate}</p>
             </div>
-            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div className="rounded-3xl border border-border/70 bg-card/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
               <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">В процессе</p>
               <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{summary.started}</p>
             </div>

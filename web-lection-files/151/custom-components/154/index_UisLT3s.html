@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Карта миров программирования</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .map-container {
+            position: relative;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .map-image {
+            width: 100%;
+            height: auto;
+            display: block;
+            pointer-events: none;
+        }
+
+        .hotspots-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .hotspot {
+            position: absolute;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 50%;
+            background: rgba(96, 165, 250, 0);
+        }
+
+        .hotspot:hover {
+            background: rgba(96, 165, 250, 0.3);
+            transform: scale(1.02);
+        }
+
+        /* ========== ВСПЛЫВАЮЩАЯ ПОДСКАЗКА ========== */
+        .tooltip-card {
+            position: fixed;
+            z-index: 10000;
+            width: 428px;
+            max-width: 60vw;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(96, 165, 250, 0.3);
+            animation: tooltipFadeIn 0.2s ease;
+            pointer-events: auto;
+        }
+
+        @keyframes tooltipFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .tooltip-header {
+            padding: 16px;
+        }
+
+        .tooltip-icon {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .tooltip-header h3 {
+            font-size: 1.2rem;
+            color: white;
+            margin-bottom: 4px;
+        }
+
+        .tooltip-header p {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.4;
+        }
+
+        .tooltip-content {
+            padding: 16px;
+            padding-top: 0;
+        }
+
+        .tooltip-section {
+            margin-bottom: 12px;
+        }
+
+        .tooltip-section h4 {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #60a5fa;
+            margin-bottom: 6px;
+        }
+
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .badge {
+            background: rgba(59, 130, 246, 0.2);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            color: #93c5fd;
+        }
+
+        .tooltip-roadmap {
+            font-size: 0.7rem;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+
+        .tooltip-roadmap span {
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .tooltip-project {
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 12px;
+            padding: 8px;
+            margin: 8px 0;
+        }
+
+        .tooltip-project h4 {
+            font-size: 0.6rem;
+            color: #60a5fa;
+            margin-bottom: 3px;
+        }
+
+        .tooltip-project p {
+            font-size: 0.75rem;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .checklist {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(71, 85, 105, 0.5);
+        }
+
+        .checklist h4 {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #60a5fa;
+            margin-bottom: 6px;
+        }
+
+        .checklist-item {
+            font-size: 0.6rem;
+            color: #94a3b8;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .checklist-item::before {
+            content: "⬜";
+            font-size: 0.6rem;
+        }
+
+        .tooltip-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .tooltip-close:hover {
+            background: rgba(239, 68, 68, 0.8);
+        }
+
+        .instruction {
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .instruction h2 {
+            font-size: 1.2rem;
+        }
+
+        @media (max-width: 768px) {
+            .tooltip-card {
+                width: 85vw;
+            }
+            .tooltip-header h3 {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <div class="instruction">
+            <h2>✨ Нажми на свою область, чтобы узнать о мире программирования ✨</h2>
+        </div>
+        <br>
+        <div class="map-container" id="mapContainer">
+            <img src="Cards.png" alt="Карта миров программирования" class="map-image" id="mapImage">
+            <div class="hotspots-container" id="hotspotsContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // ========== ДАННЫЕ ДЛЯ ПОДСКАЗОК (6 МИРОВ ПО НАЗНАЧЕНИЮ) ==========
+        const worldsData = {
+            websites: {
+                name: 'Создание сайтов',
+                icon: '🌐',
+                color: '#3b82f6',
+                description: 'Создавай сайты, которые видят миллионы. От визитки до интернет-магазина',
+                tools: ['HTML', 'CSS', 'JavaScript', 'Базы данных'],
+                roadmap: [
+                    'HTML — скелет сайта',
+                    'CSS — внешность и стили',
+                    'JavaScript — оживление и анимации',
+                    'Базы данных — сохранение информации'
+                ],
+                firstProject: 'Сайт-дневник с сохранением записей',
+                checklist: [
+                    'Создал страницу с заголовком и картинкой (HTML)',
+                    'Сделал фон красивым, изменил шрифт (CSS)',
+                    'Добавил кнопку, которая показывает/скрывает текст (JS)',
+                    'Сделал так, чтобы текст сохранялся после перезагрузки (база данных)'
+                ]
+            },
+            mobile: {
+                name: 'Мобильные приложения',
+                icon: '📱',
+                color: '#8b5cf6',
+                description: 'Создавай приложения для Android. Твои программы будут жить на телефонах',
+                tools: ['Kotlin', 'Jetpack Compose', 'Базы данных', 'Firebase'],
+                roadmap: [
+                    'Основы Kotlin — переменные, условия, циклы',
+                    'Интерфейсы — кнопки, экраны, картинки',
+                    'Навигация — переходы между экранами',
+                    'Сохранение данных — чтобы приложение помнило всё'
+                ],
+                firstProject: 'Приложение-список дел, который не пропадает после закрытия',
+                checklist: [
+                    'Создал приложение с одной кнопкой и счётчиком нажатий',
+                    'Добавил несколько экранов с переходами',
+                    'Настроил сохранение данных',
+                    'Установил готовое приложение на телефон'
+                ]
+            },
+            games: {
+                name: 'Создание игр',
+                icon: '🎮',
+                color: '#f97316',
+                description: 'Создавай миры, где ты — бог. От простых аркад до 3D-блокбастеров',
+                tools: ['Scratch', 'Python + Pygame', 'C# + Unity', 'C++ + Unreal'],
+                roadmap: [
+                    'Scratch — логика игр без кода',
+                    'Python + Pygame — 2D игры на кодe',
+                    'C# + Unity — 2D и 3D игры на движке',
+                    'C++ + Unreal — мощные 3D-блокбастеры'
+                ],
+                firstProject: '2D-аркада или платформер на выбор',
+                checklist: [
+                    'Создал игру в Scratch: «Поймай яблоко»',
+                    'Написал аркаду на Python: «Уклонение от препятствий»',
+                    'Сделал простой платформер в Unity',
+                    'Поделился игрой с друзьями'
+                ]
+            },
+            ai: {
+                name: 'Нейросети и данные',
+                icon: '🧠',
+                color: '#ec489a',
+                description: 'Научи компьютер думать. Распознавай картинки, анализируй данные, создавай умных ботов',
+                tools: ['Python', 'Pandas', 'NumPy', 'TensorFlow'],
+                roadmap: [
+                    'Основы Python — база для всего',
+                    'Pandas и NumPy — работа с данными',
+                    'Matplotlib — красивые графики',
+                    'TensorFlow — создание нейросетей'
+                ],
+                firstProject: 'Нейросеть, которая отличает кошек от собак',
+                checklist: [
+                    'Написал первую программу на Python',
+                    'Проанализировал данные по любимой игре или спорту',
+                    'Построил графики и диаграммы',
+                    'Обучил нейросеть распознавать картинки'
+                ]
+            },
+            beginners: {
+                name: 'Старт для новичков',
+                icon: '🧩',
+                color: '#10b981',
+                description: 'Ничего не умеешь? Не беда! Начни с лёгкого входа без сложностей',
+                tools: ['Scratch', 'Code.org', 'Python'],
+                roadmap: [
+                    'Scratch — программирование из блоков',
+                    'Code.org — обучение через игры',
+                    'Python — первый текстовый язык',
+                    'Выбор мира для углубления'
+                ],
+                firstProject: 'Мультфильм с управляемым персонажем или игра «Угадай число»',
+                checklist: [
+                    'Собрал программу из блоков в Scratch',
+                    'Прошёл несколько уровней на Code.org',
+                    'Написал программу-калькулятор на Python',
+                    'Выбрал мир, который хочу изучать дальше'
+                ]
+            },
+            arduino: {
+                name: 'Ардуино и железо',
+                icon: '🔌',
+                color: '#ef4444',
+                description: 'Твой код выходит из экрана в реальный мир! Лампочки, моторы, датчики — всё оживает',
+                tools: ['C++', 'Digital', 'Analog', 'Датчики'],
+                roadmap: [
+                    'Что такое Ардуино — плата и порты',
+                    'C++ для Ардуино — переменные, условия, циклы',
+                    'Digital — лампочки и кнопки',
+                    'Analog — яркость и сервоприводы',
+                    'Датчики — расстояние, свет, температура'
+                ],
+                firstProject: 'Светофор или парковочный радар с пищалкой',
+                checklist: [
+                    'Зажёг светодиод и заставил его мигать',
+                    'Подключил кнопку и управлял лампочкой',
+                    'Сделал плавную регулировку яркости',
+                    'Собрал умное устройство с датчиком (светофор, радар, теплица)'
+                ]
+            }
+        };
+
+        // ========== КООРДИНАТЫ ОБЛАСТЕЙ (в пикселях исходной картинки) ==========
+        const hotspotsData = [
+            { id: 'websites', name: 'Создание сайтов', x: 200, y: 135, radius: 105 },
+            { id: 'mobile', name: 'Мобильные приложения', x: 987, y: 648, radius: 115 },
+            { id: 'games', name: 'Создание игр', x: 1142, y: 409, radius: 125 },
+            { id: 'ai', name: 'Нейросети и данные', x: 202, y: 407, radius: 125 },
+            { id: 'beginners', name: 'Старт для новичков', x: 1160, y: 135, radius: 105 },
+            { id: 'arduino', name: 'Ардуино и железо', x: 373, y: 648, radius: 115 }
+        ];
+
+        // ========== ЭЛЕМЕНТЫ ==========
+        const mapImage = document.getElementById('mapImage');
+        const hotspotsContainer = document.getElementById('hotspotsContainer');
+        let currentTooltip = null;
+
+        // ========== ФУНКЦИЯ СОЗДАНИЯ ПОДСКАЗКИ ==========
+        function showTooltip(worldId, clickX, clickY) {
+            if (currentTooltip) {
+                currentTooltip.remove();
+                currentTooltip = null;
+            }
+
+            const data = worldsData[worldId];
+            if (!data) return;
+
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip-card';
+            tooltip.innerHTML = `
+                <div class="tooltip-header" style="background: linear-gradient(135deg, ${data.color}, ${data.color}aa);">
+                    <div class="tooltip-icon">${data.icon}</div>
+                    <h3>${data.name}</h3>
+                    <p>${data.description}</p>
+                </div>
+                <div class="tooltip-content">
+                    <div class="tooltip-section">
+                        <h4>🛠️ Что то нужно знать:</h4>
+                        <div class="badges">
+                            ${data.tools.map(t => `<span class="badge">${t}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div class="tooltip-section">
+                        <h4>📌 С чего начать: </h4>
+                        <div class="tooltip-roadmap">
+                            ${data.roadmap.map(step => `<span>→ ${step}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div class="tooltip-project">
+                        <h4>🎯 Первый проект</h4>
+                        <p>${data.firstProject}</p>
+                    </div>
+                    <div class="checklist">
+                        <h4>✅ План изучения</h4>
+                        ${data.checklist.map(item => `<div class="checklist-item">${item}</div>`).join('')}
+                    </div>
+                </div>
+                <div class="tooltip-close">✕</div>
+            `;
+
+            document.body.appendChild(tooltip);
+
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            // Позиционирование: по умолчанию справа от курсора
+            let left = clickX + 20;
+            let top = clickY - tooltipRect.height / 2;
+            
+            // Корректируем по горизонтали, чтобы подсказка не выходила за экран
+            if (left + tooltipRect.width > viewportWidth - 10) {
+                left = clickX - tooltipRect.width - 20;
+            }
+            if (left < 10) {
+                left = 10;
+            }
+            
+            // Корректируем по вертикали, чтобы подсказка не выходила за экран
+            if (top < 10) {
+                top = 10;
+            }
+            if (top + tooltipRect.height > viewportHeight - 10) {
+                top = viewportHeight - tooltipRect.height - 10;
+            }
+
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+
+            // Закрытие по крестику
+            const closeBtn = tooltip.querySelector('.tooltip-close');
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                tooltip.remove();
+                currentTooltip = null;
+            });
+
+            // Закрытие по клику вне подсказки
+            const closeOnOutsideClick = (e) => {
+                if (!tooltip.contains(e.target)) {
+                    tooltip.remove();
+                    currentTooltip = null;
+                    document.removeEventListener('click', closeOnOutsideClick);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeOnOutsideClick), 150);
+
+            currentTooltip = tooltip;
+        }
+
+        // ========== СОЗДАНИЕ КЛИКАБЕЛЬНЫХ ОБЛАСТЕЙ ==========
+        function createHotspots() {
+            if (!mapImage.complete) {
+                mapImage.onload = createHotspots;
+                return;
+            }
+
+            const imgRect = mapImage.getBoundingClientRect();
+            const scaleX = imgRect.width / mapImage.naturalWidth;
+            const scaleY = imgRect.height / mapImage.naturalHeight;
+
+            hotspotsContainer.innerHTML = '';
+
+            hotspotsData.forEach(data => {
+                const left = (data.x - data.radius) * scaleX;
+                const top = (data.y - data.radius) * scaleY;
+                const width = data.radius * 2 * scaleX;
+                const height = data.radius * 2 * scaleY;
+
+                const hotspot = document.createElement('div');
+                hotspot.className = 'hotspot';
+                hotspot.style.left = left + 'px';
+                hotspot.style.top = top + 'px';
+                hotspot.style.width = width + 'px';
+                hotspot.style.height = height + 'px';
+                hotspot.setAttribute('data-world', data.id);
+
+                hotspot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showTooltip(data.id, e.clientX, e.clientY);
+                });
+
+                hotspotsContainer.appendChild(hotspot);
+            });
+
+            console.log('✅ Создано областей:', hotspotsData.length);
+        }
+
+        // ========== ОБРАБОТКА ИЗМЕНЕНИЯ РАЗМЕРА ==========
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => createHotspots(), 200);
+        });
+
+        // ========== ЗАПУСК ==========
+        createHotspots();
+        console.log('✅ Страница загружена. Нажми на область — появится подсказка!');
+    </script>
+</body>
+</html>

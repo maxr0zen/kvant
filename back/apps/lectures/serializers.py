@@ -92,6 +92,12 @@ def _sanitize_blocks_for_client(blocks, for_editor=False):
                     video_block["direct_url"] = resolved["direct_url"]
                     video_block["video_format"] = resolved["video_format"]
             result.append(video_block)
+        elif isinstance(b, dict) and b.get("type") == "web_file":
+            result.append({
+                "type": "web_file",
+                "url": b.get("url", ""),
+                "title": b.get("title", ""),
+            })
         else:
             result.append(b)
     return result
@@ -108,6 +114,21 @@ class LectureSerializer(serializers.Serializer):
     available_until = serializers.DateTimeField(required=False, allow_null=True, default=None)
     hints = serializers.ListField(child=serializers.CharField(allow_blank=True), required=False, default=list)
     max_attempts = serializers.IntegerField(required=False, allow_null=True, default=None)
+
+    def validate_blocks(self, value):
+        if not value:
+            return value
+        for idx, b in enumerate(value):
+            if not isinstance(b, dict):
+                raise serializers.ValidationError(f"Block {idx} must be an object.")
+            block_type = b.get("type")
+            if block_type == "web_file":
+                url = b.get("url")
+                if not url or not isinstance(url, str):
+                    raise serializers.ValidationError(
+                        f"Block {idx} (web_file): 'url' is required and must be a non-empty string."
+                    )
+        return value
 
     def get_id(self, obj):
         return str(getattr(obj, "public_id", None) or obj.id)

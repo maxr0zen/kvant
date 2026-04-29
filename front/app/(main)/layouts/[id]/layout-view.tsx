@@ -460,7 +460,7 @@ export function LayoutView({
                   srcDoc={previewDoc}
                   sandbox="allow-scripts"
                   title="Preview"
-                  className="w-full h-[460px] border-0 rounded-b-lg bg-white dark:bg-zinc-900"
+                  className="w-full h-[460px] border-0 rounded-b-lg bg-background dark:bg-zinc-900"
                 />
               </CardContent>
             </Card>

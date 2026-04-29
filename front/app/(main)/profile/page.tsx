@@ -465,7 +465,7 @@ export default function ProfilePage() {
                 ]).map((item) => (
               <div
                 key={item.label}
-                className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur"
+                className="rounded-3xl border border-border/70 bg-card/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur"
               >
                 <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{item.label}</p>
                 <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{item.value}</p>

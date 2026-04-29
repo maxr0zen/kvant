@@ -137,20 +137,20 @@ export function QuestionView({ question }: QuestionViewProps) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div className="rounded-3xl border border-border/70 bg-card/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
               <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Формат</p>
               <p className="mt-3 text-lg font-semibold tracking-[-0.04em] text-foreground">
                 {question.multiple ? "Несколько вариантов" : "Один вариант"}
               </p>
             </div>
-            <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div className="rounded-3xl border border-border/70 bg-card/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
               <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Дедлайн</p>
               <div className="mt-3">
                 <AvailabilityCountdown availableUntil={question.availableUntil} />
               </div>
             </div>
             {maxAttempts != null ? (
-              <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:col-span-2">
+              <div className="rounded-3xl border border-border/70 bg-card/85 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:col-span-2">
                 <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Попытки</p>
                 <p className="mt-3 text-lg font-semibold tracking-[-0.04em] text-foreground">
                   {attemptsExhausted ? "Лимит исчерпан" : `Осталось ${attemptsLeft} из ${maxAttempts}`}

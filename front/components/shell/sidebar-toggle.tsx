@@ -4,57 +4,70 @@ import { useRef, useCallback } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useSidebar } from "./sidebar-context";
 
-const SWIPE_THRESHOLD = 40;
+const MIN_WIDTH = 5.25 * 16;
+const MAX_WIDTH = 320;
+const SNAP_THRESHOLD = 40;
 
 export function SidebarToggle() {
-  const { collapsed, setCollapsed, toggle } = useSidebar();
-  const pointerStartX = useRef<number | null>(null);
-  const gestureHandled = useRef(false);
+  const { width, setWidth, toggle, isCollapsed } = useSidebar();
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
   const zoneRef = useRef<HTMLDivElement>(null);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    pointerStartX.current = e.clientX;
+    // Ignore if clicking the button itself
+    if ((e.target as HTMLElement).closest("button")) return;
+
+    isDragging.current = true;
+    startX.current = e.clientX;
+    startWidth.current = width;
     zoneRef.current?.setPointerCapture(e.pointerId);
-  }, []);
+    zoneRef.current?.classList.add("cursor-col-resize");
+  }, [width]);
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (pointerStartX.current === null) return;
-      const dx = e.clientX - pointerStartX.current;
-      if (Math.abs(dx) >= SWIPE_THRESHOLD) {
-        gestureHandled.current = true;
-        setCollapsed(dx < 0);
-        pointerStartX.current = null;
-      }
+      if (!isDragging.current) return;
+      const dx = e.clientX - startX.current;
+      const newWidth = startWidth.current + dx;
+      setWidth(newWidth);
     },
-    [setCollapsed]
+    [setWidth]
   );
 
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    zoneRef.current?.releasePointerCapture(e.pointerId);
-    pointerStartX.current = null;
-    requestAnimationFrame(() => { gestureHandled.current = false; });
-  }, []);
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+      zoneRef.current?.releasePointerCapture(e.pointerId);
+      zoneRef.current?.classList.remove("cursor-col-resize");
 
-  const handleClick = useCallback(() => {
-    if (gestureHandled.current) return;
-    toggle();
-  }, [toggle]);
+      // Snap to nearest anchor if close enough
+      const current = width;
+      const mid = (MIN_WIDTH + MAX_WIDTH) / 2;
 
-  const touchZoneWidth = 32;
-  const shellHorizontalOffset = "20px";
-  const left = collapsed
-    ? `calc(${shellHorizontalOffset} + var(--sidebar-width-collapsed) - 12px)`
-    : `calc(${shellHorizontalOffset} + var(--sidebar-width) - 12px)`;
+      if (Math.abs(current - MIN_WIDTH) < SNAP_THRESHOLD) {
+        setWidth(MIN_WIDTH);
+      } else if (Math.abs(current - MAX_WIDTH) < SNAP_THRESHOLD) {
+        setWidth(MAX_WIDTH);
+      } else if (Math.abs(current - mid) < SNAP_THRESHOLD) {
+        setWidth(mid);
+      }
+      // Otherwise keep the current width (partial collapse)
+    },
+    [width, setWidth]
+  );
+
+  // Position the toggle button at the sidebar edge
+  const left = width - 12;
 
   return (
     <div
       ref={zoneRef}
       role="presentation"
-      className={
-        "fixed top-0 bottom-0 z-40 flex items-center justify-center transition-[left] duration-200 ease-in-out hidden lg:flex"
-      }
-      style={{ left, width: `${touchZoneWidth}px` }}
+      className="fixed top-0 bottom-0 z-40 flex items-center justify-center transition-none hidden lg:flex"
+      style={{ left, width: "24px" }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -62,12 +75,12 @@ export function SidebarToggle() {
     >
       <button
         type="button"
-        onClick={handleClick}
-        title={collapsed ? "Развернуть меню" : "Свернуть меню"}
-        aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+        onClick={toggle}
+        title={isCollapsed ? "Развернуть меню" : "Свернуть меню"}
+        aria-label={isCollapsed ? "Развернуть меню" : "Свернуть меню"}
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card border border-border shadow-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors active:scale-95 touch-manipulation"
       >
-        {collapsed ? (
+        {isCollapsed ? (
           <PanelLeftOpen className="h-4 w-4" />
         ) : (
           <PanelLeftClose className="h-4 w-4" />

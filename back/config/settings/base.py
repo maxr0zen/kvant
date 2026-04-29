@@ -6,6 +6,9 @@ import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+WEB_LECTION_FILES_ROOT = BASE_DIR.parent / "web-lection-files"
+WEB_LECTION_MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
 env = environ.Env(
     DEBUG=(bool, False),
     SECRET_KEY=(str, "dev-secret-key-change-in-production"),

@@ -431,7 +431,7 @@ export default function EditLayoutPage() {
                   srcDoc={previewDoc}
                   sandbox="allow-scripts"
                   title="Layout template preview"
-                  className="w-full h-[260px] border-0 bg-white"
+                  className="w-full h-[260px] border-0 bg-background"
                 />
               </div>
             </div>
@@ -488,7 +488,7 @@ export default function EditLayoutPage() {
                   srcDoc={referencePreviewDoc}
                   sandbox="allow-scripts"
                   title="Layout reference preview"
-                  className="w-full h-[260px] border-0 bg-white"
+                  className="w-full h-[260px] border-0 bg-background"
                 />
               </div>
             </div>

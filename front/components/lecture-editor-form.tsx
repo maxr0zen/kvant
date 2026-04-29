@@ -23,6 +23,7 @@ import { BlockEditorImage } from "@/components/lecture-blocks/block-editor-image
 import { BlockEditorCode } from "@/components/lecture-blocks/block-editor-code";
 import { BlockEditorQuestion } from "@/components/lecture-blocks/block-editor-question";
 import { BlockEditorVideo } from "@/components/lecture-blocks/block-editor-video";
+import { BlockEditorWebFile } from "@/components/lecture-blocks/block-editor-web-file";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Type, Image as ImageIcon, Code, HelpCircle, Video, ChevronUp, ChevronDown, Settings2, Plus, Trash2 } from "lucide-react";
+import { Type, Image as ImageIcon, Code, HelpCircle, Video, FileCode, ChevronUp, ChevronDown, Settings2, Plus, Trash2 } from "lucide-react";
 
 function genBlockId() {
   return "q" + Math.random().toString(36).slice(2, 10);
@@ -64,6 +65,11 @@ const newVideoBlock = (): Extract<LectureBlock, { type: "video" }> => ({
   id: genBlockId(),
   url: "",
   pause_points: [],
+});
+const newWebFileBlock = (): Extract<LectureBlock, { type: "web_file" }> => ({
+  type: "web_file",
+  url: "",
+  title: "",
 });
 
 interface LectureEditorFormProps {
@@ -128,12 +134,13 @@ export function LectureEditorForm({
   const [maxAttempts, setMaxAttempts] = useState(initialMaxAttempts);
   const [loading, setLoading] = useState(false);
 
-  function addBlock(type: "text" | "image" | "code" | "question" | "video") {
+  function addBlock(type: "text" | "image" | "code" | "question" | "video" | "web_file") {
     if (type === "text") setBlocks((prev) => [...prev, newTextBlock()]);
     if (type === "image") setBlocks((prev) => [...prev, newImageBlock()]);
     if (type === "code") setBlocks((prev) => [...prev, newCodeBlock()]);
     if (type === "question") setBlocks((prev) => [...prev, newQuestionBlock()]);
     if (type === "video") setBlocks((prev) => [...prev, newVideoBlock()]);
+    if (type === "web_file") setBlocks((prev) => [...prev, newWebFileBlock()]);
   }
 
   function updateBlock(index: number, block: LectureBlock) {
@@ -375,6 +382,10 @@ export function LectureEditorForm({
                 <Video className="h-4 w-4" />
                 Видео
               </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => addBlock("web_file")} className="gap-2 rounded-lg shrink-0">
+                <FileCode className="h-4 w-4" />
+                Веб-файл
+              </Button>
             </div>
           </div>
 
@@ -442,6 +453,13 @@ export function LectureEditorForm({
                       onRemove={() => removeBlock(index)}
                     />
                   )}
+                  {block.type === "web_file" && (
+                    <BlockEditorWebFile
+                      block={block}
+                      onChange={(b) => updateBlock(index, b)}
+                      onRemove={() => removeBlock(index)}
+                    />
+                  )}
                 </div>
               </div>
             ))}
@@ -451,7 +469,7 @@ export function LectureEditorForm({
               <div className="flex flex-col gap-2 text-muted-foreground">
                 <Plus className="h-10 w-10 opacity-50" />
                 <p className="text-sm font-medium">Пока нет блоков</p>
-                <p className="text-xs max-w-sm">Выберите тип блока выше (Текст, Изображение, Код, Вопрос или Видео), чтобы добавить первый блок лекции.</p>
+                <p className="text-xs max-w-sm">Выберите тип блока выше (Текст, Изображение, Код, Вопрос, Видео или Веб-файл), чтобы добавить первый блок лекции.</p>
               </div>
             </div>
           )}
@@ -472,6 +490,9 @@ export function LectureEditorForm({
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => addBlock("video")} className="gap-1.5 rounded-lg text-muted-foreground">
                 <Video className="h-3.5 w-3.5" /> Видео
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => addBlock("web_file")} className="gap-1.5 rounded-lg text-muted-foreground">
+                <FileCode className="h-3.5 w-3.5" /> Веб-файл
               </Button>
               <span className="text-xs text-muted-foreground self-center ml-1">— добавить ещё</span>
             </div>
