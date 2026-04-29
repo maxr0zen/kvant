@@ -19,7 +19,9 @@ env = environ.Env(
     REDIS_URL=(str, "redis://127.0.0.1:6379/0"),
 )
 
-environ.Env.read_env(os.path.join(BASE_DIR, ".env"), overwrite=True)
+_env_path = os.path.join(BASE_DIR, ".env")
+if os.path.exists(_env_path):
+    environ.Env.read_env(_env_path, overwrite=True)
 
 SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")

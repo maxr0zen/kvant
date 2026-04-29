@@ -8,6 +8,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -16,8 +17,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   backend:
+    image: kavnt-backend:test
     build:
       context: .
       dockerfile: back/Dockerfile
@@ -36,8 +39,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "check", "--settings=config.settings.prod"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
   celery:
+    image: kavnt-backend:test
     build:
       context: .
       dockerfile: back/Dockerfile
@@ -49,11 +60,13 @@ services:
     command: celery -A config worker -l info
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
 
   frontend:
+    image: kavnt-frontend:test
     build:
       context: .
       dockerfile: front/Dockerfile
@@ -62,7 +75,9 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
   nginx:
     image: nginx:alpine
@@ -73,8 +88,11 @@ services:
       - backend_static:/static:ro
       - ./web-lection-files:/usr/share/nginx/html/web-lection-files:ro
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
   mongo_data:

@@ -1,31 +1,31 @@
-import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
-import { fetchSurveyById } from "@/lib/api/surveys";
-import { AUTH_TOKEN_COOKIE } from "@/lib/api/auth";
-import { SurveyView } from "./survey-view";
-import { PageHeader } from "@/components/ui/page-header";
-import { AvailabilityCountdown } from "@/components/availability-countdown";
-
-export default async function SurveyPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const cookieStore = await cookies();
-  const token = cookieStore.get(AUTH_TOKEN_COOKIE)?.value ?? null;
-  const survey = await fetchSurveyById(id, token);
-  if (!survey) notFound();
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title={survey.title || "Îïðîñ"}
-        description="Ñïîêîéíûé reflective flow äëÿ îòâåòà ñòóäåíòà è review-panel äëÿ ïðåïîäàâàòåëÿ."
-        breadcrumbs={[{ label: "Ãëàâíàÿ", href: "/main" }, { label: "Îïðîñ" }]}
-        actions={<AvailabilityCountdown availableUntil={survey.availableUntil} className="shrink-0" />}
-      />
-      <SurveyView survey={survey} />
-    </div>
-  );
-}
+import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { fetchSurveyById } from "@/lib/api/surveys";
+import { AUTH_TOKEN_COOKIE } from "@/lib/api/auth";
+import { SurveyView } from "./survey-view";
+import { PageHeader } from "@/components/ui/page-header";
+import { AvailabilityCountdown } from "@/components/availability-countdown";
+
+export default async function SurveyPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(AUTH_TOKEN_COOKIE)?.value ?? null;
+  const survey = await fetchSurveyById(id, token);
+  if (!survey) notFound();
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={survey.title || "ÐžÐ¿Ñ€Ð¾Ñ"}
+        description="Ð¡Ð¿Ð¾ÐºÐ¾Ð¹Ð½Ñ‹Ð¹ reflective flow Ð´Ð»Ñ Ð¾Ñ‚Ð²ÐµÑ‚Ð° ÑÑ‚ÑƒÐ´ÐµÐ½Ñ‚Ð° Ð¸ review-panel Ð´Ð»Ñ Ð¿Ñ€ÐµÐ¿Ð¾Ð´Ð°Ð²Ð°Ñ‚ÐµÐ»Ñ."
+        breadcrumbs={[{ label: "Ð“Ð»Ð°Ð²Ð½Ð°Ñ", href: "/main" }, { label: "ÐžÐ¿Ñ€Ð¾Ñ" }]}
+        actions={<AvailabilityCountdown availableUntil={survey.availableUntil} className="shrink-0" />}
+      />
+      <SurveyView survey={survey} />
+    </div>
+  );
+}
