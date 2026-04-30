@@ -189,3 +189,33 @@ def check_puzzle_solution(request, puzzle_id):
 
     except Puzzle.DoesNotExist:
         return Response({'error': 'Puzzle not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsTeacher])
+def copy_puzzle(request, puzzle_id):
+    """Создать копию puzzle-задачи"""
+    try:
+        puzzle = get_doc_by_pk(Puzzle, puzzle_id)
+    except Puzzle.DoesNotExist:
+        return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    new_puzzle = Puzzle(
+        title=puzzle.title + " (копия)",
+        track_id="",
+        description=puzzle.description,
+        language=puzzle.language,
+        blocks=puzzle.blocks,
+        solution=puzzle.solution,
+        visible_group_ids=[],
+        created_by_id=str(request.user.id),
+        available_from=None,
+        available_until=None,
+        hints=puzzle.hints,
+        max_attempts=puzzle.max_attempts,
+        reward_achievement_ids=puzzle.reward_achievement_ids,
+        copied_from_id=str(getattr(puzzle, "public_id", None) or puzzle.id),
+    )
+    new_puzzle.save()
+    serializer = PuzzleSerializer(new_puzzle, context={"request": request})
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+

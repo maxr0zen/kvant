@@ -466,7 +466,7 @@ export function LectureEditorForm({
           </div>
           {blocks.length === 0 && (
             <div className="rounded-xl border border-dashed border-border/80 bg-muted/10 py-12">
-              <div className="flex flex-col gap-2 text-muted-foreground">
+              <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
                 <Plus className="h-10 w-10 opacity-50" />
                 <p className="text-sm font-medium">Пока нет блоков</p>
                 <p className="text-xs max-w-sm">Выберите тип блока выше (Текст, Изображение, Код, Вопрос, Видео или Веб-файл), чтобы добавить первый блок лекции.</p>

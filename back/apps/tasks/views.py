@@ -211,4 +211,29 @@ class TaskViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, UpdateMo
             TaskDraft(user_id=user_id, task_id=task_id, code=code).save()
         return Response({"status": "ok"})
 
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated, IsTeacher])
+    def copy(self, request, pk=None):
+        try:
+            instance = self.get_object()
+        except Task.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        new_task = Task(
+            title=instance.title + " (копия)",
+            track_id="",
+            description=instance.description,
+            starter_code=instance.starter_code,
+            test_cases=instance.test_cases,
+            hard=instance.hard,
+            visible_group_ids=[],
+            created_by_id=str(request.user.id),
+            available_from=None,
+            available_until=None,
+            hints=instance.hints,
+            max_attempts=instance.max_attempts,
+            reward_achievement_ids=instance.reward_achievement_ids,
+            copied_from_id=str(getattr(instance, "public_id", None) or instance.id),
+        )
+        new_task.save()
+        ser = self.get_serializer(new_task, context={"request": request})
+        return Response(ser.data, status=status.HTTP_201_CREATED)
 

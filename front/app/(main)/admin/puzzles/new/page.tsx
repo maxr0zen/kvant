@@ -215,7 +215,7 @@ export default function NewPuzzlePage() {
     : [{ label: "Треки", href: "/main" }, { label: "Новый puzzle" }];
 
   return (
-    <div className="content-block w-full max-w-5xl">
+    <div className="content-block w-full max-w-5xl mx-auto">
       <PageHeader
         title="Создание Puzzle"
         description={trackId ? "Puzzle будет добавлен в трек после сохранения." : "Задание на сборку кода из блоков в правильном порядке."}

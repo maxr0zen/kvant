@@ -248,7 +248,7 @@ export default function EditLayoutPage() {
   const referencePreviewDoc = buildPreviewDoc(referenceHtml, referenceCss, referenceJs);
 
   return (
-    <div className="content-block w-full max-w-5xl">
+    <div className="content-block w-full max-w-5xl mx-auto">
       <PageHeader
         title="Редактирование верстки"
         description={title}

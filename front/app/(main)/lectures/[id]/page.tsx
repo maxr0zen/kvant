@@ -70,9 +70,9 @@ export default async function LecturePage({
 
   if (isImmersive) {
     return (
-      <div className="space-y-6">
+      <div className="relative z-10 flex flex-col h-full min-h-0 bg-background -mx-4 -my-5 sm:-mx-6 sm:-my-6 lg:-mx-8 lg:-my-8 xl:-mx-10">
         <LectureViewTracker lectureId={resolvedLectureId} />
-        <div className="-mx-4 -my-5 sm:-mx-6 sm:-my-6 lg:-mx-8 lg:-my-8 xl:-mx-10">
+        <div className="flex-1 min-h-0 bg-background">
           {hasBlocks ? (
             <LectureBlocks blocks={lecture.blocks!} lectureId={resolvedLectureId} immersive />
           ) : lecture.content ? (

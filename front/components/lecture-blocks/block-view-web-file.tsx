@@ -13,6 +13,8 @@ export function BlockViewWebFile({ block, immersive }: BlockViewWebFileProps) {
   const [height, setHeight] = useState<number | null>(null);
 
   useEffect(() => {
+    if (immersive) return;
+
     const iframe = iframeRef.current;
     if (!iframe) return;
 
@@ -56,7 +58,7 @@ export function BlockViewWebFile({ block, immersive }: BlockViewWebFileProps) {
       if (intervalId) clearInterval(intervalId);
       window.removeEventListener("resize", handleResize);
     };
-  }, [block.url]);
+  }, [block.url, immersive]);
 
   if (!block.url?.trim()) {
     return (
@@ -67,7 +69,7 @@ export function BlockViewWebFile({ block, immersive }: BlockViewWebFileProps) {
   }
 
   return (
-    <div className={immersive ? "" : "space-y-2"}>
+    <div className={immersive ? "flex-1 flex flex-col min-h-0 bg-background" : "space-y-2"}>
       {!immersive && block.title?.trim() && (
         <h3 className="text-base font-semibold">{block.title}</h3>
       )}
@@ -77,10 +79,10 @@ export function BlockViewWebFile({ block, immersive }: BlockViewWebFileProps) {
         title={block.title?.trim() || "Веб-файл"}
         className={`w-full bg-background ${
           immersive
-            ? "min-h-[400px]"
+            ? "h-full"
             : "min-h-[400px] rounded-lg border border-border/60"
         }`}
-        style={height ? { height: `${height}px` } : undefined}
+        style={immersive ? undefined : (height ? { height: `${height}px` } : undefined)}
         sandbox="allow-scripts allow-same-origin"
         loading="lazy"
       />

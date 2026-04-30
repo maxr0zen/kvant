@@ -912,3 +912,52 @@ class UserDetailUpdateView(APIView):
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(UserListSerializer(user).data)
+
+class TeacherMaterialsView(APIView):
+    """GET /api/auth/teacher/materials/ - список всех материалов для преподавателя.
+    Возвращает lectures, tasks, puzzles, questions, surveys, layouts.
+    Для каждого материала: can_edit, created_by_id, copied_from_id.
+    """
+    permission_classes = [IsAuthenticated, IsTeacherOrSuperuser]
+
+    def get(self, request):
+        from apps.lectures.documents import Lecture
+        from apps.tasks.documents import Task
+        from apps.puzzles.documents import Puzzle
+        from apps.questions.documents import Question
+        from apps.surveys.documents import Survey
+        from apps.layouts.documents import LayoutLesson
+
+        user = request.user
+        is_superuser = getattr(user, "role", None) == "superuser"
+        user_id = str(user.id)
+
+        def serialize_doc(doc, doc_type):
+            doc_id = str(getattr(doc, "public_id", None) or doc.id)
+            creator = getattr(doc, "created_by_id", None) or ""
+            can_edit = is_superuser or (creator and str(creator) == user_id)
+            return {
+                "id": doc_id,
+                "type": doc_type,
+                "title": doc.title,
+                "created_by_id": creator,
+                "can_edit": can_edit,
+                "copied_from_id": getattr(doc, "copied_from_id", "") or "",
+                "visible_group_ids": getattr(doc, "visible_group_ids", []) or [],
+            }
+
+        lectures = [serialize_doc(lec, "lecture") for lec in Lecture.objects.all()]
+        tasks = [serialize_doc(t, "task") for t in Task.objects.all()]
+        puzzles = [serialize_doc(p, "puzzle") for p in Puzzle.objects.all()]
+        questions = [serialize_doc(q, "question") for q in Question.objects.all()]
+        surveys = [serialize_doc(s, "survey") for s in Survey.objects.all()]
+        layouts = [serialize_doc(l, "layout") for l in LayoutLesson.objects.all()]
+
+        return Response({
+            "lectures": lectures,
+            "tasks": tasks,
+            "puzzles": puzzles,
+            "questions": questions,
+            "surveys": surveys,
+            "layouts": layouts,
+        })

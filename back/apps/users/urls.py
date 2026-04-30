@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    TeacherMaterialsView,
     LoginView,
     ProfileView,
     PlatformCompletedAssignmentsView,
@@ -32,5 +33,6 @@ urlpatterns = [
     path("teacher/tasks/<str:task_id>/submissions/<str:student_id>/", TeacherTaskSubmissionView.as_view(), name="teacher-task-submission"),
     path("users/", UserListCreateView.as_view(), name="user-list-create"),
     path("users/<str:pk>/reset-password/", ResetStudentPasswordView.as_view(), name="user-reset-password"),
+    path("teacher/materials/", TeacherMaterialsView.as_view(), name="teacher-materials"),
     path("users/<str:pk>/", UserDetailUpdateView.as_view(), name="user-detail-update"),
 ]

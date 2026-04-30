@@ -14,7 +14,7 @@ export default function NewLecturePage() {
     : [{ label: "Треки", href: "/main" }, { label: "Новая лекция" }];
 
   return (
-    <div className="content-block w-full max-w-5xl">
+    <div className="content-block w-full max-w-5xl mx-auto">
       <PageHeader
         title="Создание лекции"
         description={trackId

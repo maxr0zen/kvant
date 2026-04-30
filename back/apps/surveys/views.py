@@ -7,6 +7,7 @@ from common.db_utils import get_doc_by_pk
 from .documents import Survey, SurveyResponse
 from .serializers import SurveySerializer
 from apps.submissions.progress import save_lesson_progress
+from apps.users.permissions import IsTeacher
 from apps.users.teacher_utils import validate_visible_group_ids_for_teacher
 
 
@@ -284,3 +285,28 @@ def accept_survey_response(request, survey_id, user_id):
         available_until=getattr(survey, "available_until", None),
     )
     return Response({"ok": True, "message": "Задание принято.", "unlocked_achievements": unlocked_achievements})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsTeacher])
+def copy_survey(request, survey_id):
+    """Создать копию опроса"""
+    try:
+        survey = get_doc_by_pk(Survey, survey_id)
+    except Survey.DoesNotExist:
+        return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    new_survey = Survey(
+        title=survey.title + " (копия)",
+        track_id="",
+        prompt=survey.prompt,
+        visible_group_ids=[],
+        created_by_id=str(request.user.id),
+        available_from=None,
+        available_until=None,
+        reward_achievement_ids=survey.reward_achievement_ids,
+        copied_from_id=str(getattr(survey, "public_id", None) or survey.id),
+    )
+    new_survey.save()
+    serializer = SurveySerializer(new_survey, context={"request": request})
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+

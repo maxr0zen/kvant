@@ -19,7 +19,7 @@ import { HintsBlock } from "@/components/hints-block";
 import { AvailabilityNotice } from "@/components/availability-notice";
 import { AvailabilityCountdown } from "@/components/availability-countdown";
 import { CodeHighlight } from "@/components/code-highlight";
-import { AchievementUnlockCelebration } from "@/components/achievement-unlock-celebration";
+import { AchievementFullscreenCelebration } from "@/components/achievement-fullscreen-celebration";
 import { cn } from "@/components/lib/utils";
 
 interface PuzzleViewProps {
@@ -307,7 +307,7 @@ export function PuzzleView({ puzzle }: PuzzleViewProps) {
         </div>
       </div>
 
-      <AchievementUnlockCelebration items={unlockedAchievements} onDone={() => setUnlockedAchievements([])} />
+      <AchievementFullscreenCelebration items={unlockedAchievements} onDone={() => setUnlockedAchievements([])} />
     </div>
   );
 }

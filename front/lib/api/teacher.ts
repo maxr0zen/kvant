@@ -178,3 +178,65 @@ export async function fetchStudentTaskSubmission(
   if (!res.ok) return null;
   return res.json();
 }
+
+// --- Материалы преподавателей ---
+
+export interface TeacherMaterial {
+  id: string;
+  type: string;
+  title: string;
+  created_by_id: string;
+  can_edit: boolean;
+  copied_from_id: string;
+  visible_group_ids: string[];
+}
+
+export interface TeacherMaterialsResponse {
+  lectures: TeacherMaterial[];
+  tasks: TeacherMaterial[];
+  puzzles: TeacherMaterial[];
+  questions: TeacherMaterial[];
+  surveys: TeacherMaterial[];
+  layouts: TeacherMaterial[];
+}
+
+export async function fetchTeacherMaterials(token?: string | null): Promise<TeacherMaterialsResponse> {
+  if (!hasApi()) return { lectures: [], tasks: [], puzzles: [], questions: [], surveys: [], layouts: [] };
+  const res = await apiFetch("/api/auth/teacher/materials/", { token: token ?? undefined });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Не удалось загрузить материалы");
+  }
+  const data = await res.json();
+  return {
+    lectures: Array.isArray(data.lectures) ? data.lectures : [],
+    tasks: Array.isArray(data.tasks) ? data.tasks : [],
+    puzzles: Array.isArray(data.puzzles) ? data.puzzles : [],
+    questions: Array.isArray(data.questions) ? data.questions : [],
+    surveys: Array.isArray(data.surveys) ? data.surveys : [],
+    layouts: Array.isArray(data.layouts) ? data.layouts : [],
+  };
+}
+
+export async function copyMaterial(type: string, id: string, token?: string | null): Promise<{ id: string; title: string }> {
+  if (!hasApi()) throw new Error("API not configured");
+  const endpointMap: Record<string, string> = {
+    lecture: `/api/lectures/${id}/copy/`,
+    task: `/api/tasks/${id}/copy/`,
+    puzzle: `/api/puzzles/${id}/copy/`,
+    question: `/api/questions/${id}/copy/`,
+    survey: `/api/surveys/${id}/copy/`,
+    layout: `/api/layouts/${id}/copy/`,
+  };
+  const endpoint = endpointMap[type];
+  if (!endpoint) throw new Error("Unknown material type");
+  const res = await apiFetch(endpoint, {
+    method: "POST",
+    token: token ?? undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Ошибка копирования");
+  }
+  return res.json();
+}

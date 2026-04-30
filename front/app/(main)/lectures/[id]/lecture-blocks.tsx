@@ -39,7 +39,7 @@ export function LectureBlocks({ blocks, lectureId, immersive }: LectureBlocksPro
   }, [lectureId]);
 
   return (
-    <div className="space-y-8">
+    <div className={immersive ? "h-full flex flex-col min-h-0" : "space-y-8"}>
       {blocks.map((block, index) => {
         const content = block.type === "text" ? (
           <BlockViewText key={index} block={block} />
@@ -78,8 +78,14 @@ export function LectureBlocks({ blocks, lectureId, immersive }: LectureBlocksPro
           />
         ) : null;
         if (!content) return null;
+        const sectionClass = immersive
+          ? block.type === "web_file"
+            ? "flex-1 flex flex-col min-h-0"
+            : "shrink-0"
+          : "scroll-mt-8";
+
         return (
-          <section key={block.type === "question" || block.type === "video" ? block.id : index} className="scroll-mt-8">
+          <section key={block.type === "question" || block.type === "video" ? block.id : index} className={sectionClass}>
             {content}
           </section>
         );

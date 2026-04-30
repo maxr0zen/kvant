@@ -1,8 +1,10 @@
 import { getStoredToken, clearStoredToken, clearStoredRole, clearStoredUser } from "@/lib/api/auth";
 
-// Use NEXT_PUBLIC_API_URL both on server and client. Next will inline the env var
-// at build time for client bundles and process.env is available on the server.
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+// Use NEXT_PUBLIC_API_URL on client (inlined at build time).
+// Use INTERNAL_API_URL on server (set in Docker) so SSR fetches reach nginx/backend inside the container network.
+const API_BASE_CLIENT = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const API_BASE_SERVER = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const API_BASE = typeof window === "undefined" ? API_BASE_SERVER : API_BASE_CLIENT;
 
 export function getApiBase(): string {
   return API_BASE;

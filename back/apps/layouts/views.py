@@ -190,3 +190,39 @@ class LayoutViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Update
         else:
             LayoutDraft(user_id=user_id, layout_id=layout_id, html=html, css=css, js=js).save()
         return Response({"status": "ok"})
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated, IsTeacher])
+    def copy(self, request, pk=None):
+        try:
+            instance = self.get_object()
+        except LayoutLesson.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        from .documents import _generate_public_id, LayoutSubtaskEmbed
+        new_layout = LayoutLesson(
+            title=instance.title + " (копия)",
+            track_id="",
+            description=instance.description,
+            attached_lecture_id=instance.attached_lecture_id,
+            template_html=instance.template_html,
+            template_css=instance.template_css,
+            template_js=instance.template_js,
+            reference_html=instance.reference_html,
+            reference_css=instance.reference_css,
+            reference_js=instance.reference_js,
+            check_mode=instance.check_mode,
+            editable_files=instance.editable_files,
+            subtasks=[LayoutSubtaskEmbed(**{"id": st.id, "title": st.title, "check_type": st.check_type, "check_value": st.check_value}) for st in instance.subtasks],
+            visible_group_ids=[],
+            created_by_id=str(request.user.id),
+            available_from=None,
+            available_until=None,
+            hints=instance.hints,
+            max_attempts=instance.max_attempts,
+            reward_achievement_ids=instance.reward_achievement_ids,
+            copied_from_id=str(getattr(instance, "public_id", None) or instance.id),
+        )
+        new_layout.public_id = _generate_public_id()
+        new_layout.save()
+        ser = self.get_serializer(new_layout, context={"request": request})
+        return Response(ser.data, status=status.HTTP_201_CREATED)
+

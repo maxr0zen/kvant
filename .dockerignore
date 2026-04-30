@@ -5,6 +5,10 @@
 .env
 .env.*
 .env.prod.example
+back/.env
+back/.env.*
+front/.env.local
+front/.env.*
 Dockerfile*
 docker-compose*.yml
 .dockerignore

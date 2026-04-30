@@ -74,6 +74,7 @@ services:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost}
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost}
+      - INTERNAL_API_URL=http://nginx
     depends_on:
       backend:
         condition: service_healthy

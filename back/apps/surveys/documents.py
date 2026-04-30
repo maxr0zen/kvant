@@ -34,3 +34,5 @@ class SurveyResponse(Document):
     user_id = StringField(required=True)
     answer = StringField(required=True, default="")  # свободная форма
     created_at = DateTimeField(default=datetime.utcnow)
+    # ID оригинального материала, из которого скопирован (copy-on-edit / fork)
+    copied_from_id = StringField(default="")

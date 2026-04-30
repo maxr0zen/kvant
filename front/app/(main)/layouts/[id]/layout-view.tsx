@@ -18,7 +18,7 @@ import { LectureBlocks } from "@/app/(main)/lectures/[id]/lecture-blocks";
 import { LegacyLectureContent } from "@/app/(main)/lectures/[id]/legacy-lecture-content";
 import { EmptyState } from "@/components/ui/empty-state";
 import { BookOpen, ChevronDown, ChevronRight, FileText } from "lucide-react";
-import { AchievementUnlockCelebration } from "@/components/achievement-unlock-celebration";
+import { AchievementFullscreenCelebration } from "@/components/achievement-fullscreen-celebration";
 
 const DRAFT_SAVE_DELAY_MS = 1500;
 const CHECK_DEBOUNCE_MS = 800;
@@ -566,7 +566,7 @@ export function LayoutView({
         </>
       )}
       </div>
-      <AchievementUnlockCelebration
+      <AchievementFullscreenCelebration
         items={unlockedAchievements}
         onDone={() => setUnlockedAchievements([])}
       />

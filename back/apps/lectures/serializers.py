@@ -169,6 +169,7 @@ class LectureSerializer(serializers.Serializer):
             blocks=blocks,
             visible_group_ids=visible_group_ids,
             created_by_id=created_by_id,
+            copied_from_id=validated_data.get("copied_from_id", ""),
             available_from=available_from,
             available_until=available_until,
             hints=hints or [],

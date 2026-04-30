@@ -14,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru">
-      <body className="min-h-screen antialiased">
+    <html lang="ru" className="h-full">
+      <body className="min-h-screen h-full antialiased">
         <ThemeProvider>
           {children}
           <Toaster />

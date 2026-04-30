@@ -160,3 +160,32 @@ def check_question_answer(request, question_id):
         })
     except Question.DoesNotExist:
         return Response({"error": "Question not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsTeacher])
+def copy_question(request, question_id):
+    """Создать копию вопроса"""
+    try:
+        question = get_doc_by_pk(Question, question_id)
+    except Question.DoesNotExist:
+        return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    new_question = Question(
+        title=question.title + " (копия)",
+        track_id="",
+        prompt=question.prompt,
+        choices=question.choices,
+        multiple=question.multiple,
+        visible_group_ids=[],
+        created_by_id=str(request.user.id),
+        available_from=None,
+        available_until=None,
+        hints=question.hints,
+        max_attempts=question.max_attempts,
+        reward_achievement_ids=question.reward_achievement_ids,
+        copied_from_id=str(getattr(question, "public_id", None) or question.id),
+    )
+    new_question.save()
+    serializer = QuestionSerializer(new_question, context={"request": request})
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+

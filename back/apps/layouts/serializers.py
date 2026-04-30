@@ -130,6 +130,7 @@ class LayoutSerializer(serializers.Serializer):
             "available_until": datetime_to_iso_utc(getattr(instance, "available_until", None)),
             "max_attempts": getattr(instance, "max_attempts", None),
             "can_edit": self.get_can_edit(instance),
+            "copied_from_id": getattr(instance, "copied_from_id", "") or "",
             "attempts_used": self.get_attempts_used(instance),
         }
 
@@ -171,6 +172,7 @@ class LayoutSerializer(serializers.Serializer):
             available_until=available_until,
             max_attempts=max_attempts,
             created_by_id=created_by_id,
+            copied_from_id=validated_data.get("copied_from_id", ""),
         )
         layout.subtasks = [LayoutSubtaskEmbed(**st) for st in subtasks_data]
         from .documents import _generate_public_id
@@ -210,6 +212,8 @@ class LayoutSerializer(serializers.Serializer):
             instance.editable_files = self._validate_editable_files(editable)
         if subtasks is not None:
             instance.subtasks = [LayoutSubtaskEmbed(**st) for st in subtasks]
+        if "copied_from_id" in validated_data:
+            instance.copied_from_id = validated_data["copied_from_id"]
         instance.save()
         return instance
 

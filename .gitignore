@@ -46,3 +46,10 @@ dist/
 Thumbs.db
 .DS_Store
 
+
+# Temporary and build files
+cookies.txt
+web-lection-files/
+front/public/web-lection-files/
+front/tsconfig.tsbuildinfo
+

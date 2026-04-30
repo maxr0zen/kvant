@@ -209,7 +209,7 @@ export default function NewLayoutPage() {
   const referencePreviewDoc = buildPreviewDoc(referenceHtml, referenceCss, referenceJs);
 
   return (
-    <div className="content-block w-full max-w-5xl">
+    <div className="content-block w-full max-w-5xl mx-auto">
       <PageHeader
         title="Создание задания «Верстка»"
         description={trackId ? "Задание будет добавлено в трек." : "HTML/CSS/JS с подзадачами-чекерами."}

@@ -103,10 +103,10 @@ export default async function MainTrackLessonPage({
 
     if (isImmersive) {
       return (
-        <div className="space-y-6">
-          <TrackLessonNav trackId={trackId} trackTitle={track.title} prev={prev} next={next} className="sticky top-0 z-50" />
+        <div className="relative z-10 flex flex-col h-full min-h-0 bg-background -mx-4 -my-5 sm:-mx-6 sm:-my-6 lg:-mx-8 lg:-my-8 xl:-mx-10">
+          <TrackLessonNav trackId={trackId} trackTitle={track.title} prev={prev} next={next} className="shrink-0" />
           <LectureViewTracker lectureId={lessonId} />
-          <div className="-mx-4 -my-5 sm:-mx-6 sm:-my-6 lg:-mx-8 lg:-my-8 xl:-mx-10">
+          <div className="flex-1 min-h-0 bg-background">
             {hasBlocks ? (
               <LectureBlocks blocks={lecture.blocks!} lectureId={lessonId} immersive />
             ) : lecture.content ? (
@@ -121,7 +121,7 @@ export default async function MainTrackLessonPage({
               </div>
             )}
           </div>
-          <TrackLessonNav trackId={trackId} trackTitle={track.title} prev={prev} next={next} />
+          <TrackLessonNav trackId={trackId} trackTitle={track.title} prev={prev} next={next} className="shrink-0" />
         </div>
       );
     }

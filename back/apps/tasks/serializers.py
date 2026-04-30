@@ -70,6 +70,7 @@ class TaskSerializer(serializers.Serializer):
             available_until=available_until,
             max_attempts=max_attempts,
             created_by_id=created_by_id,
+            copied_from_id=validated_data.get("copied_from_id", ""),
         )
         task.test_cases = [TaskCaseEmbed(**tc) for tc in tcs]
         task.save()
@@ -106,6 +107,8 @@ class TaskSerializer(serializers.Serializer):
             instance.track_id = validated_data["track_id"] or ""
         if tcs is not None:
             instance.test_cases = [TaskCaseEmbed(**tc) for tc in tcs]
+        if "copied_from_id" in validated_data:
+            instance.copied_from_id = validated_data["copied_from_id"]
         instance.save()
         return instance
 

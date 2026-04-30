@@ -48,6 +48,7 @@ class PuzzleSerializer(serializers.Serializer):
             available_until=available_until,
             max_attempts=max_attempts,
             created_by_id=created_by_id,
+            copied_from_id=validated_data.get("copied_from_id", ""),
             **validated_data
         )
         puzzle.save()
@@ -84,6 +85,7 @@ class PuzzleSerializer(serializers.Serializer):
             'id': str(getattr(instance, "public_id", None) or instance.id),
             'title': instance.title,
             'can_edit': can_edit,
+            'copied_from_id': getattr(instance, 'copied_from_id', '') or '',
             'description': instance.description,
             'track_id': instance.track_id,
             'language': instance.language,
@@ -127,5 +129,7 @@ class PuzzleSerializer(serializers.Serializer):
             instance.track_id = ""
         if blocks_data is not None:
             instance.blocks = [CodeBlockEmbed(**b) for b in blocks_data]
+        if "copied_from_id" in validated_data:
+            instance.copied_from_id = validated_data["copied_from_id"]
         instance.save()
         return instance

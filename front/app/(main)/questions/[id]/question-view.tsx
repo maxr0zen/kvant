@@ -17,7 +17,7 @@ import {
 import { AvailabilityCountdown } from "@/components/availability-countdown";
 import { AvailabilityNotice } from "@/components/availability-notice";
 import { HintsBlock } from "@/components/hints-block";
-import { AchievementUnlockCelebration } from "@/components/achievement-unlock-celebration";
+import { AchievementFullscreenCelebration } from "@/components/achievement-fullscreen-celebration";
 import { cn } from "@/components/lib/utils";
 
 interface QuestionViewProps {
@@ -253,7 +253,7 @@ export function QuestionView({ question }: QuestionViewProps) {
         </div>
       </div>
 
-      <AchievementUnlockCelebration items={unlockedAchievements} onDone={() => setUnlockedAchievements([])} />
+      <AchievementFullscreenCelebration items={unlockedAchievements} onDone={() => setUnlockedAchievements([])} />
     </div>
   );
 }

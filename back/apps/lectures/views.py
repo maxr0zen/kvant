@@ -300,6 +300,33 @@ class LectureViewSet(GenericViewSet, RetrieveModelMixin, CreateModelMixin, Updat
         })
 
 
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated, IsTeacher])
+    def copy(self, request, pk=None):
+        try:
+            instance = self.get_object()
+        except Lecture.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        from bson import ObjectId
+        new_lecture = Lecture(
+            title=instance.title + " (копия)",
+            track_id="",
+            content=instance.content,
+            blocks=instance.blocks,
+            visible_group_ids=[],
+            created_by_id=str(request.user.id),
+            available_from=None,
+            available_until=None,
+            hints=instance.hints,
+            max_attempts=instance.max_attempts,
+            copied_from_id=str(getattr(instance, "public_id", None) or instance.id),
+        )
+        new_lecture.save()
+        ser = self.get_serializer(new_lecture, context={"request": request})
+        return Response(ser.data, status=status.HTTP_201_CREATED)
+
+
+
 class WebLectureUploadView(APIView):
     """Upload a ZIP archive containing a web lecture (HTML/CSS/JS/assets).
 
@@ -377,3 +404,5 @@ class WebLectureUploadView(APIView):
             {"url": url, "folder": folder_name},
             status=status.HTTP_201_CREATED,
         )
+
+

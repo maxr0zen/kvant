@@ -43,3 +43,5 @@ class Lecture(Document):
     hints = ListField(StringField(), default=list)
     # Ограничение попыток прохождения (ответы на вопросы в лекции). None — без ограничения.
     max_attempts = IntField(default=None)
+    # ID оригинального материала, из которого скопирован (copy-on-edit / fork)
+    copied_from_id = StringField(default="")

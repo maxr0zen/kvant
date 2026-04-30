@@ -106,7 +106,7 @@ export default function NewQuestionPage() {
     : [{ label: "Треки", href: "/main" }, { label: "Новый вопрос" }];
 
   return (
-    <div className="content-block w-full max-w-5xl">
+    <div className="content-block w-full max-w-5xl mx-auto">
       <PageHeader
         title="Создание вопроса"
         description={trackId ? "Вопрос будет добавлен в трек после сохранения." : "Заполните формулировку и варианты ответа."}

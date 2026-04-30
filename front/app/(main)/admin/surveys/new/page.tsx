@@ -97,7 +97,7 @@ export default function NewSurveyPage() {
     : [{ label: "Треки", href: "/main" }, { label: "Новый опрос" }];
 
   return (
-    <div className="content-block w-full max-w-5xl">
+    <div className="content-block w-full max-w-5xl mx-auto">
       <PageHeader
         title="Создание опроса"
         description={trackId ? "Опрос будет добавлен в трек после сохранения." : "Опрос со свободной формой ответа."}

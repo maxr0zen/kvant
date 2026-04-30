@@ -16,7 +16,7 @@ import { getStoredToken } from "@/lib/api/auth";
 import { isAttemptLimitExceeded, recordFailedAttempt, getRemainingAttempts, getCooldownMinutesRemaining } from "@/lib/utils/attempt-limiter";
 import { HintsBlock } from "@/components/hints-block";
 import { AvailabilityNotice } from "@/components/availability-notice";
-import { AchievementUnlockCelebration } from "@/components/achievement-unlock-celebration";
+import { AchievementFullscreenCelebration } from "@/components/achievement-fullscreen-celebration";
 
 const DRAFT_SAVE_DELAY_MS = 1500;
 
@@ -310,7 +310,7 @@ export function TaskView({ task }: { task: Task }) {
           <HintsBlock hints={task.hints ?? []} />
         </div>
       </div>
-      <AchievementUnlockCelebration
+      <AchievementFullscreenCelebration
         items={unlockedAchievements}
         onDone={() => setUnlockedAchievements([])}
       />

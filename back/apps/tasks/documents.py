@@ -41,3 +41,5 @@ class Task(Document):
     # Ограничение попыток (None = неограниченно)
     max_attempts = IntField(default=None)
     created_by_id = StringField(default="")
+    # ID оригинального материала, из которого скопирован (copy-on-edit / fork)
+    copied_from_id = StringField(default="")

@@ -41,6 +41,7 @@ class SurveySerializer(serializers.Serializer):
             "available_from": datetime_to_iso_utc(getattr(instance, "available_from", None)),
             "available_until": datetime_to_iso_utc(getattr(instance, "available_until", None)),
             "can_edit": can_edit,
+            "copied_from_id": getattr(instance, "copied_from_id", "") or "",
             "is_teacher_or_admin": is_teacher_or_admin,
         }
 
@@ -55,7 +56,8 @@ class SurveySerializer(serializers.Serializer):
         created_by = ""
         if request and getattr(request, "user", None) and getattr(request.user, "id", None):
             created_by = str(request.user.id)
-        return Survey.objects.create(**validated_data, created_by_id=created_by)
+        return Survey.objects.create(**validated_data, created_by_id=created_by,
+            copied_from_id=validated_data.get("copied_from_id", ""))
 
     def update(self, instance, validated_data):
         for attr in ("title", "prompt", "track_id", "visible_group_ids", "reward_achievement_ids"):
@@ -67,5 +69,7 @@ class SurveySerializer(serializers.Serializer):
             instance.available_from = to_utc_datetime(validated_data["available_from"])
         if "available_until" in validated_data:
             instance.available_until = to_utc_datetime(validated_data["available_until"])
+        if "copied_from_id" in validated_data:
+            instance.copied_from_id = validated_data["copied_from_id"]
         instance.save()
         return instance

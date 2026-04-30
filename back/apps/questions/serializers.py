@@ -56,6 +56,7 @@ class QuestionSerializer(serializers.Serializer):
             "max_attempts": getattr(instance, "max_attempts", None),
             "attempts_used": attempts_used,
             "can_edit": can_edit,
+            "copied_from_id": getattr(instance, "copied_from_id", "") or "",
         }
 
     def create(self, validated_data):
@@ -90,6 +91,7 @@ class QuestionSerializer(serializers.Serializer):
             available_until=available_until,
             max_attempts=max_attempts,
             created_by_id=created_by_id,
+            copied_from_id=validated_data.get("copied_from_id", ""),
         )
         question.save()
 
@@ -132,5 +134,7 @@ class QuestionSerializer(serializers.Serializer):
                 else:
                     new_choices.append(c)
             instance.choices = new_choices
+        if "copied_from_id" in validated_data:
+            instance.copied_from_id = validated_data["copied_from_id"]
         instance.save()
         return instance
